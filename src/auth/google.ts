@@ -314,7 +314,8 @@ function remove(storage: StorageLike | null, key: string) {
 }
 
 export const auth = createAuth({
-  clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '',
+  // Trimmed: a value pasted with a trailing newline makes Google answer invalid_client.
+  clientId: (import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '').trim(),
   redirectUri: () => `${window.location.origin}${import.meta.env.BASE_URL}`,
   getHash: () => (typeof window === 'undefined' ? '' : window.location.hash),
   clearHash: () => {
