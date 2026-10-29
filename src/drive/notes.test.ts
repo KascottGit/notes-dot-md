@@ -6,13 +6,17 @@ import {
   createNote,
   ensureFolders,
   FOLDER_MIME,
+  folderContents,
   getNote,
   listCategories,
   listNotes,
+  listNotesIn,
   moveNote,
   readNote,
   renameNote,
+  renameFolder,
   saveNote,
+  trashFolder,
   trashNote,
 } from './notes';
 
@@ -238,5 +242,51 @@ describe('notes', () => {
     expect(files.get(note.id)!.trashed).toBe(true);
     expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
     expect(await listNotes(drive, inboxId)).toEqual([]);
+  });
+});
+
+describe('categories', () => {
+  it('renames a category folder', async () => {
+    const { drive, files, rootId } = await withFolders();
+    const school = await createFolder(drive, rootId, 'School');
+    expect(await renameFolder(drive, school.id, 'University')).toEqual({
+      id: school.id,
+      name: 'University',
+    });
+    expect(files.get(school.id)!.name).toBe('University');
+  });
+
+  it('trashes a category folder instead of deleting it', async () => {
+    const { drive, files, calls, rootId } = await withFolders();
+    const old = await createFolder(drive, rootId, 'Old');
+    await trashFolder(drive, old.id);
+    expect(files.get(old.id)!.trashed).toBe(true);
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
+    expect((await listCategories(drive, rootId)).map((c) => c.name)).toEqual(['Inbox']);
+  });
+
+  it('reports notes and other files in a folder', async () => {
+    const { drive, add, rootId } = await withFolders();
+    const school = await createFolder(drive, rootId, 'School');
+    await createNote(drive, school.id, 'Essay');
+    add({ name: 'photo.jpg', mimeType: 'image/jpeg', parents: [school.id] });
+    add({ name: 'Gone.md', parents: [school.id], trashed: true });
+
+    const { notes, otherFiles } = await folderContents(drive, school.id);
+
+    expect(notes.map((n) => n.title)).toEqual(['Essay']);
+    expect(otherFiles).toBe(1);
+  });
+
+  it('lists the notes of many categories, with the right category on each', async () => {
+    const { drive, rootId, inboxId } = await withFolders();
+    const ids = [inboxId];
+    for (let i = 0; i < 30; i++) ids.push((await createFolder(drive, rootId, `C${i}`)).id);
+    for (const id of ids) await createNote(drive, id, `Note in ${id}`);
+
+    const notes = await listNotesIn(drive, ids);
+
+    expect(notes).toHaveLength(31);
+    for (const note of notes) expect(note.title).toBe(`Note in ${note.folderId}`);
   });
 });

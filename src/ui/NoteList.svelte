@@ -1,24 +1,66 @@
+<!-- The note list: search, category filter, sort, and the notes themselves. -->
 <script lang="ts">
-  import type { Note } from '../drive/notes';
+  import type { Category, Note } from '../drive/notes';
+  import {
+    countByCategory,
+    filterNotes,
+    SORT_LABELS,
+    sortNotes,
+    type SortOrder,
+  } from '../store/noteList';
 
   interface Props {
     notes: Note[];
-    selectedId: string | null;
-    categoryName: (folderId: string) => string;
+    /** Already in display order (Inbox first). */
+    categories: Category[];
+    inboxId: string | null;
+    /** null = All notes. */
+    selectedCategory: string | null;
+    selectedNoteId: string | null;
+    sort: SortOrder;
+    query: string;
     loading: boolean;
     error: string | null;
     onOpen: (note: Note) => void;
     onNew: () => void;
+    onSelectCategory: (id: string | null) => void;
+    onSort: (sort: SortOrder) => void;
+    onQuery: (query: string) => void;
+    onNewCategory: () => void;
+    onRenameCategory: (category: Category) => void;
+    onDeleteCategory: (category: Category) => void;
   }
 
-  let { notes, selectedId, categoryName, loading, error, onOpen, onNew }: Props = $props();
+  let {
+    notes,
+    categories,
+    inboxId,
+    selectedCategory,
+    selectedNoteId,
+    sort,
+    query,
+    loading,
+    error,
+    onOpen,
+    onNew,
+    onSelectCategory,
+    onSort,
+    onQuery,
+    onNewCategory,
+    onRenameCategory,
+    onDeleteCategory,
+  }: Props = $props();
 
-  const sorted = $derived([...notes].sort((a, b) => b.modifiedTime.localeCompare(a.modifiedTime)));
+  const counts = $derived(countByCategory(notes));
+  const shown = $derived(sortNotes(filterNotes(notes, selectedCategory, query), sort));
+  const current = $derived(categories.find((c) => c.id === selectedCategory) ?? null);
+  const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? '';
 
   const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
   const timeFormat = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
 
-  function when(iso: string): string {
+  function when(note: Note): string {
+    const iso = sort === 'created' ? note.createdTime : note.modifiedTime;
     const date = new Date(iso);
     const today = new Date().toDateString() === date.toDateString();
     return today ? timeFormat.format(date) : dateFormat.format(date);
@@ -27,28 +69,82 @@
 
 <nav class="list" aria-label="Notes">
   <div class="top">
-    <h2>All notes</h2>
+    <input
+      class="search"
+      type="search"
+      placeholder="Search titles"
+      aria-label="Search note titles"
+      value={query}
+      oninput={(e) => onQuery(e.currentTarget.value)}
+    />
     <button class="new" onclick={onNew} disabled={loading}>New note</button>
+  </div>
+
+  <div class="categories" role="group" aria-label="Categories">
+    <button
+      class="chip"
+      class:active={selectedCategory === null}
+      aria-pressed={selectedCategory === null}
+      onclick={() => onSelectCategory(null)}
+    >
+      All notes <span class="count">{notes.length}</span>
+    </button>
+    {#each categories as c (c.id)}
+      <button
+        class="chip"
+        class:active={selectedCategory === c.id}
+        aria-pressed={selectedCategory === c.id}
+        onclick={() => onSelectCategory(c.id)}
+      >
+        {c.name} <span class="count">{counts.get(c.id) ?? 0}</span>
+      </button>
+    {/each}
+    <button class="chip add" onclick={onNewCategory} disabled={loading} aria-label="New category">
+      + Category
+    </button>
+  </div>
+
+  <div class="bar">
+    <h2>{current?.name ?? 'All notes'}</h2>
+    {#if current && current.id !== inboxId}
+      <button class="small" onclick={() => onRenameCategory(current)}>Rename</button>
+      <button class="small" onclick={() => onDeleteCategory(current)}>Delete</button>
+    {/if}
+    <select
+      class="sort"
+      aria-label="Sort notes"
+      value={sort}
+      onchange={(e) => onSort(e.currentTarget.value as SortOrder)}
+    >
+      {#each Object.entries(SORT_LABELS) as [value, label] (value)}
+        <option {value}>{label}</option>
+      {/each}
+    </select>
   </div>
 
   {#if error}
     <p class="message error" role="alert">{error}</p>
   {:else if loading}
     <p class="message">Loading notes…</p>
-  {:else if sorted.length === 0}
-    <p class="message">No notes yet. Create one to get started.</p>
+  {:else if shown.length === 0}
+    <p class="message">
+      {query ? 'No titles match your search.' : 'No notes here yet. Create one to get started.'}
+    </p>
   {:else}
     <ul>
-      {#each sorted as note (note.id)}
+      {#each shown as note (note.id)}
         <li>
           <button
             class="item"
-            class:selected={note.id === selectedId}
-            aria-current={note.id === selectedId ? 'true' : undefined}
+            class:selected={note.id === selectedNoteId}
+            aria-current={note.id === selectedNoteId ? 'true' : undefined}
             onclick={() => onOpen(note)}
           >
             <span class="title">{note.title}</span>
-            <span class="meta">{categoryName(note.folderId)} · {when(note.modifiedTime)}</span>
+            <span class="meta">
+              {#if selectedCategory === null}{categoryName(note.folderId)} ·{/if}
+              {when(note)}
+            </span>
           </button>
         </li>
       {/each}
@@ -66,20 +162,27 @@
 
   .top {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
     gap: 8px;
-    padding: 8px 8px 8px 16px;
+    padding: 8px;
   }
 
-  h2 {
-    margin: 0;
-    font-size: 1rem;
+  .search {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-muted);
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
   }
 
   .new {
+    flex: none;
     min-height: 44px;
-    padding: 0 16px;
+    padding: 0 14px;
     border: 0;
     border-radius: 8px;
     background: var(--accent);
@@ -89,8 +192,93 @@
     cursor: pointer;
   }
 
-  .new:disabled {
-    opacity: 0.6;
+  .categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 8px 8px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  /* Still a 44px touch target. */
+  .chip {
+    position: relative;
+  }
+
+  .chip::after {
+    content: '';
+    position: absolute;
+    inset: -4px -2px;
+  }
+
+  .chip.active {
+    border-color: var(--accent);
+    background: var(--selection);
+  }
+
+  .chip.add {
+    color: var(--text-muted);
+    border-style: dashed;
+  }
+
+  .count {
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px 4px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  h2 {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    font-size: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .small {
+    min-height: 44px;
+    padding: 0 8px;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  .sort {
+    min-height: 44px;
+    padding: 0 8px;
+    border: 0;
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
   }
 
   ul {
@@ -145,5 +333,9 @@
 
   .error {
     color: var(--danger);
+  }
+
+  button:disabled {
+    opacity: 0.6;
   }
 </style>

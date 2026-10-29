@@ -1,32 +1,49 @@
 <!-- The signed-in app: note list and editor. -->
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { auth } from '../auth/google';
   import { drive } from '../drive/client';
+  import { sanitizeCategoryName } from '../drive/names';
   import {
+    createFolder,
     createNote,
     ensureFolders,
+    folderContents,
     getNote,
     listCategories,
-    listNotes,
+    listNotesIn,
+    moveNote,
     readNote,
+    renameFolder,
+    renameNote,
+    trashFolder,
     type Category,
     type Folders,
     type Note,
   } from '../drive/notes';
   import { createEditor, type Editor } from '../editor/setup';
+  import { loadSort, saveSort, sortCategories, type SortOrder } from '../store/noteList';
   import { NoteSession, type ConflictChoice, type SessionState } from '../store/noteSession';
   import { clearStash, readStash, saveStash, type Stash } from '../store/stash';
   import { safeLocalStorage } from '../store/storage';
   import ConflictDialog from './ConflictDialog.svelte';
+  import NameDialog from './NameDialog.svelte';
   import NoteHeader from './NoteHeader.svelte';
   import NoteList from './NoteList.svelte';
   import Toolbar from './Toolbar.svelte';
 
-  let folders: Folders | null = null;
+  let folders = $state<Folders | null>(null);
   let categories = $state<Category[]>([]);
   let notes = $state<Note[]>([]);
   let loading = $state(true);
+  /** Category filter; null = All notes. */
+  let selectedCategory = $state<string | null>(null);
+  let sort = $state<SortOrder>(loadSort());
+  let query = $state('');
+  let lastListLoad = 0;
+  /** The category name dialog: creating one, or renaming `category`. */
+  let nameDialog = $state<{ mode: 'create' } | { mode: 'rename'; category: Category } | null>(null);
+  let header = $state<NoteHeader>();
   let listError = $state<string | null>(null);
   let openError = $state<string | null>(null);
 
@@ -39,8 +56,6 @@
   /** Leaving for Google's sign-in page, with unsaved text stashed. */
   let redirecting = false;
   let stopStashOnRedirect: (() => void) | null = null;
-
-  const categoryName = (folderId: string) => categories.find((c) => c.id === folderId)?.name ?? '';
 
   onMount(() => {
     void loadList().then(restoreStash);
@@ -67,13 +82,29 @@
     listError = null;
     try {
       folders = await ensureFolders(drive, safeLocalStorage());
-      categories = await listCategories(drive, folders.rootId);
-      const perCategory = await Promise.all(categories.map((c) => listNotes(drive, c.id)));
-      notes = perCategory.flat();
+      await refreshList();
     } catch (err) {
       listError = `Couldn't load your notes: ${message(err)}`;
     } finally {
       loading = false;
+    }
+  }
+
+  /** Re-read categories and notes from Drive, so changes made there show up. */
+  async function refreshList() {
+    if (!folders) return;
+    lastListLoad = Date.now();
+    const found = await listCategories(drive, folders.rootId);
+    const loaded = await listNotesIn(
+      drive,
+      found.map((c) => c.id),
+    );
+    categories = sortCategories(found, folders.inboxId);
+    // The open note's metadata comes from its session, which is newer.
+    const open = session?.state.note;
+    notes = loaded.map((n) => (open && n.id === open.id ? open : n));
+    if (selectedCategory && !found.some((c) => c.id === selectedCategory)) {
+      selectedCategory = null;
     }
   }
 
@@ -195,10 +226,11 @@
       return;
     }
     try {
-      const note = await createNote(drive, folders.inboxId, 'Untitled');
+      const note = await createNote(drive, selectedCategory ?? folders.inboxId, 'Untitled');
       notes = [...notes, note];
       show(note, '');
-      editor?.focus();
+      await tick();
+      header?.focusTitle();
     } catch (err) {
       openError = `Couldn't create a note: ${message(err)}`;
     }
@@ -211,6 +243,111 @@
 
   function onWindowFocus() {
     void session?.checkRemote();
+    // Pick up categories and notes changed in Drive, at most every 30 seconds.
+    if (Date.now() - lastListLoad > 30_000) void refreshList().catch(() => {});
+  }
+
+  /** Put a changed note (rename, move) into the list and the open session. */
+  function replaceNote(note: Note) {
+    notes = notes.map((n) => (n.id === note.id ? note : n));
+    if (session?.state.note.id === note.id) session.updateNote(note);
+  }
+
+  async function renameOpenNote(title: string) {
+    if (!session) return;
+    openError = null;
+    try {
+      replaceNote(await renameNote(drive, session.state.note, title));
+    } catch (err) {
+      openError = `Couldn't rename the note: ${message(err)}`;
+    }
+  }
+
+  async function moveOpenNote(folderId: string) {
+    if (!session || folderId === session.state.note.folderId) return;
+    openError = null;
+    try {
+      replaceNote(await moveNote(drive, session.state.note, folderId));
+    } catch (err) {
+      openError = `Couldn't move the note: ${message(err)}`;
+    }
+  }
+
+  function selectSort(order: SortOrder) {
+    sort = order;
+    saveSort(order);
+  }
+
+  /** Check a category name; returns an error message or the clean name. */
+  function checkCategoryName(raw: string, except?: string): { name: string } | { error: string } {
+    const name = sanitizeCategoryName(raw);
+    if (!name) return { error: 'Please enter a name.' };
+    const taken = categories.some(
+      (c) => c.id !== except && c.name.toLowerCase() === name.toLowerCase(),
+    );
+    return taken ? { error: `There is already a category called "${name}".` } : { name };
+  }
+
+  async function submitCategoryName(raw: string): Promise<string | null> {
+    if (!folders || !nameDialog) return null;
+    const editing = nameDialog.mode === 'rename' ? nameDialog.category : null;
+    const checked = checkCategoryName(raw, editing?.id);
+    if ('error' in checked) return checked.error;
+    try {
+      if (editing) {
+        const renamed = await renameFolder(drive, editing.id, checked.name);
+        categories = sortCategories(
+          categories.map((c) => (c.id === renamed.id ? renamed : c)),
+          folders.inboxId,
+        );
+      } else {
+        const created = await createFolder(drive, folders.rootId, checked.name);
+        categories = sortCategories([...categories, created], folders.inboxId);
+        selectedCategory = created.id;
+      }
+      return null;
+    } catch (err) {
+      return `Couldn't save the category: ${message(err)}`;
+    }
+  }
+
+  /**
+   * Delete a category: only when empty, else offer to move its notes to Inbox
+   * first. The folder goes to the Drive trash.
+   */
+  async function deleteCategory(category: Category) {
+    if (!folders || category.id === folders.inboxId) return;
+    openError = null;
+    try {
+      const { notes: inside, otherFiles } = await folderContents(drive, category.id);
+      if (otherFiles > 0) {
+        alert(
+          `"${category.name}" also holds ${otherFiles} file(s) that aren't notes. ` +
+            'Move or delete those in Google Drive first.',
+        );
+        return;
+      }
+      if (inside.length > 0) {
+        const plural = inside.length === 1 ? 'note' : 'notes';
+        if (
+          !confirm(
+            `"${category.name}" has ${inside.length} ${plural}. Move them to Inbox and delete the category?`,
+          )
+        ) {
+          return;
+        }
+        // One at a time, so name clashes in Inbox get (2), (3)... correctly.
+        for (const note of inside) replaceNote(await moveNote(drive, note, folders.inboxId));
+      } else if (!confirm(`Delete the category "${category.name}"? It goes to the Drive trash.`)) {
+        return;
+      }
+      await trashFolder(drive, category.id);
+      categories = categories.filter((c) => c.id !== category.id);
+      if (selectedCategory === category.id) selectedCategory = null;
+    } catch (err) {
+      openError = `Couldn't delete the category: ${message(err)}`;
+      void refreshList().catch(() => {});
+    }
   }
 
   function onVisibilityChange() {
@@ -236,22 +373,36 @@
   <aside>
     <NoteList
       {notes}
-      selectedId={sessionState?.note.id ?? null}
-      {categoryName}
+      {categories}
+      inboxId={folders?.inboxId ?? null}
+      {selectedCategory}
+      selectedNoteId={sessionState?.note.id ?? null}
+      {sort}
+      {query}
       {loading}
       error={listError}
       onOpen={(note) => openNote(note)}
       onNew={newNote}
+      onSelectCategory={(id) => (selectedCategory = id)}
+      onSort={selectSort}
+      onQuery={(q) => (query = q)}
+      onNewCategory={() => (nameDialog = { mode: 'create' })}
+      onRenameCategory={(category) => (nameDialog = { mode: 'rename', category })}
+      onDeleteCategory={deleteCategory}
     />
   </aside>
 
   <section class="main">
     {#if sessionState}
       <NoteHeader
-        state={sessionState}
-        categoryName={categoryName(sessionState.note.folderId)}
+        bind:this={header}
+        {sessionState}
+        {categories}
         onBack={() => (view = 'list')}
         onRetry={() => void session?.retry()}
+        onRename={renameOpenNote}
+        onMove={moveOpenNote}
+        onDone={() => editor?.focus()}
       />
       {#if !sessionState.readOnly}
         <Toolbar run={(command) => editor?.run(command)} />
@@ -266,6 +417,16 @@
     <div class="editor" class:hidden={!sessionState} bind:this={editorEl}></div>
   </section>
 </div>
+
+<NameDialog
+  open={nameDialog !== null}
+  title={nameDialog?.mode === 'rename' ? 'Rename category' : 'New category'}
+  label="Name"
+  initial={nameDialog?.mode === 'rename' ? nameDialog.category.name : ''}
+  confirmLabel={nameDialog?.mode === 'rename' ? 'Rename' : 'Create'}
+  onSubmit={submitCategoryName}
+  onClose={() => (nameDialog = null)}
+/>
 
 {#if sessionState}
   <ConflictDialog open={sessionState.conflict} title={sessionState.note.title} onChoose={resolve} />

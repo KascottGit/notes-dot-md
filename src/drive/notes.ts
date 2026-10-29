@@ -221,6 +221,65 @@ export async function listCategories(drive: DriveClient, rootId: string): Promis
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Rename a category folder. */
+export async function renameFolder(
+  drive: DriveClient,
+  id: string,
+  name: string,
+): Promise<Category> {
+  const file = await drive.json<DriveFile>(`${FILES}/${id}?fields=${FOLDER_FIELDS}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  return { id: file.id, name: file.name };
+}
+
+/** Move a category folder to the Drive trash. Never hard-deletes. */
+export async function trashFolder(drive: DriveClient, id: string): Promise<void> {
+  await drive.request(`${FILES}/${id}?fields=id`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: true }),
+  });
+}
+
+/** What a folder holds: notes, and other files (images, folders, Docs...). */
+export async function folderContents(
+  drive: DriveClient,
+  folderId: string,
+): Promise<{ notes: Note[]; otherFiles: number }> {
+  const q = `${quoteQuery(folderId)} in parents and trashed = false`;
+  const files = await listAll(drive, q, NOTE_FIELDS);
+  const notes = files.filter(isNoteFile).map((f) => toNote(f, folderId));
+  return { notes, otherFiles: files.length - notes.length };
+}
+
+/**
+ * Markdown notes in all the given category folders, in as few requests as
+ * possible (Drive queries can OR several parents together).
+ */
+export async function listNotesIn(drive: DriveClient, folderIds: string[]): Promise<Note[]> {
+  const known = new Set(folderIds);
+  const chunks: string[][] = [];
+  for (let i = 0; i < folderIds.length; i += 25) chunks.push(folderIds.slice(i, i + 25));
+  const pages = await Promise.all(
+    chunks.map((ids) => {
+      const parents = ids.map((id) => `${quoteQuery(id)} in parents`).join(' or ');
+      return listAll(drive, `(${parents}) and trashed = false`, NOTE_FIELDS);
+    }),
+  );
+  return pages
+    .flat()
+    .filter(isNoteFile)
+    .map((f) =>
+      toNote(
+        f,
+        f.parents?.find((p) => known.has(p)),
+      ),
+    );
+}
+
 /** Markdown notes in one category folder. */
 export async function listNotes(drive: DriveClient, folderId: string): Promise<Note[]> {
   const q = `${quoteQuery(folderId)} in parents and trashed = false`;

@@ -12,6 +12,11 @@ export function sanitizeTitle(title: string): string {
   return clean || DEFAULT_TITLE;
 }
 
+/** Clean up a category (folder) name. Returns '' when nothing is left. */
+export function sanitizeCategoryName(name: string): string {
+  return name.replace(FORBIDDEN, '').replace(/\s+/g, ' ').trim();
+}
+
 /** `My note` → `My note.md` */
 export function fileNameForTitle(title: string): string {
   return `${sanitizeTitle(title)}.md`;

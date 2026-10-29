@@ -55,10 +55,19 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
     return { ...rest, version: String(version), capabilities: { canEdit: true } };
   }
 
-  /** Supports `a and b and ...` with: name =, mimeType =, 'x' in parents, trashed = false. */
+  /**
+   * Supports `a and b and ...` with: name =, mimeType =, 'x' in parents,
+   * trashed = false, and one level of `(a or b)`.
+   */
   function matches(f: FakeFile, q: string): boolean {
     return q.split(' and ').every((clause) => {
       const c = clause.trim();
+      if (c.startsWith('(') && c.endsWith(')')) {
+        return c
+          .slice(1, -1)
+          .split(' or ')
+          .some((part) => matches(f, part));
+      }
       let m: RegExpMatchArray | null;
       if ((m = c.match(/^'(.*)' in parents$/))) return f.parents.includes(unquote(m[1]!));
       if ((m = c.match(/^name = '(.*)'$/))) return f.name === unquote(m[1]!);

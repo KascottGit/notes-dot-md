@@ -291,3 +291,26 @@ describe('errors', () => {
     expect(session.state.readOnly).toBe(true);
   });
 });
+
+describe('metadata updates from rename or move', () => {
+  it('takes the new name but keeps the newest version', async () => {
+    const { session, note, edit } = await setup();
+    edit('typed');
+    await session.save(); // version goes up
+    const saved = session.state.note.version;
+
+    session.updateNote({ ...note, name: 'Renamed.md', title: 'Renamed', version: '1' });
+
+    expect(session.state.note.title).toBe('Renamed');
+    expect(session.state.note.version).toBe(saved);
+  });
+
+  it('a rename does not cause a conflict on the next save', async () => {
+    const { session, note, drive, edit } = await setup();
+    const { renameNote } = await import('../drive/notes');
+    session.updateNote(await renameNote(drive, note, 'New name'));
+    edit('after rename');
+    await expect(session.save()).resolves.toBe(true);
+    expect(session.state.conflict).toBe(false);
+  });
+});

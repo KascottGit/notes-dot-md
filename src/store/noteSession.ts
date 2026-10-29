@@ -176,9 +176,15 @@ export class NoteSession {
     }
   }
 
-  /** Update metadata after a rename or move done elsewhere in the app. */
+  /**
+   * Update metadata after a rename or move done elsewhere in the app. A save
+   * may finish around the same time, so keep the newest version number.
+   */
   updateNote(note: Note): void {
-    this.note = note;
+    if (note.id !== this.note.id) return;
+    const version =
+      Number(note.version) >= Number(this.note.version) ? note.version : this.note.version;
+    this.note = { ...note, version };
     this.emit();
   }
 
