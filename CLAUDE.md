@@ -61,7 +61,7 @@ src/
 - TypeScript strict mode; no `any` without a comment explaining why.
 - All Drive access goes through `drive/client.ts`. UI code never calls `fetch` for Drive directly.
 - Request only the fields you need from Drive (`fields=` parameter).
-- The OAuth scope lives in one constant in `auth/google.ts` (currently `drive.file`).
+- The OAuth scope lives in one constant in `auth/google.ts` (currently the full `drive` scope, decided 2026-10-29).
 - Vite `base` is `/notes-dot-md/`. Use relative or `import.meta.env.BASE_URL`-based paths, never hard-coded `/` roots.
 - Theme colors are CSS custom properties with light and dark values (`prefers-color-scheme`).
 - Mobile: inputs and the editor use a font size of at least 16px; touch targets are at least 44px.

@@ -51,7 +51,7 @@ Keep all markdown logic (parsing helpers, format commands) free of UI code. The 
 
 ## Google Drive storage and auth
 
-Notes live in a `Notes/` folder in My Drive, one `.md` file per note and one subfolder per category. The app uses the `drive.file` scope (`https://www.googleapis.com/auth/drive.file`), which needs no Google app verification.
+Notes live in a `Notes/` folder in My Drive, one `.md` file per note and one subfolder per category. The app uses the full `drive` scope (`https://www.googleapis.com/auth/drive`), so notes created by other tools show up. It is a restricted scope, which works for personal use in testing mode but shows an "unverified app" warning. The app only reads and writes the `Notes/` folder.
 
 ```
 My Drive/
@@ -98,7 +98,7 @@ Google Cloud setup (done by hand before milestone 1):
 4. Add authorized JavaScript origins: `http://localhost:5173` and `https://<username>.github.io`. Origins are domain only, so the `/notes-dot-md/` path is not part of them.
 5. Put the client ID in `.env` as `VITE_GOOGLE_CLIENT_ID`. It is not a secret.
 
-Known limit of `drive.file`: the app only sees files it created or that the user explicitly opened with it. A `.md` file uploaded to `Notes/` some other way will not show up. Keep the scope in one config constant so it can be widened later (see the Claude section).
+Because the full scope is used, `Notes/` can contain files the app did not create: `.md` files uploaded by hand or written by other tools, and also non-markdown files and shortcuts. The note list shows only markdown files and ignores the rest. The scope lives in one config constant.
 
 ## Editor: live preview
 
@@ -318,7 +318,7 @@ Out of scope for v1: offline editing, real-time collaboration, images and attach
 
 Open questions:
 
-- [ ] Keep `drive.file`, or switch to the full `drive` scope so notes created by Claude or other tools show up? The full scope is restricted by Google but works for personal use in testing mode. Decide before M2.
+- [x] Keep `drive.file`, or switch to the full `drive` scope so notes created by Claude or other tools show up? **Decided 2026-10-29: full `drive` scope.** The notes on `drive.file` limits in the later-phase sections no longer apply.
 - [ ] Due date syntax for board cards: `@2026-11-03` as proposed, or another format?
 - [ ] Use a custom domain instead of `<username>.github.io/notes-dot-md/`?
 

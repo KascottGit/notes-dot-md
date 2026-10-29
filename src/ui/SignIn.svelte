@@ -36,7 +36,8 @@
     {/if}
 
     <p class="fine">
-      notes.md only sees files it creates in a <code>Notes</code> folder, not the rest of your Drive.
+      Google will ask for access to your Drive. notes.md only reads and writes the
+      <code>Notes</code> folder.
     </p>
   </div>
 </div>

@@ -5,7 +5,7 @@ export interface Account {
   emailAddress: string;
 }
 
-/** The signed-in user, from Drive's `about` endpoint (works with `drive.file`). */
+/** The signed-in user, from Drive's `about` endpoint. */
 export async function getAccount(drive: DriveClient): Promise<Account> {
   const about = await drive.json<{ user: Account }>(
     '/drive/v3/about?fields=user(displayName,emailAddress)',

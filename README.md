@@ -41,7 +41,7 @@ My Drive/
 - One note = one file named `<title>.md`.
 - One category = one subfolder of `Notes/` (one level deep).
 - Deleting a note moves it to the Drive trash. The app never permanently deletes anything.
-- The app uses the `drive.file` scope, so it can only see files it created or that you opened with it. It cannot read the rest of your Drive.
+- The app asks for full Drive access (the `drive` scope), so notes created by other tools, such as Claude, rclone or a manual upload, show up too. It only reads and writes the `Notes/` folder.
 
 ## Tech stack
 
@@ -57,7 +57,7 @@ Vite · TypeScript · Svelte 5 · CodeMirror 6 · Google Identity Services · Go
 ### Google Cloud setup
 
 1. Create a Google Cloud project and enable the **Google Drive API**.
-2. Configure the OAuth consent screen as **External**, in testing mode, and add yourself as a test user.
+2. Configure the OAuth consent screen as **External**, in testing mode, and add yourself as a test user. Under **Data access**, add the scope `https://www.googleapis.com/auth/drive`. It is a restricted scope, so Google shows an "unverified app" warning at sign-in; that is expected for a personal app in testing mode.
 3. Create an OAuth client ID of type **Web application**.
 4. Add these authorized JavaScript origins (domain only, no path):
    - `http://localhost:5173`

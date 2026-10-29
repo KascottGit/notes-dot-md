@@ -10,7 +10,11 @@ type OAuth2 = typeof google.accounts.oauth2;
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 /** The one place the OAuth scope is defined. */
-export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+/**
+ * Full Drive access, so notes created by other tools (Claude, rclone, manual
+ * uploads) show up too. The app itself only touches the Notes folder.
+ */
+export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 const LOGIN_HINT_KEY = 'mdnotes.loginHint';
