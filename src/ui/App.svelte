@@ -5,7 +5,6 @@
   import { getAccount, type Account } from '../drive/account';
   import { clearFolderCache } from '../drive/notes';
   import { safeLocalStorage } from '../store/storage';
-  import { fitVisualViewport } from './fitVisualViewport';
   import SessionBanner from './SessionBanner.svelte';
   import SignIn from './SignIn.svelte';
   import Workspace from './Workspace.svelte';
@@ -74,7 +73,7 @@
 {#if $auth.status === 'loading' || $auth.status === 'signed-out'}
   <SignIn onSignIn={handleSignIn} />
 {:else}
-  <div class="shell" use:fitVisualViewport={{ onResize: () => workspace?.revealCursor() }}>
+  <div class="shell">
     <SessionBanner />
     <header>
       <h1>notes.md{devLabel}</h1>

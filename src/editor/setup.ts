@@ -45,12 +45,6 @@ export interface Editor {
   setText(text: string): void;
   /** Start over with a new document and an empty undo history. */
   load(doc: string, readOnly: boolean): void;
-  /**
-   * Scroll just enough to show the cursor, if the editor has focus. Used when
-   * the visible area changes (on-screen keyboard opening). Does nothing when
-   * the cursor is already visible.
-   */
-  revealCursor(): void;
   /** Run a format command on the current selection, keeping focus in the editor. */
   run(command: StateCommand): void;
   focus(): void;
@@ -168,15 +162,6 @@ export function createEditor(options: EditorOptions): Editor {
     },
     load(doc, readOnly) {
       view.setState(makeState(doc, readOnly));
-    },
-    revealCursor() {
-      if (!view.hasFocus) return;
-      view.dispatch({
-        effects: EditorView.scrollIntoView(view.state.selection.main.head, {
-          y: 'nearest',
-          yMargin: 24,
-        }),
-      });
     },
     run(command) {
       command(view);

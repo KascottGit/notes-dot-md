@@ -169,7 +169,7 @@ Toggle behavior:
 - **Switching list type** replaces the existing prefix. For example, a bullet list becomes a checklist instead of getting both markers. Numbered lists are renumbered in order.
 - Buttons call `preventDefault` on `mousedown`/`pointerdown` so the editor keeps focus and the selection.
 
-Placement: under the note title on every screen size, horizontally scrollable on narrow screens. (Changed 2026-10-29 from pinning it above the keyboard on mobile.) While the on-screen keyboard is open, the app is sized to the `visualViewport` (like a native notes app): the header and bar stay at the top, the note area shrinks, and the editor scrolls just enough to keep the cursor visible above the keyboard.
+Placement: under the note title on every screen size, horizontally scrollable on narrow screens. (Changed 2026-10-29 from pinning it above the keyboard on mobile.) For now the app is not resized for the on-screen keyboard, so on iPhone the header and bar can scroll out of view while typing (see To do).
 
 ## Organization: categories and sorting
 
@@ -323,6 +323,10 @@ Open questions:
 - [x] Keep `drive.file`, or switch to the full `drive` scope so notes created by Claude or other tools show up? **Decided 2026-10-29: full `drive` scope.** The notes on `drive.file` limits in the later-phase sections no longer apply.
 - [ ] Due date syntax for board cards: `@2026-11-03` as proposed, or another format?
 - [ ] Use a custom domain instead of `<username>.github.io/notes-dot-md/`?
+
+To do (later):
+
+- [ ] **Keep the header and format bar visible above the iPhone keyboard.** Goal: like Apple Notes, the header and bar stay at the top and the note area shrinks to fit above the keyboard, with the cursor line kept visible. Tried on 2026-10-29: (1) sizing the app to the `visualViewport` and following its `offsetTop` made the tapped line end up hidden; (2) adding a scroll-cursor-into-view step after each resize made the screen flicker until the editor was tapped again, likely a loop between Safari panning the page, the app scrolling it back and the editor scrolling. Needs testing on a real iPhone; ideas: only react to `resize` (not `scroll`), avoid `window.scrollTo`, debounce until the keyboard animation ends, or remember the keyboard height and shrink before Safari pans.
 
 ## Handing this to Claude Code
 
