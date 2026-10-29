@@ -22,7 +22,7 @@ A markdown note-taking web app (PWA) that stores every note as a plain `.md` fil
 
 ## Stack
 
-Vite + TypeScript (strict) + Svelte 5 · CodeMirror 6 with `@codemirror/lang-markdown` and the GFM extension from `@lezer/markdown` · Google Identity Services token client · Google Drive REST API v3 via `fetch` · `vite-plugin-pwa` · Vitest.
+Vite + TypeScript (strict) + Svelte 5 · CodeMirror 6 with `@codemirror/lang-markdown` and the GFM extension from `@lezer/markdown` · Google OAuth 2.0 redirect flow (`response_type=token`, no popups) · Google Drive REST API v3 via `fetch` · `vite-plugin-pwa` · Vitest.
 
 Package manager: npm.
 
@@ -43,7 +43,7 @@ Run `npm run check`, `npm run lint` and `npm test` before every commit.
 
 ```
 src/
-  auth/google.ts         GIS token client, getToken(), silent refresh
+  auth/google.ts         redirect sign-in, getToken(), renewal
   drive/client.ts        fetch wrapper: auth header, retries, 401 handling
   drive/notes.ts         list/read/create/save/rename/move/trash, folder bootstrap
   editor/setup.ts        CodeMirror configuration and keymaps
@@ -77,5 +77,5 @@ src/
 ## Environment
 
 - Copy `.env.example` to `.env` and set `VITE_GOOGLE_CLIENT_ID`. The client ID is not secret, but `.env` stays out of git.
-- Authorized JavaScript origins in Google Cloud: `http://localhost:5173` and `https://<username>.github.io` (origins never include the path).
+- Authorized JavaScript origins in Google Cloud: `http://localhost:5173` and `https://<username>.github.io` (origins never include the path). Authorized redirect URIs: `http://localhost:5173/notes-dot-md/` and `https://<username>.github.io/notes-dot-md/` (with path and trailing slash).
 - Main dev machine: EndeavourOS with Hyprland (Wayland). Test in Chromium and Firefox on Linux, and Chrome on Android.

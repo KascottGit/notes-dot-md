@@ -1,6 +1,7 @@
 <!-- The signed-in app: note list and editor. -->
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { auth } from '../auth/google';
   import { drive } from '../drive/client';
   import {
     createNote,
@@ -15,6 +16,7 @@
   } from '../drive/notes';
   import { createEditor, type Editor } from '../editor/setup';
   import { NoteSession, type ConflictChoice, type SessionState } from '../store/noteSession';
+  import { clearStash, readStash, saveStash, type Stash } from '../store/stash';
   import { safeLocalStorage } from '../store/storage';
   import ConflictDialog from './ConflictDialog.svelte';
   import NoteHeader from './NoteHeader.svelte';
@@ -33,11 +35,18 @@
   let sessionState = $state<SessionState | null>(null);
   /** Which pane shows on narrow screens. */
   let view = $state<'list' | 'editor'>('list');
+  /** Leaving for Google's sign-in page, with unsaved text stashed. */
+  let redirecting = false;
+  let stopStashOnRedirect: (() => void) | null = null;
 
   const categoryName = (folderId: string) => categories.find((c) => c.id === folderId)?.name ?? '';
 
   onMount(() => {
-    void loadList();
+    void loadList().then(restoreStash);
+    stopStashOnRedirect = auth.onBeforeRedirect(() => {
+      redirecting = true;
+      stashOpenNote();
+    });
     window.addEventListener('focus', onWindowFocus);
     window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -47,6 +56,7 @@
     window.removeEventListener('focus', onWindowFocus);
     window.removeEventListener('beforeunload', onBeforeUnload);
     document.removeEventListener('visibilitychange', onVisibilityChange);
+    stopStashOnRedirect?.();
     session?.dispose();
     editor?.destroy();
   });
@@ -64,6 +74,52 @@
     } finally {
       loading = false;
     }
+  }
+
+  /**
+   * Keep the open note (and unsaved text) in this tab across a reload: the
+   * sign-in redirect, or iOS discarding the tab in the background.
+   */
+  function stashOpenNote() {
+    if (!session || !editor) return;
+    const { note } = session.state;
+    saveStash({
+      noteId: note.id,
+      folderId: note.folderId,
+      version: note.version,
+      ...(session.isDirty() ? { unsaved: { base: session.baseText, text: editor.getText() } } : {}),
+    });
+  }
+
+  /** After a reload: reopen the note, and put back text that wasn't saved yet. */
+  async function restoreStash() {
+    const stash = readStash();
+    if (!stash || listError) return;
+    try {
+      const [fresh, text] = await Promise.all([
+        getNote(drive, stash.noteId),
+        readNote(drive, stash.noteId),
+      ]);
+      const note = { ...fresh, folderId: stash.folderId };
+      if (!stash.unsaved || stash.unsaved.text === text) {
+        show(note, text);
+        clearStash();
+        return;
+      }
+      restoreUnsaved(note, stash as Required<Stash>);
+    } catch (err) {
+      // Keep the stash so the text isn't lost; it is tried again on the next load.
+      openError = `Couldn't reopen your last note: ${message(err)}`;
+    }
+  }
+
+  function restoreUnsaved(note: Note, stash: Required<Stash>) {
+    // Start from the version the edits were based on, so saving runs the
+    // normal conflict check if the note changed on Drive in the meantime.
+    show({ ...note, version: stash.version }, stash.unsaved.base);
+    editor?.setText(stash.unsaved.text);
+    session?.edited();
+    void session?.save();
   }
 
   /** Save the open note before leaving it. False if its text can't be saved right now. */
@@ -124,6 +180,7 @@
 
   function onSessionState(state: SessionState) {
     sessionState = state;
+    if (state.status === 'saved' && !redirecting) clearStash();
     // Keep the list in step with saves (modified time, name).
     notes = notes.map((n) => (n.id === state.note.id ? state.note : n));
   }
@@ -156,10 +213,13 @@
   }
 
   function onVisibilityChange() {
-    if (document.visibilityState === 'hidden') void session?.save();
+    if (document.visibilityState !== 'hidden') return;
+    if (session?.isDirty()) stashOpenNote(); // In case iOS discards the tab.
+    void session?.save();
   }
 
   function onBeforeUnload(event: BeforeUnloadEvent) {
+    if (redirecting) return; // Unsaved text is stashed and restored after sign-in.
     if (session?.hasUnsavedWork()) {
       void session.save();
       event.preventDefault();

@@ -14,8 +14,20 @@
   let account = $state<Account | null>(null);
   let workspace = $state<Workspace>();
 
+  /** Renew a token that is expired or about to expire when the user comes back. */
+  const RENEW_WITHIN_MS = 5 * 60_000;
+
   onMount(() => {
-    void auth.init();
+    auth.init();
+    const onReturn = () => {
+      if (document.visibilityState === 'visible') auth.renewIfExpiring(RENEW_WITHIN_MS);
+    };
+    window.addEventListener('focus', onReturn);
+    document.addEventListener('visibilitychange', onReturn);
+    return () => {
+      window.removeEventListener('focus', onReturn);
+      document.removeEventListener('visibilitychange', onReturn);
+    };
   });
 
   // Load the account whenever a sign-in completes, however it completed.
@@ -37,7 +49,7 @@
   }
 
   function handleSignIn(options?: { selectAccount?: boolean }) {
-    void auth.signIn(options);
+    auth.signIn(options);
   }
 
   async function handleSignOut() {

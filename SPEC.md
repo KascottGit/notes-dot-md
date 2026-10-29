@@ -26,7 +26,7 @@ The app is a static single-page app that talks to Google Drive straight from the
 | UI shell (note list, dialogs, toolbar) | Svelte 5 |
 | Editor | CodeMirror 6 with `@codemirror/lang-markdown` and the GFM extension from `@lezer/markdown` |
 | Code highlighting in fenced blocks | `@codemirror/language-data` |
-| Auth | Google Identity Services token client (`https://accounts.google.com/gsi/client`) |
+| Auth | OAuth 2.0 redirect flow for browser apps (`response_type=token`), no library. Changed from the GIS popup token client on 2026-10-29: popups can't hand the token back in iPhone Safari and installed PWAs |
 | Storage | Google Drive REST API v3 via `fetch` |
 | PWA | `vite-plugin-pwa` |
 | Hosting | GitHub Pages at https://\<username>.github.io/notes-dot-md/, deployed by a GitHub Actions workflow; Vite base set to /notes-dot-md/ |
@@ -35,7 +35,7 @@ Suggested module layout:
 
 ```
 src/
-  auth/google.ts         token client, getToken(), silent refresh
+  auth/google.ts         redirect sign-in, getToken(), renewal
   drive/client.ts        fetch wrapper: auth header, retries, 401 handling
   drive/notes.ts         list/read/create/save/rename/move/trash, folder bootstrap
   editor/setup.ts        CodeMirror configuration and keymaps
@@ -85,17 +85,18 @@ Drive API calls:
 
 Token handling:
 
-- Request an access token with the GIS token client. Tokens last about an hour.
+- Sign in by redirecting to Google's OAuth page (`response_type=token`). Google sends the user back with the token in the URL fragment; read it, check the `state` value, and remove it from the URL right away. Tokens last about an hour.
 - Keep the token in memory only, never in `localStorage`.
-- On a 401, request a new token with `prompt: ''`. This is silent while the Google session is alive. Queue the failed request and retry it once.
-- If silent refresh fails, show a "Sign in again" banner. Never drop unsaved text.
+- A returning user (remembered login hint) is signed in automatically on page load with one `prompt=none` redirect, which has no UI. If Google needs a click, show the sign-in button.
+- On a 401 or an expired token, requests wait and a "Session expired · Continue" banner appears. Renewing is a `prompt=none` redirect; it also happens on its own when the user returns to the app with less than 5 minutes left on the token.
+- Before any redirect, keep the open note and unsaved text in `sessionStorage` and restore it afterwards (also done when the page is hidden, since iOS may discard background tabs). Never drop unsaved text.
 
 Google Cloud setup (done by hand before milestone 1):
 
 1. Create a Google Cloud project and enable the Google Drive API.
 2. Configure the OAuth consent screen as External, in testing mode, with yourself as a test user.
 3. Create an OAuth client ID of type Web application.
-4. Add authorized JavaScript origins: `http://localhost:5173` and `https://<username>.github.io`. Origins are domain only, so the `/notes-dot-md/` path is not part of them.
+4. Add authorized JavaScript origins: `http://localhost:5173` and `https://<username>.github.io`. Origins are domain only, so the `/notes-dot-md/` path is not part of them. Add authorized redirect URIs, with the path and trailing slash: `http://localhost:5173/notes-dot-md/` and `https://<username>.github.io/notes-dot-md/`.
 5. Put the client ID in `.env` as `VITE_GOOGLE_CLIENT_ID`. It is not a secret.
 
 Because the full scope is used, `Notes/` can contain files the app did not create: `.md` files uploaded by hand or written by other tools, and also non-markdown files and shortcuts. The note list shows only markdown files and ignores the rest. The scope lives in one config constant.
@@ -300,7 +301,7 @@ Open point: whether sharing a whole category folder through the Picker also give
 Build in this order. Each milestone ends with a working deployed app and its acceptance criteria checked.
 
 - [x] **M0 Project setup:** Vite + Svelte + TypeScript, ESLint and Prettier, GitHub Actions deploy to GitHub Pages under /notes-dot-md/. *Done when* an empty app shell is live at the Pages URL.
-- [ ] **M1 Sign-in:** GIS token client, sign in and sign out, silent token refresh. *Done when* sign-in works on desktop and Android, and a save made more than an hour after sign-in still succeeds.
+- [ ] **M1 Sign-in:** redirect sign-in, sign in and sign out, token renewal. *Done when* sign-in works on desktop and Android, and a save made more than an hour after sign-in still succeeds.
 - [ ] **M2 Drive layer:** `drive/notes.ts` with list, read, create, save, rename, move and trash; `Notes/` and `Inbox/` created on first run. *Done when* a note created in the app appears in Drive as a `.md` file and survives a round trip.
 - [ ] **M3 Plain editor and saving:** CodeMirror without rendering rules, autosave, save status, conflict dialog. *Done when* edits reach Drive within 3 seconds, and editing the same note on two devices shows the conflict dialog.
 - [ ] **M4 Live preview:** every rendering rule in the editor table, checkbox widgets, list continuation, the `[]` shorthand. *Done when* all rules render, markers reappear on the active line, checkboxes toggle, and a copied checklist pastes into GitHub as `- [ ]` lines. Tested on Android.

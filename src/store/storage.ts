@@ -8,3 +8,12 @@ export function safeLocalStorage(): StorageLike | null {
     return null;
   }
 }
+
+/** sessionStorage (this tab only, survives reloads), or null where it is missing or blocked. */
+export function safeSessionStorage(): StorageLike | null {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}

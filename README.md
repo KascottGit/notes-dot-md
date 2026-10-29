@@ -12,7 +12,7 @@ Live app: https://kascottgit.github.io/notes-dot-md/
 
 - **Your notes are just files.** Each note is one `.md` file in Drive. Categories are folders. What you see in the app is what you see in Drive.
 - **The text is always plain markdown.** The editor renders markdown inline (live preview, like Obsidian), but it never rewrites your text. Copy, export and Drive all get exactly the markdown you typed. A copied checklist pastes into GitHub as `- [ ] item`.
-- **No server to trust.** Sign-in uses Google Identity Services, and the access token lives in memory only.
+- **No server to trust.** Sign-in goes straight to Google, and the access token lives in memory only.
 
 ## Planned features (v1)
 
@@ -45,7 +45,7 @@ My Drive/
 
 ## Tech stack
 
-Vite · TypeScript · Svelte 5 · CodeMirror 6 · Google Identity Services · Google Drive REST API v3 · `vite-plugin-pwa` · Vitest. Hosted on GitHub Pages.
+Vite · TypeScript · Svelte 5 · CodeMirror 6 · Google OAuth (redirect flow) · Google Drive REST API v3 · `vite-plugin-pwa` · Vitest. Hosted on GitHub Pages.
 
 ## Development
 
@@ -62,8 +62,11 @@ Vite · TypeScript · Svelte 5 · CodeMirror 6 · Google Identity Services · Go
 4. Add these authorized JavaScript origins (domain only, no path):
    - `http://localhost:5173`
    - `https://<username>.github.io`
-5. Copy `.env.example` to `.env` and set `VITE_GOOGLE_CLIENT_ID`. The client ID is not secret, but `.env` stays out of git.
-6. For the deployed site, add the same value as a repository variable: **Settings → Secrets and variables → Actions → Variables → New repository variable**, named `VITE_GOOGLE_CLIENT_ID`. The deploy workflow passes it to the build.
+5. Add these authorized redirect URIs (with the path and the trailing slash):
+   - `http://localhost:5173/notes-dot-md/`
+   - `https://<username>.github.io/notes-dot-md/`
+6. Copy `.env.example` to `.env` and set `VITE_GOOGLE_CLIENT_ID`. The client ID is not secret, but `.env` stays out of git.
+7. For the deployed site, add the same value as a repository variable: **Settings → Secrets and variables → Actions → Variables → New repository variable**, named `VITE_GOOGLE_CLIENT_ID`. The deploy workflow passes it to the build.
 
 ### Deployment
 

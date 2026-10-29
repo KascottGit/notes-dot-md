@@ -14,9 +14,7 @@
     <p class="muted">Markdown notes stored as plain <code>.md</code> files in your Google Drive.</p>
 
     <button class="primary" disabled={!$auth.ready || $auth.busy} onclick={() => onSignIn()}>
-      {#if $auth.status === 'loading'}
-        Loading…
-      {:else if $auth.busy}
+      {#if $auth.busy || $auth.status === 'loading'}
         Signing in…
       {:else if $auth.loginHint}
         Continue as {$auth.loginHint}
