@@ -7,6 +7,9 @@
   --text-muted: #6b6b76;
   --border: #e2e2e8;
   --accent: #2f5bd3;
+  --on-accent: #ffffff;
+  --danger: #c62828;
+  --warning-bg: #fff4d6;
 
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
   --font-mono: ui-monospace, 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
@@ -20,6 +23,9 @@
     --text-muted: #9a9aa6;
     --border: #36363e;
     --accent: #7c9cff;
+    --on-accent: #10131f;
+    --danger: #ff8a80;
+    --warning-bg: #3a3220;
   }
 }
 

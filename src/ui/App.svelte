@@ -1,16 +1,75 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { auth } from '../auth/google';
+  import { drive } from '../drive/client';
+  import { getAccount, type Account } from '../drive/account';
+  import SessionBanner from './SessionBanner.svelte';
+  import SignIn from './SignIn.svelte';
+
   const devLabel = import.meta.env.DEV ? ' (dev)' : '';
+
+  let account = $state<Account | null>(null);
+  let checkResult = $state('');
+  let checking = $state(false);
+
+  onMount(() => {
+    void auth.init();
+  });
+
+  async function handleSignIn(options?: { selectAccount?: boolean }) {
+    if (!(await auth.signIn(options))) return;
+    await checkConnection();
+  }
+
+  function handleSignOut() {
+    auth.signOut();
+    account = null;
+    checkResult = '';
+  }
+
+  /** Calls Drive with the current token. Used to verify sign-in and token renewal. */
+  async function checkConnection() {
+    checking = true;
+    try {
+      account = await getAccount(drive);
+      auth.rememberAccount(account.emailAddress);
+      checkResult = `Drive connection OK at ${new Date().toLocaleTimeString()}`;
+    } catch (err) {
+      checkResult = `Drive request failed: ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      checking = false;
+    }
+  }
 </script>
 
-<div class="shell">
-  <header>
-    <h1>notes.md{devLabel}</h1>
-  </header>
-  <main>
-    <p>Markdown notes stored as plain <code>.md</code> files in your Google Drive.</p>
-    <p class="muted">App shell only. Sign-in comes in the next milestone.</p>
-  </main>
-</div>
+{#if $auth.status === 'loading' || $auth.status === 'signed-out'}
+  <SignIn onSignIn={handleSignIn} />
+{:else}
+  <div class="shell">
+    <SessionBanner />
+    <header>
+      <h1>notes.md{devLabel}</h1>
+      <div class="account">
+        {#if account}<span class="email">{account.emailAddress}</span>{/if}
+        <button class="secondary" onclick={handleSignOut}>Sign out</button>
+      </div>
+    </header>
+    <main>
+      <p>
+        Signed in{account ? ` as ${account.displayName}` : ''}. Notes come in the next milestone.
+      </p>
+      <div class="row">
+        <button class="secondary" disabled={checking} onclick={checkConnection}>
+          {checking ? 'Checking…' : 'Check Drive connection'}
+        </button>
+        {#if import.meta.env.DEV}
+          <button class="secondary" onclick={() => auth.invalidate()}>Expire token (dev)</button>
+        {/if}
+      </div>
+      {#if checkResult}<p class="muted">{checkResult}</p>{/if}
+    </main>
+  </div>
+{/if}
 
 <style>
   .shell {
@@ -22,6 +81,8 @@
   header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     min-height: 56px;
     padding: 0 16px;
     border-bottom: 1px solid var(--border);
@@ -31,19 +92,49 @@
     margin: 0;
     font-size: 1.125rem;
     font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .email {
+    overflow: hidden;
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   main {
     flex: 1;
-    padding: 24px 16px;
     max-width: 720px;
+    padding: 24px 16px;
   }
 
-  code {
-    font-family: var(--font-mono);
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .secondary {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
     background: var(--bg-muted);
-    padding: 0.1em 0.3em;
-    border-radius: 4px;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .secondary:disabled {
+    opacity: 0.6;
   }
 
   .muted {
