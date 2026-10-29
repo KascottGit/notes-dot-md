@@ -18,14 +18,26 @@
     void auth.init();
   });
 
-  async function handleSignIn(options?: { selectAccount?: boolean }) {
-    if (!(await auth.signIn(options))) return;
+  // Load the account whenever a sign-in completes, however it completed.
+  let loadingAccount = false;
+  $effect(() => {
+    if ($auth.status === 'signed-in' && !account && !loadingAccount) void loadAccount();
+  });
+
+  async function loadAccount() {
+    loadingAccount = true;
     try {
       account = await getAccount(drive);
       auth.rememberAccount(account.emailAddress);
     } catch {
       // Only used to show the email and as a login hint.
+    } finally {
+      loadingAccount = false;
     }
+  }
+
+  function handleSignIn(options?: { selectAccount?: boolean }) {
+    void auth.signIn(options);
   }
 
   async function handleSignOut() {

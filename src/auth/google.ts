@@ -109,25 +109,39 @@ export function createAuth(deps: AuthDeps) {
   function onTokenResponse(resp: google.accounts.oauth2.TokenResponse) {
     const pending = inflight;
     inflight = null;
+    let failure: Error | null = null;
     if (resp.error) {
-      pending?.reject(new Error(resp.error_description || resp.error));
-      return;
+      console.warn('Google sign-in: token error', resp.error);
+      failure = new Error(resp.error_description || resp.error);
+    } else if (!oauth2?.hasGrantedAllScopes(resp, DRIVE_SCOPE)) {
+      failure = new Error('notes.md needs access to Google Drive to store your notes.');
     }
-    if (!oauth2?.hasGrantedAllScopes(resp, DRIVE_SCOPE)) {
-      pending?.reject(new Error('notes.md needs access to Google Drive to store your notes.'));
+    if (failure) {
+      if (pending) pending.reject(failure);
+      else update({ busy: false, error: failure.message });
       return;
     }
     token = {
       value: resp.access_token,
       expiresAt: now() + Number(resp.expires_in) * 1000 - EXPIRY_MARGIN_MS,
     };
-    pending?.resolve(token.value);
+    if (pending) pending.resolve(token.value);
+    // GIS can report "popup_closed" before the token arrives (the popup looks
+    // closed to the opener once Google's pages load), so a token can come
+    // after its request already failed. Accept it anyway.
+    else completeSignIn(token.value);
   }
 
   function onClientError(err: google.accounts.oauth2.ClientConfigError) {
+    console.warn('Google sign-in:', err.type);
     const pending = inflight;
     inflight = null;
     pending?.reject(err);
+  }
+
+  function completeSignIn(value: string) {
+    update({ status: 'signed-in', busy: false, error: null });
+    flushWaiters({ token: value });
   }
 
   /** Ask GIS for a token. Opens a popup that closes on its own if consent was already given. */
@@ -169,9 +183,7 @@ export function createAuth(deps: AuthDeps) {
   async function renewSilently() {
     update({ busy: true });
     try {
-      const value = await requestToken();
-      update({ status: 'signed-in', busy: false, error: null });
-      flushWaiters({ token: value });
+      completeSignIn(await requestToken());
     } catch {
       // Usually the popup was blocked because no click started it.
       // Keep the waiters queued; the "Sign in again" banner calls signIn().
@@ -226,9 +238,7 @@ export function createAuth(deps: AuthDeps) {
       const wasExpired = state.status === 'expired';
       update({ busy: true, error: null });
       try {
-        const value = await requestToken(options.selectAccount);
-        update({ status: 'signed-in', busy: false });
-        flushWaiters({ token: value });
+        completeSignIn(await requestToken(options.selectAccount));
         return true;
       } catch (err) {
         update({

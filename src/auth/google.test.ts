@@ -187,6 +187,45 @@ describe('createAuth', () => {
     expect(auth.state.error).toMatch(/blocked/);
   });
 
+  it('accepts a token that arrives after GIS reported popup_closed', async () => {
+    const { auth, gis } = await setup();
+    const signIn = auth.signIn();
+    gis.fail('popup_closed');
+    await expect(signIn).resolves.toBe(false);
+    expect(auth.state.status).toBe('signed-out');
+
+    gis.grant('late-token');
+
+    expect(auth.state).toMatchObject({ status: 'signed-in', busy: false, error: null });
+    await expect(auth.getToken()).resolves.toBe('late-token');
+  });
+
+  it('a late token also clears the expired state and releases waiting requests', async () => {
+    const { auth, gis } = await signedIn();
+    auth.invalidate();
+    const pending = auth.getToken();
+    await flush();
+    gis.fail('popup_closed');
+    await flush();
+    expect(auth.state.status).toBe('expired');
+
+    gis.grant('late-token');
+
+    await expect(pending).resolves.toBe('late-token');
+    expect(auth.state.status).toBe('signed-in');
+  });
+
+  it('shows an error that arrives after the request already failed', async () => {
+    const { auth, gis } = await setup();
+    const signIn = auth.signIn();
+    gis.fail('popup_closed');
+    await signIn;
+
+    gis.deny('access_denied');
+
+    expect(auth.state).toMatchObject({ status: 'signed-out', error: 'access_denied' });
+  });
+
   it('treats a closed popup as a cancel, not an error', async () => {
     const { auth, gis } = await setup();
     const signIn = auth.signIn();
