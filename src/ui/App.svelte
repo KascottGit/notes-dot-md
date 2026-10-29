@@ -5,15 +5,14 @@
   import { getAccount, type Account } from '../drive/account';
   import { clearFolderCache } from '../drive/notes';
   import { safeLocalStorage } from '../store/storage';
-  import DriveTestPanel from './DriveTestPanel.svelte';
   import SessionBanner from './SessionBanner.svelte';
   import SignIn from './SignIn.svelte';
+  import Workspace from './Workspace.svelte';
 
   const devLabel = import.meta.env.DEV ? ' (dev)' : '';
 
   let account = $state<Account | null>(null);
-  let checkResult = $state('');
-  let checking = $state(false);
+  let workspace = $state<Workspace>();
 
   onMount(() => {
     void auth.init();
@@ -21,28 +20,29 @@
 
   async function handleSignIn(options?: { selectAccount?: boolean }) {
     if (!(await auth.signIn(options))) return;
-    await checkConnection();
-  }
-
-  function handleSignOut() {
-    auth.signOut();
-    clearFolderCache(safeLocalStorage());
-    account = null;
-    checkResult = '';
-  }
-
-  /** Calls Drive with the current token. Used to verify sign-in and token renewal. */
-  async function checkConnection() {
-    checking = true;
     try {
       account = await getAccount(drive);
       auth.rememberAccount(account.emailAddress);
-      checkResult = `Drive connection OK at ${new Date().toLocaleTimeString()}`;
-    } catch (err) {
-      checkResult = `Drive request failed: ${err instanceof Error ? err.message : String(err)}`;
-    } finally {
-      checking = false;
+    } catch {
+      // Only used to show the email and as a login hint.
     }
+  }
+
+  async function handleSignOut() {
+    // While the session is expired a save would wait for a token that can't come.
+    const saved =
+      auth.state.status === 'signed-in'
+        ? ((await workspace?.flush()) ?? true)
+        : !workspace?.hasUnsavedWork();
+    if (
+      !saved &&
+      !confirm("Some changes couldn't be saved to Drive and will be lost. Sign out anyway?")
+    ) {
+      return;
+    }
+    auth.signOut();
+    clearFolderCache(safeLocalStorage());
+    account = null;
   }
 </script>
 
@@ -55,25 +55,15 @@
       <h1>notes.md{devLabel}</h1>
       <div class="account">
         {#if account}<span class="email">{account.emailAddress}</span>{/if}
+        {#if import.meta.env.DEV}
+          <button class="secondary" onclick={() => auth.invalidate()} title="Drop the access token">
+            Expire token
+          </button>
+        {/if}
         <button class="secondary" onclick={handleSignOut}>Sign out</button>
       </div>
     </header>
-    <main>
-      <p>
-        Signed in{account ? ` as ${account.displayName}` : ''}. The editor comes in the next
-        milestone.
-      </p>
-      <div class="row">
-        <button class="secondary" disabled={checking} onclick={checkConnection}>
-          {checking ? 'Checking…' : 'Check Drive connection'}
-        </button>
-        {#if import.meta.env.DEV}
-          <button class="secondary" onclick={() => auth.invalidate()}>Expire token (dev)</button>
-        {/if}
-      </div>
-      {#if checkResult}<p class="muted">{checkResult}</p>{/if}
-      <DriveTestPanel />
-    </main>
+    <Workspace bind:this={workspace} />
   </div>
 {/if}
 
@@ -104,7 +94,7 @@
   .account {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     min-width: 0;
   }
 
@@ -115,16 +105,10 @@
     white-space: nowrap;
   }
 
-  main {
-    flex: 1;
-    max-width: 720px;
-    padding: 24px 16px;
-  }
-
-  .row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+  @media (max-width: 599px) {
+    .email {
+      display: none;
+    }
   }
 
   .secondary {
@@ -137,13 +121,5 @@
     font: inherit;
     cursor: pointer;
     white-space: nowrap;
-  }
-
-  .secondary:disabled {
-    opacity: 0.6;
-  }
-
-  .muted {
-    color: var(--text-muted);
   }
 </style>

@@ -233,6 +233,14 @@ export async function getNote(drive: DriveClient, id: string): Promise<Note> {
   return toNote(await drive.json<DriveFile>(`${FILES}/${id}?fields=${NOTE_FIELDS}`));
 }
 
+/** Just the version and modified time, for conflict checks before saving. */
+export async function getNoteVersion(
+  drive: DriveClient,
+  id: string,
+): Promise<{ version: string; modifiedTime: string }> {
+  return drive.json(`${FILES}/${id}?fields=version,modifiedTime`);
+}
+
 /** The note's markdown text, exactly as stored. */
 export async function readNote(drive: DriveClient, id: string): Promise<string> {
   const res = await drive.request(`${FILES}/${id}?alt=media`);

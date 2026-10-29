@@ -80,11 +80,14 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
     f.modifiedTime = stamp();
   }
 
+  let offline = false;
+
   const fetchFn: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
     const method = init?.method ?? 'GET';
     const body = typeof init?.body === 'string' ? init.body : '';
     calls.push({ method, url, body });
+    if (offline) throw new TypeError('Failed to fetch');
     const path = url.pathname;
 
     if (method === 'GET' && path === '/drive/v3/files') {
@@ -152,7 +155,17 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
   };
 
   const drive = createDriveClient({ getToken: async () => 'token', invalidate: () => {} }, fetchFn);
-  return { drive, files, calls, add, baseUrl: GOOGLE_API };
+  return {
+    drive,
+    files,
+    calls,
+    add,
+    baseUrl: GOOGLE_API,
+    /** Make every request fail like a dropped network connection. */
+    setOffline(value: boolean) {
+      offline = value;
+    },
+  };
 }
 
 function unquote(s: string): string {
