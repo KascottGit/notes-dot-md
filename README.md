@@ -4,9 +4,9 @@ A markdown note-taking app that keeps every note as a plain `.md` file in your o
 
 notes.md runs entirely in the browser and installs as a PWA on Android and desktop. There is no backend and no database: the app talks to the Google Drive API directly, and your notes stay in a `Notes/` folder you can open, back up or edit with any other tool.
 
-**Status:** early development. Only the empty app shell exists so far; see [Roadmap](#roadmap).
+**Status:** early development. You can sign in, but there are no notes yet; see [Roadmap](#roadmap).
 
-Live app (once deployed): https://kascottgit.github.io/notes-dot-md/
+Live app: https://kascottgit.github.io/notes-dot-md/
 
 ## Why
 
@@ -63,6 +63,11 @@ Vite · TypeScript · Svelte 5 · CodeMirror 6 · Google Identity Services · Go
    - `http://localhost:5173`
    - `https://<username>.github.io`
 5. Copy `.env.example` to `.env` and set `VITE_GOOGLE_CLIENT_ID`. The client ID is not secret, but `.env` stays out of git.
+6. For the deployed site, add the same value as a repository variable: **Settings → Secrets and variables → Actions → Variables → New repository variable**, named `VITE_GOOGLE_CLIENT_ID`. The deploy workflow passes it to the build.
+
+### Deployment
+
+Every push to `main` runs `.github/workflows/deploy.yml`: check, lint, test, build, then deploy to GitHub Pages. One-time setup: in **Settings → Pages**, set **Source** to **GitHub Actions**.
 
 ### Commands
 
@@ -78,7 +83,7 @@ npm test          # vitest
 
 ## Roadmap
 
-- [ ] **M0** Project setup and GitHub Pages deploy
+- [x] **M0** Project setup and GitHub Pages deploy
 - [ ] **M1** Google sign-in with silent token refresh
 - [ ] **M2** Drive layer (list, read, create, save, rename, move, trash)
 - [ ] **M3** Plain editor, autosave and conflict handling

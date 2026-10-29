@@ -299,7 +299,7 @@ Open point: whether sharing a whole category folder through the Picker also give
 
 Build in this order. Each milestone ends with a working deployed app and its acceptance criteria checked.
 
-- [ ] **M0 Project setup:** Vite + Svelte + TypeScript, ESLint and Prettier, GitHub Actions deploy to GitHub Pages under /notes-dot-md/. *Done when* an empty app shell is live at the Pages URL.
+- [x] **M0 Project setup:** Vite + Svelte + TypeScript, ESLint and Prettier, GitHub Actions deploy to GitHub Pages under /notes-dot-md/. *Done when* an empty app shell is live at the Pages URL.
 - [ ] **M1 Sign-in:** GIS token client, sign in and sign out, silent token refresh. *Done when* sign-in works on desktop and Android, and a save made more than an hour after sign-in still succeeds.
 - [ ] **M2 Drive layer:** `drive/notes.ts` with list, read, create, save, rename, move and trash; `Notes/` and `Inbox/` created on first run. *Done when* a note created in the app appears in Drive as a `.md` file and survives a round trip.
 - [ ] **M3 Plain editor and saving:** CodeMirror without rendering rules, autosave, save status, conflict dialog. *Done when* edits reach Drive within 3 seconds, and editing the same note on two devices shows the conflict dialog.
