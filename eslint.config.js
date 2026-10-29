@@ -14,7 +14,8 @@ export default ts.config(
   ...svelte.configs.prettier,
   {
     languageOptions: {
-      globals: { ...globals.browser, ...globals.node },
+      // __BUILD_ID__ is replaced at build time (vite.config.ts).
+      globals: { ...globals.browser, ...globals.node, __BUILD_ID__: 'readonly' },
     },
   },
   {

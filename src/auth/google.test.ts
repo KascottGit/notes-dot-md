@@ -226,12 +226,13 @@ describe('createAuth', () => {
     expect(auth.state).toMatchObject({ status: 'signed-out', error: 'access_denied' });
   });
 
-  it('treats a closed popup as a cancel, not an error', async () => {
+  it('says so when the popup closes without a token', async () => {
     const { auth, gis } = await setup();
     const signIn = auth.signIn();
     gis.fail('popup_closed');
     await expect(signIn).resolves.toBe(false);
-    expect(auth.state).toMatchObject({ status: 'signed-out', busy: false, error: null });
+    expect(auth.state).toMatchObject({ status: 'signed-out', busy: false });
+    expect(auth.state.error).toMatch(/popup_closed/);
   });
 
   it('fails sign-in when Drive access was not granted', async () => {

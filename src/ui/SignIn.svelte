@@ -39,6 +39,7 @@
       Google will ask for access to your Drive. notes.md only reads and writes the
       <code>Notes</code> folder.
     </p>
+    <p class="build">Build {__BUILD_ID__}</p>
   </div>
 </div>
 
@@ -111,6 +112,12 @@
     margin-top: 12px;
     color: var(--text-muted);
     font-size: 0.875rem;
+  }
+
+  .build {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    opacity: 0.7;
   }
 
   code {

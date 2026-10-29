@@ -153,11 +153,9 @@ export function createAuth(deps: AuthDeps) {
       }
       inflight?.reject(new Error('Superseded by a newer request'));
       inflight = { resolve, reject };
-      client.requestAccessToken(
-        selectAccount
-          ? { prompt: 'select_account' }
-          : { prompt: '', login_hint: state.loginHint ?? undefined },
-      );
+      // Leave login_hint out entirely when there is none, rather than undefined.
+      const hint = selectAccount || !state.loginHint ? {} : { login_hint: state.loginHint };
+      client.requestAccessToken({ prompt: selectAccount ? 'select_account' : '', ...hint });
     });
   }
 
@@ -172,10 +170,14 @@ export function createAuth(deps: AuthDeps) {
 
   function errorMessage(err: unknown): string | null {
     const type = (err as { type?: string } | null)?.type;
-    if (type === 'popup_closed') return null; // The user closed it; not an error.
-    if (type === 'popup_failed_to_open') {
-      return 'The Google sign-in window was blocked. Allow pop-ups for this site and try again.';
+    if (type === 'popup_closed') {
+      // Either the user closed it, or Google never handed back a token.
+      return 'The Google window closed before sign-in finished. Try again. (popup_closed)';
     }
+    if (type === 'popup_failed_to_open') {
+      return 'The Google sign-in window was blocked. Allow pop-ups for this site and try again. (popup_failed_to_open)';
+    }
+    if (type) return `Sign-in failed. (${type})`;
     return err instanceof Error ? err.message : 'Sign-in failed.';
   }
 
