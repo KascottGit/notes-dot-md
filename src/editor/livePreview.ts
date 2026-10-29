@@ -355,7 +355,12 @@ const linkHandlers = (() => {
 const previewTheme = EditorView.theme({
   '.cm-md-mark': { color: 'var(--text-muted)', opacity: '0.75' },
 
-  '.cm-line.cm-md-h': { fontWeight: '700', lineHeight: '1.3' },
+  '.cm-line.cm-md-h': {
+    fontFamily: 'var(--font-heading)',
+    fontWeight: '650',
+    letterSpacing: '-0.01em',
+    lineHeight: '1.3',
+  },
   '.cm-line.cm-md-h1': { fontSize: '1.6em', paddingTop: '0.5em' },
   '.cm-line.cm-md-h2': { fontSize: '1.35em', paddingTop: '0.4em' },
   '.cm-line.cm-md-h3': { fontSize: '1.2em', paddingTop: '0.3em' },

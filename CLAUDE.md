@@ -64,7 +64,8 @@ src/
 - The OAuth scope lives in one constant in `auth/google.ts` (currently the full `drive` scope, decided 2026-10-29).
 - Vite `base` is `/notes-dot-md/`. Use relative or `import.meta.env.BASE_URL`-based paths, never hard-coded `/` roots.
 - Theme colors are CSS custom properties with light and dark values (`prefers-color-scheme`).
-- Mobile: inputs and the editor use a font size of at least 16px; touch targets are at least 44px.
+- Mobile: inputs and the editor use a font size of at least 16px; touch targets are at least 44px. Pinch zoom is intentionally disabled.
+- Fonts are tokens too: `--font-body` (serif, note text), `--font-ui` / `--font-heading` (sans), `--font-mono`.
 - Commits: Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
 
 ## Testing

@@ -19,8 +19,15 @@
   --code-type: #a1366b;
   --code-property: #2a6f8f;
 
-  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
-  --font-mono: ui-monospace, 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+  /* Note text: a gentle serif. */
+  --font-body: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
+  /* Headings and app UI: a sans that pairs with it. */
+  --font-ui: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-heading: var(--font-ui);
+  /* The installed Nerd Font where there is one (desktop), else the bundled JetBrains Mono. */
+  --font-mono:
+    'JetBrainsMono Nerd Font', 'JetBrainsMono NF', 'JetBrains Mono Variable', 'JetBrains Mono',
+    ui-monospace, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -55,8 +62,16 @@ html,
 body {
   margin: 0;
   height: 100%;
-  /* Prevent double-tap zoom without blocking pinch zoom. */
-  touch-action: manipulation;
+  /* The app doesn't scroll as a page; the note list and editor scroll inside it. */
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* No pinch or double-tap zoom: only scrolling gestures (see ui/preventZoom.ts). */
+html,
+body,
+#app {
+  touch-action: pan-x pan-y;
 }
 
 body {

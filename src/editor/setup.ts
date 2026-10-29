@@ -73,13 +73,13 @@ const theme = EditorView.theme({
     height: '100%',
     color: 'var(--text)',
     backgroundColor: 'var(--bg)',
-    // At least 16px, or mobile browsers zoom in on focus.
-    fontSize: '16px',
+    // At least 16px, or mobile browsers zoom in on focus. The serif reads a little small.
+    fontSize: '17px',
   },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': {
-    fontFamily: 'var(--font-ui)',
-    lineHeight: '1.6',
+    fontFamily: 'var(--font-body)',
+    lineHeight: '1.65',
   },
   '.cm-content': {
     maxWidth: '760px',
@@ -142,8 +142,6 @@ export function createEditor(options: EditorOptions): Editor {
             options.onBlur();
           },
         }),
-        // Keep the cursor clear of the format bar pinned at the bottom on phones.
-        EditorView.scrollMargins.of(() => ({ bottom: 64 })),
         theme,
       ],
     });

@@ -140,6 +140,7 @@ Behavior:
 - **Copy and cut** use CodeMirror's default behavior, which copies the document text. Do not add a custom HTML clipboard handler. Copying a rendered checklist must paste as `- [ ] item`.
 - **Paste** inserts plain text. Converting pasted HTML to markdown is a later nice-to-have.
 - **Theme** follows `prefers-color-scheme`, with light and dark styles.
+- **Fonts:** note text in a gentle serif (Source Serif 4), headings and app UI in a matching sans (Inter), code in JetBrains Mono (the locally installed JetBrainsMono Nerd Font is preferred when present). Fonts are bundled with the app.
 
 Risk: Android keyboards (Gboard) can misbehave next to hidden text, for example cursor jumps or autocorrect landing in the wrong place. Test on a real Android phone as soon as the first decorations exist.
 
@@ -168,7 +169,7 @@ Toggle behavior:
 - **Switching list type** replaces the existing prefix. For example, a bullet list becomes a checklist instead of getting both markers. Numbered lists are renumbered in order.
 - Buttons call `preventDefault` on `mousedown`/`pointerdown` so the editor keeps focus and the selection.
 
-Placement: sticky at the top on desktop. On mobile, pinned just above the on-screen keyboard (use the `visualViewport` API) and horizontally scrollable.
+Placement: under the note title on every screen size, horizontally scrollable on narrow screens. (Changed 2026-10-29 from pinning it above the keyboard on mobile.) On iPhone the app is sized to the `visualViewport` while the keyboard is open, so the header and bar stay visible.
 
 ## Organization: categories and sorting
 
@@ -210,8 +211,8 @@ The app autosaves, and it never silently overwrites a version saved from another
 The app must feel native on an Android phone and on a Linux desktop.
 
 - **PWA:** web manifest (name, icons 192/512 px, `display: standalone`, theme color) with start\_url and scope set to /notes-dot-md/, and a minimal service worker that caches the app shell for installability. Notes are not cached.
-- **Viewport:** `<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">`. Do not block pinch zoom.
-- **No unwanted zoom:** text inputs and the editor use a font size of at least 16px, and `html, body` set `touch-action: manipulation`.
+- **Viewport:** `<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">`.
+- **No zoom:** pinch and double-tap zoom are turned off (owner decision, 2026-10-29): `touch-action: pan-x pan-y`, plus cancelling Safari's gesture events, since iPhone Safari ignores `user-scalable=no`. Text inputs and the editor still use a font size of at least 16px so focusing them never zooms.
 - **Layout:** two panes (list + editor) at ≥ 900px wide, one pane below that.
 - **Touch targets** of at least 44 × 44px for toolbar buttons and checkboxes.
 - **Test targets:** Chrome on Android; Chromium and Firefox on Linux (Wayland/Hyprland). On Hyprland the app can also run as `chromium --app=<url>`.

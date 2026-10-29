@@ -1,6 +1,7 @@
 <!--
-  The format bar. Every button runs the same command as its keyboard shortcut.
-  Buttons cancel mousedown/pointerdown so the editor keeps focus and selection.
+  The format bar, under the note title on every screen size. Every button runs
+  the same command as its keyboard shortcut. Buttons cancel mousedown/pointerdown
+  so the editor keeps focus and selection.
 -->
 <script lang="ts">
   import type { StateCommand } from '@codemirror/state';
@@ -17,7 +18,6 @@
     toggleQuote,
     toggleStrikethrough,
   } from '../editor/commands';
-  import { keyboardInset } from './keyboardInset';
 
   interface Props {
     run: (command: StateCommand) => void;
@@ -142,7 +142,7 @@
   </svg>
 {/snippet}
 
-<div class="toolbar" role="toolbar" aria-label="Formatting" bind:this={root} use:keyboardInset>
+<div class="toolbar" role="toolbar" aria-label="Formatting" bind:this={root}>
   <div class="scroll">
     <button
       bind:this={menuButton}
@@ -295,8 +295,11 @@
     background: var(--border);
   }
 
+  /* Opens below the H button, over the note. */
   .menu {
-    position: fixed;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: calc(max(0px, (100% - 760px) / 2) + 8px);
     z-index: 20;
     display: flex;
     flex-direction: column;
@@ -349,32 +352,8 @@
     font-size: 0.75rem;
   }
 
-  /* Desktop: under the note header, menu opens downwards. */
-  @media (min-width: 900px) {
-    .menu {
-      position: absolute;
-      top: calc(100% + 4px);
-      left: calc(max(0px, (100% - 760px) / 2) + 8px);
-    }
-  }
-
-  /* Phones: pinned to the bottom, just above the on-screen keyboard. */
+  /* Small screens: no shortcut hints in the heading menu. */
   @media (max-width: 899px) {
-    .toolbar {
-      position: fixed;
-      right: 0;
-      bottom: var(--keyboard-inset, 0px);
-      left: 0;
-      border-top: 1px solid var(--border);
-      border-bottom: 0;
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-
-    .menu {
-      bottom: calc(var(--keyboard-inset, 0px) + 52px + env(safe-area-inset-bottom));
-      left: 8px;
-    }
-
     .kbd {
       display: none;
     }
