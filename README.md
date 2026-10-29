@@ -1,1 +1,1 @@
-# notes-dot-md
+# notes.md
