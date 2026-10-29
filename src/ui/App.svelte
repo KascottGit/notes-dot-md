@@ -3,6 +3,9 @@
   import { auth } from '../auth/google';
   import { drive } from '../drive/client';
   import { getAccount, type Account } from '../drive/account';
+  import { clearFolderCache } from '../drive/notes';
+  import { safeLocalStorage } from '../store/storage';
+  import DriveTestPanel from './DriveTestPanel.svelte';
   import SessionBanner from './SessionBanner.svelte';
   import SignIn from './SignIn.svelte';
 
@@ -23,6 +26,7 @@
 
   function handleSignOut() {
     auth.signOut();
+    clearFolderCache(safeLocalStorage());
     account = null;
     checkResult = '';
   }
@@ -56,7 +60,8 @@
     </header>
     <main>
       <p>
-        Signed in{account ? ` as ${account.displayName}` : ''}. Notes come in the next milestone.
+        Signed in{account ? ` as ${account.displayName}` : ''}. The editor comes in the next
+        milestone.
       </p>
       <div class="row">
         <button class="secondary" disabled={checking} onclick={checkConnection}>
@@ -67,6 +72,7 @@
         {/if}
       </div>
       {#if checkResult}<p class="muted">{checkResult}</p>{/if}
+      <DriveTestPanel />
     </main>
   </div>
 {/if}

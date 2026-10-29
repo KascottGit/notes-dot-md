@@ -5,9 +5,9 @@
  * The only thing stored is the account email, used as a login hint so the
  * account chooser can be skipped next time.
  */
+import { safeLocalStorage, type StorageLike } from '../store/storage';
 
 type OAuth2 = typeof google.accounts.oauth2;
-type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 /** The one place the OAuth scope is defined. */
 /**
@@ -298,14 +298,6 @@ export function loadGis(): Promise<OAuth2> {
     throw err;
   });
   return gisPromise;
-}
-
-function safeLocalStorage(): StorageLike | null {
-  try {
-    return typeof window === 'undefined' ? null : window.localStorage;
-  } catch {
-    return null;
-  }
 }
 
 export const auth = createAuth({
