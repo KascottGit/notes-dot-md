@@ -5,8 +5,21 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { deleteMarkupBackward } from '@codemirror/lang-markdown';
 import { codeFolding, syntaxHighlighting } from '@codemirror/language';
-import { Annotation, Compartment, EditorState } from '@codemirror/state';
-import { drawSelection, EditorView, keymap } from '@codemirror/view';
+import { Annotation, Compartment, EditorState, type StateCommand } from '@codemirror/state';
+import { drawSelection, EditorView, keymap, type KeyBinding } from '@codemirror/view';
+import {
+  toggleBold,
+  toggleBulletList,
+  toggleChecklist,
+  toggleCodeBlock,
+  toggleHeading,
+  toggleInlineCode,
+  toggleItalic,
+  toggleLink,
+  toggleNumberedList,
+  toggleQuote,
+  toggleStrikethrough,
+} from './commands';
 import { codeHighlight } from './highlight';
 import { markdownSupport } from './language';
 import { continueList, indentListItem, outdentListItem, shorthandInput } from './lists';
@@ -32,9 +45,28 @@ export interface Editor {
   setText(text: string): void;
   /** Start over with a new document and an empty undo history. */
   load(doc: string, readOnly: boolean): void;
+  /** Run a format command on the current selection, keeping focus in the editor. */
+  run(command: StateCommand): void;
   focus(): void;
   destroy(): void;
 }
+
+/** Format shortcuts (SPEC "Format bar"). Mod is Ctrl, or Cmd on a Mac. */
+export const formatKeymap: KeyBinding[] = [
+  { key: 'Mod-b', run: toggleBold },
+  { key: 'Mod-i', run: toggleItalic },
+  { key: 'Mod-Shift-x', run: toggleStrikethrough },
+  { key: 'Mod-e', run: toggleInlineCode },
+  { key: 'Mod-k', run: toggleLink },
+  { key: 'Mod-Alt-1', run: toggleHeading(1) },
+  { key: 'Mod-Alt-2', run: toggleHeading(2) },
+  { key: 'Mod-Alt-3', run: toggleHeading(3) },
+  { key: 'Mod-Shift-8', run: toggleBulletList },
+  { key: 'Mod-Shift-7', run: toggleNumberedList },
+  { key: 'Mod-Shift-9', run: toggleChecklist },
+  { key: 'Mod-Shift-.', run: toggleQuote },
+  { key: 'Mod-Alt-c', run: toggleCodeBlock },
+];
 
 const theme = EditorView.theme({
   '&': {
@@ -93,6 +125,7 @@ export function createEditor(options: EditorOptions): Editor {
           { key: 'Enter', run: continueList },
           { key: 'Backspace', run: deleteMarkupBackward },
           { key: 'Tab', run: indentListItem, shift: outdentListItem },
+          ...formatKeymap, // Before defaultKeymap, which uses Mod-i for something else.
           ...defaultKeymap,
           ...historyKeymap,
           indentWithTab,
@@ -109,6 +142,8 @@ export function createEditor(options: EditorOptions): Editor {
             options.onBlur();
           },
         }),
+        // Keep the cursor clear of the format bar pinned at the bottom on phones.
+        EditorView.scrollMargins.of(() => ({ bottom: 64 })),
         theme,
       ],
     });
@@ -129,6 +164,10 @@ export function createEditor(options: EditorOptions): Editor {
     },
     load(doc, readOnly) {
       view.setState(makeState(doc, readOnly));
+    },
+    run(command) {
+      command(view);
+      view.focus();
     },
     focus: () => view.focus(),
     destroy: () => view.destroy(),

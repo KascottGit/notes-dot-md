@@ -4,7 +4,7 @@ A markdown note-taking app that keeps every note as a plain `.md` file in your o
 
 notes.md runs entirely in the browser and installs as a PWA on Android and desktop. There is no backend and no database: the app talks to the Google Drive API directly, and your notes stay in a `Notes/` folder you can open, back up or edit with any other tool.
 
-**Status:** early development. You can create and edit notes with live preview; the format bar and categories come next. See [Roadmap](#roadmap).
+**Status:** early development. You can create and edit notes with live preview and a format bar; categories come next. See [Roadmap](#roadmap).
 
 Live app: https://kascottgit.github.io/notes-dot-md/
 
@@ -87,9 +87,9 @@ npm test          # vitest
 ## Roadmap
 
 - [x] **M0** Project setup and GitHub Pages deploy
-- [ ] **M1** Google sign-in with silent token refresh
-- [ ] **M2** Drive layer (list, read, create, save, rename, move, trash)
-- [ ] **M3** Plain editor, autosave and conflict handling
+- [x] **M1** Google sign-in with token renewal
+- [x] **M2** Drive layer (list, read, create, save, rename, move, trash)
+- [x] **M3** Plain editor, autosave and conflict handling
 - [ ] **M4** Live preview rendering
 - [ ] **M5** Format bar and shortcuts
 - [ ] **M6** Categories, sorting and search

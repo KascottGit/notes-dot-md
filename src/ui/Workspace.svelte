@@ -21,6 +21,7 @@
   import ConflictDialog from './ConflictDialog.svelte';
   import NoteHeader from './NoteHeader.svelte';
   import NoteList from './NoteList.svelte';
+  import Toolbar from './Toolbar.svelte';
 
   let folders: Folders | null = null;
   let categories = $state<Category[]>([]);
@@ -252,6 +253,9 @@
         onBack={() => (view = 'list')}
         onRetry={() => void session?.retry()}
       />
+      {#if !sessionState.readOnly}
+        <Toolbar run={(command) => editor?.run(command)} />
+      {/if}
     {/if}
     {#if openError}
       <p class="open-error" role="alert">{openError}</p>
