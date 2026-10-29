@@ -11,6 +11,8 @@
   --danger: #c62828;
   --warning-bg: #fff4d6;
   --selection: #cfdcff;
+  --pin: #e8930c;
+  --danger-strong: #e5484d;
   --code-keyword: #8b2fc9;
   --code-string: #237a3b;
   --code-comment: #7a7a85;
@@ -42,6 +44,8 @@
     --danger: #ff8a80;
     --warning-bg: #3a3220;
     --selection: #34406a;
+    --pin: #c97a08;
+    --danger-strong: #c9363b;
     --code-keyword: #c792ea;
     --code-string: #a5d6a7;
     --code-comment: #8a8a96;

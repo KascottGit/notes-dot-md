@@ -2,7 +2,7 @@
  * What the note list shows: filtering by category and title, sorting, counts.
  * Pure functions, no UI.
  */
-import type { Category, Note } from '../drive/notes';
+import { isPinned, type Category, type Note } from '../drive/notes';
 import { safeLocalStorage, type StorageLike } from './storage';
 
 export type SortOrder = 'modified' | 'created' | 'title';
@@ -43,6 +43,14 @@ export function sortNotes(notes: Note[], order: SortOrder): Note[] {
     case 'title':
       return sorted.sort((a, b) => collator.compare(a.title, b.title));
   }
+}
+
+/** Pinned notes go above all others; both groups keep the given order. */
+export function splitPinned(notes: Note[]): { pinned: Note[]; others: Note[] } {
+  return {
+    pinned: notes.filter((n) => isPinned(n)),
+    others: notes.filter((n) => !isPinned(n)),
+  };
 }
 
 /** Number of notes per category folder id. */

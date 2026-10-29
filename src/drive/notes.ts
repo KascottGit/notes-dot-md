@@ -396,6 +396,32 @@ export async function moveNote(drive: DriveClient, note: Note, toFolderId: strin
   return toNote(file, toFolderId);
 }
 
+/** Pinned notes are listed first. Stored on the file, so pins sync between devices. */
+export function isPinned(note: Note): boolean {
+  return note.appProperties['pinned'] === 'true';
+}
+
+/** Pin or unpin a note (`appProperties.pinned`). */
+export async function setPinned(drive: DriveClient, note: Note, pinned: boolean): Promise<Note> {
+  const file = await drive.json<DriveFile>(`${FILES}/${note.id}?fields=${NOTE_FIELDS}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    // null removes the property.
+    body: JSON.stringify({ appProperties: { pinned: pinned ? 'true' : null } }),
+  });
+  return toNote(file, note.folderId);
+}
+
+/** Take a note back out of the Drive trash (the Undo after deleting). */
+export async function untrashNote(drive: DriveClient, note: Note): Promise<Note> {
+  const file = await drive.json<DriveFile>(`${FILES}/${note.id}?fields=${NOTE_FIELDS}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: false }),
+  });
+  return toNote(file, note.folderId);
+}
+
 /** Move a note to the Drive trash. Never hard-deletes. */
 export async function trashNote(drive: DriveClient, id: string): Promise<void> {
   await drive.request(`${FILES}/${id}?fields=id`, {

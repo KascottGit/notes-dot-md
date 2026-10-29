@@ -7,6 +7,7 @@ import {
   saveSort,
   sortCategories,
   sortNotes,
+  splitPinned,
 } from './noteList';
 
 function note(title: string, folderId: string, created: string, modified: string): Note {
@@ -115,5 +116,15 @@ describe('sort preference', () => {
     const storage = memoryStorage();
     storage.setItem('mdnotes.sort', 'bogus');
     expect(loadSort(storage)).toBe('modified');
+  });
+});
+
+describe('splitPinned', () => {
+  it('puts pinned notes in their own group, keeping the sort order', () => {
+    const pinned = (n: Note): Note => ({ ...n, appProperties: { pinned: 'true' } });
+    const list = sortNotes([notes[0]!, pinned(notes[1]!), pinned(notes[2]!)], 'title');
+    const { pinned: top, others } = splitPinned(list);
+    expect(titles(top)).toEqual(['Café list', 'Week 9 plan']);
+    expect(titles(others)).toEqual(['Week 10 plan']);
   });
 });

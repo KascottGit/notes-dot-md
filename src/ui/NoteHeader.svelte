@@ -3,7 +3,7 @@
   file), and the save status.
 -->
 <script lang="ts">
-  import type { Category } from '../drive/notes';
+  import { isPinned, type Category } from '../drive/notes';
   import type { SessionState } from '../store/noteSession';
 
   interface Props {
@@ -16,9 +16,23 @@
     onMove: (folderId: string) => void;
     /** Enter in the title: go on to the text. */
     onDone: () => void;
+    onTogglePin: () => void;
+    onDelete: () => void;
   }
 
-  let { sessionState, categories, onBack, onRetry, onRename, onMove, onDone }: Props = $props();
+  let {
+    sessionState,
+    categories,
+    onBack,
+    onRetry,
+    onRename,
+    onMove,
+    onDone,
+    onTogglePin,
+    onDelete,
+  }: Props = $props();
+
+  const pinned = $derived(isPinned(sessionState.note));
 
   let input = $state<HTMLInputElement>();
   let draft = $state('');
@@ -117,6 +131,25 @@
       <button class="retry" onclick={onRetry}>Retry</button>
     {/if}
   </div>
+  {#if !sessionState.readOnly}
+    <button
+      class="icon"
+      class:on={pinned}
+      aria-pressed={pinned}
+      aria-label={pinned ? 'Unpin note' : 'Pin note'}
+      title={pinned ? 'Unpin' : 'Pin to the top'}
+      onclick={onTogglePin}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"
+        ><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v5" /></svg
+      >
+    </button>
+    <button class="icon" aria-label="Delete note" title="Move to trash" onclick={onDelete}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"
+        ><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg
+      >
+    </button>
+  {/if}
 </div>
 {#if sessionState.status === 'error' && sessionState.error}
   <p class="detail" role="alert">{sessionState.error} Your text is still here.</p>
@@ -218,6 +251,44 @@
     color: var(--text);
     font: inherit;
     cursor: pointer;
+  }
+
+  .icon {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-right: -6px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .icon:hover {
+    background: var(--bg-muted);
+    color: var(--text);
+  }
+
+  .icon.on {
+    color: var(--pin);
+  }
+
+  .icon.on svg {
+    fill: currentColor;
+  }
+
+  .icon svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .detail {

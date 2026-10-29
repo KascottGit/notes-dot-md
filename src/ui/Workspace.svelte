@@ -16,7 +16,11 @@
     readNote,
     renameFolder,
     renameNote,
+    setPinned,
+    isPinned,
     trashFolder,
+    trashNote,
+    untrashNote,
     type Category,
     type Folders,
     type Note,
@@ -30,6 +34,7 @@
   import NameDialog from './NameDialog.svelte';
   import NoteHeader from './NoteHeader.svelte';
   import NoteList from './NoteList.svelte';
+  import Toast from './Toast.svelte';
   import Toolbar from './Toolbar.svelte';
 
   let folders = $state<Folders | null>(null);
@@ -44,6 +49,7 @@
   /** The category name dialog: creating one, or renaming `category`. */
   let nameDialog = $state<{ mode: 'create' } | { mode: 'rename'; category: Category } | null>(null);
   let header = $state<NoteHeader>();
+  let toast = $state<{ message: string; action?: { label: string; run: () => void } } | null>(null);
   let listError = $state<string | null>(null);
   let openError = $state<string | null>(null);
 
@@ -273,6 +279,58 @@
     }
   }
 
+  async function togglePin(note: Note) {
+    const current = notes.find((n) => n.id === note.id) ?? note;
+    const pin = !isPinned(current);
+    // Show it right away; Drive catches up.
+    replaceNote({
+      ...current,
+      appProperties: { ...current.appProperties, pinned: pin ? 'true' : '' },
+    });
+    try {
+      replaceNote(await setPinned(drive, current, pin));
+    } catch (err) {
+      replaceNote(current);
+      toast = { message: `Couldn't ${pin ? 'pin' : 'unpin'} the note: ${message(err)}` };
+    }
+  }
+
+  /** Move a note to the Drive trash, with Undo. */
+  async function deleteNote(note: Note) {
+    const isOpen = session?.state.note.id === note.id;
+    if (isOpen && session) {
+      // Save first, so Undo brings back the latest text. Don't wait forever
+      // (an expired session would hold the save until the next sign-in).
+      await Promise.race([session.flush(), new Promise((r) => setTimeout(r, 5000))]);
+      session.dispose();
+      session = null;
+      sessionState = null;
+      clearStash();
+      view = 'list';
+    }
+    notes = notes.filter((n) => n.id !== note.id);
+    try {
+      await trashNote(drive, note.id);
+      toast = {
+        message: `"${note.title}" moved to trash`,
+        action: { label: 'Undo', run: () => void restoreNote(note) },
+      };
+    } catch (err) {
+      notes = [...notes, note];
+      toast = { message: `Couldn't delete "${note.title}": ${message(err)}` };
+    }
+  }
+
+  async function restoreNote(note: Note) {
+    try {
+      const back = await untrashNote(drive, note);
+      notes = [...notes.filter((n) => n.id !== back.id), back];
+    } catch (err) {
+      toast = { message: `Couldn't restore "${note.title}". It is in the Google Drive trash.` };
+      console.warn('Restore from trash failed:', err);
+    }
+  }
+
   function selectSort(order: SortOrder) {
     sort = order;
     saveSort(order);
@@ -389,6 +447,8 @@
       onNewCategory={() => (nameDialog = { mode: 'create' })}
       onRenameCategory={(category) => (nameDialog = { mode: 'rename', category })}
       onDeleteCategory={deleteCategory}
+      onTogglePin={togglePin}
+      onDeleteNote={deleteNote}
     />
   </aside>
 
@@ -403,6 +463,8 @@
         onRename={renameOpenNote}
         onMove={moveOpenNote}
         onDone={() => editor?.focus()}
+        onTogglePin={() => sessionState && void togglePin(sessionState.note)}
+        onDelete={() => sessionState && void deleteNote(sessionState.note)}
       />
       {#if !sessionState.readOnly}
         <Toolbar run={(command) => editor?.run(command)} />
@@ -417,6 +479,15 @@
     <div class="editor" class:hidden={!sessionState} bind:this={editorEl}></div>
   </section>
 </div>
+
+{#if toast}
+  <Toast
+    message={toast.message}
+    actionLabel={toast.action?.label}
+    onAction={toast.action?.run}
+    onClose={() => (toast = null)}
+  />
+{/if}
 
 <NameDialog
   open={nameDialog !== null}

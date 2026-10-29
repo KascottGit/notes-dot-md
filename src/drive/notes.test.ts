@@ -8,6 +8,7 @@ import {
   FOLDER_MIME,
   folderContents,
   getNote,
+  isPinned,
   listCategories,
   listNotes,
   listNotesIn,
@@ -16,8 +17,10 @@ import {
   renameNote,
   renameFolder,
   saveNote,
+  setPinned,
   trashFolder,
   trashNote,
+  untrashNote,
 } from './notes';
 
 function memoryStorage(initial: Record<string, string> = {}) {
@@ -288,5 +291,35 @@ describe('categories', () => {
 
     expect(notes).toHaveLength(31);
     for (const note of notes) expect(note.title).toBe(`Note in ${note.folderId}`);
+  });
+});
+
+describe('pin and delete', () => {
+  it('pins and unpins, keeping the app tag', async () => {
+    const { drive, files, inboxId } = await withFolders();
+    const note = await createNote(drive, inboxId, 'Plan');
+    expect(isPinned(note)).toBe(false);
+
+    const pinned = await setPinned(drive, note, true);
+    expect(isPinned(pinned)).toBe(true);
+    expect(files.get(note.id)!.appProperties).toEqual({ ...APP_PROPERTIES, pinned: 'true' });
+    expect(isPinned((await listNotes(drive, inboxId))[0]!)).toBe(true);
+
+    const unpinned = await setPinned(drive, pinned, false);
+    expect(isPinned(unpinned)).toBe(false);
+    expect(files.get(note.id)!.appProperties).toEqual(APP_PROPERTIES);
+  });
+
+  it('undo after delete takes the note out of the trash, content intact', async () => {
+    const { drive, inboxId } = await withFolders();
+    const note = await createNote(drive, inboxId, 'Oops', 'keep me');
+    await trashNote(drive, note.id);
+    expect(await listNotes(drive, inboxId)).toEqual([]);
+
+    const back = await untrashNote(drive, note);
+
+    expect(back.folderId).toBe(inboxId);
+    expect((await listNotes(drive, inboxId)).map((n) => n.id)).toEqual([note.id]);
+    expect(await readNote(drive, note.id)).toBe('keep me');
   });
 });

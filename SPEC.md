@@ -183,7 +183,8 @@ Categories are Drive folders, so the structure the app shows is the same one the
 - **Search:** client-side filter on titles. Full-text search through Drive's `fullText contains` query is a nice-to-have.
 - **Title:** the filename is the source of truth. Editing the title field in the note header renames the file.
 - **New note:** created in the selected category (Inbox under "All notes"), titled `Untitled`, with the title field focused.
-- **Pinned notes (nice-to-have):** `appProperties.pinned = "true"`, shown at the top of the list.
+- **Pinned notes:** `appProperties.pinned = "true"`, shown in a Pinned section above all other notes. Toggle with the pin button in the note header, or on touch screens by swiping a note left to right and releasing (like Apple Notes).
+- **Delete a note:** the trash button in the note header, or on touch screens swipe a note right to left and release. The note moves to the Drive trash, with an Undo toast that takes it back out.
 
 ## Export and copy
 

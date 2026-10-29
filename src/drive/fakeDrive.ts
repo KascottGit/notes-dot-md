@@ -123,9 +123,20 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
         return json(200, meta(f));
       }
       if (method === 'PATCH') {
-        const patch = JSON.parse(body || '{}') as Partial<FakeFile>;
+        const patch = JSON.parse(body || '{}') as Partial<FakeFile> & {
+          appProperties?: Record<string, string | null>;
+        };
         if (patch.name !== undefined) f.name = patch.name;
         if (patch.trashed !== undefined) f.trashed = patch.trashed;
+        if (patch.appProperties) {
+          // Drive merges appProperties; null deletes a key.
+          const merged: Record<string, string> = { ...f.appProperties };
+          for (const [key, value] of Object.entries(patch.appProperties)) {
+            if (value === null) delete merged[key];
+            else merged[key] = value;
+          }
+          f.appProperties = merged;
+        }
         const add = url.searchParams.get('addParents');
         const remove = url.searchParams.get('removeParents');
         if (remove) f.parents = f.parents.filter((p) => p !== remove);

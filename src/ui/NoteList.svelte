@@ -1,13 +1,15 @@
 <!-- The note list: search, category filter, sort, and the notes themselves. -->
 <script lang="ts">
-  import type { Category, Note } from '../drive/notes';
+  import { isPinned, type Category, type Note } from '../drive/notes';
   import {
     countByCategory,
     filterNotes,
     SORT_LABELS,
     sortNotes,
+    splitPinned,
     type SortOrder,
   } from '../store/noteList';
+  import SwipeItem from './SwipeItem.svelte';
 
   interface Props {
     notes: Note[];
@@ -29,6 +31,8 @@
     onNewCategory: () => void;
     onRenameCategory: (category: Category) => void;
     onDeleteCategory: (category: Category) => void;
+    onTogglePin: (note: Note) => void;
+    onDeleteNote: (note: Note) => void;
   }
 
   let {
@@ -49,10 +53,13 @@
     onNewCategory,
     onRenameCategory,
     onDeleteCategory,
+    onTogglePin,
+    onDeleteNote,
   }: Props = $props();
 
   const counts = $derived(countByCategory(notes));
   const shown = $derived(sortNotes(filterNotes(notes, selectedCategory, query), sort));
+  const groups = $derived(splitPinned(shown));
   const current = $derived(categories.find((c) => c.id === selectedCategory) ?? null);
   const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? '';
 
@@ -66,6 +73,35 @@
     return today ? timeFormat.format(date) : dateFormat.format(date);
   }
 </script>
+
+{#snippet row(note: Note)}
+  <SwipeItem
+    pinned={isPinned(note)}
+    disabled={!note.canEdit}
+    onPin={() => onTogglePin(note)}
+    onDelete={() => onDeleteNote(note)}
+  >
+    <button
+      class="item"
+      class:selected={note.id === selectedNoteId}
+      aria-current={note.id === selectedNoteId ? 'true' : undefined}
+      onclick={() => onOpen(note)}
+    >
+      <span class="title">
+        {#if isPinned(note)}
+          <svg class="pin" viewBox="0 0 24 24" aria-label="Pinned" role="img"
+            ><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v5" /></svg
+          >
+        {/if}
+        {note.title}
+      </span>
+      <span class="meta">
+        {#if selectedCategory === null}{categoryName(note.folderId)} ·{/if}
+        {when(note)}
+      </span>
+    </button>
+  </SwipeItem>
+{/snippet}
 
 <nav class="list" aria-label="Notes">
   <div class="top">
@@ -131,24 +167,22 @@
       {query ? 'No titles match your search.' : 'No notes here yet. Create one to get started.'}
     </p>
   {:else}
-    <ul>
-      {#each shown as note (note.id)}
-        <li>
-          <button
-            class="item"
-            class:selected={note.id === selectedNoteId}
-            aria-current={note.id === selectedNoteId ? 'true' : undefined}
-            onclick={() => onOpen(note)}
-          >
-            <span class="title">{note.title}</span>
-            <span class="meta">
-              {#if selectedCategory === null}{categoryName(note.folderId)} ·{/if}
-              {when(note)}
-            </span>
-          </button>
-        </li>
-      {/each}
-    </ul>
+    <div class="notes">
+      {#if groups.pinned.length}
+        <h3>Pinned</h3>
+        <ul>
+          {#each groups.pinned as note (note.id)}
+            <li>{@render row(note)}</li>
+          {/each}
+        </ul>
+        {#if groups.others.length}<h3>Notes</h3>{/if}
+      {/if}
+      <ul>
+        {#each groups.others as note (note.id)}
+          <li>{@render row(note)}</li>
+        {/each}
+      </ul>
+    </div>
   {/if}
 </nav>
 
@@ -281,12 +315,42 @@
     cursor: pointer;
   }
 
-  ul {
+  .notes {
     flex: 1;
-    margin: 0;
+    min-height: 0;
     padding: 0 8px 16px;
     overflow-y: auto;
+  }
+
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
     list-style: none;
+  }
+
+  h3 {
+    margin: 8px 12px 4px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .pin {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin-right: 4px;
+    vertical-align: -1px;
+    fill: none;
+    stroke: var(--pin);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .item {
