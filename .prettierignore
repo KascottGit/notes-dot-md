@@ -1,0 +1,7 @@
+dist
+coverage
+node_modules
+package-lock.json
+# Hand-written docs; keep their formatting as authored.
+SPEC.md
+CLAUDE.md
