@@ -11,6 +11,13 @@
   --danger: #c62828;
   --warning-bg: #fff4d6;
   --selection: #cfdcff;
+  --code-keyword: #8b2fc9;
+  --code-string: #237a3b;
+  --code-comment: #7a7a85;
+  --code-number: #b35900;
+  --code-function: #2f5bd3;
+  --code-type: #a1366b;
+  --code-property: #2a6f8f;
 
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
   --font-mono: ui-monospace, 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
@@ -28,6 +35,13 @@
     --danger: #ff8a80;
     --warning-bg: #3a3220;
     --selection: #34406a;
+    --code-keyword: #c792ea;
+    --code-string: #a5d6a7;
+    --code-comment: #8a8a96;
+    --code-number: #f5b97a;
+    --code-function: #8fb0ff;
+    --code-type: #f48fb1;
+    --code-property: #80cbc4;
   }
 }
 

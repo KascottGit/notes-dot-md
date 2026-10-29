@@ -1,12 +1,16 @@
 /**
- * CodeMirror configuration. The document is plain markdown text; this file
- * never changes how it is stored. Live-preview decorations come in M4.
+ * CodeMirror configuration. The document is plain markdown text; rendering
+ * (live preview) only adds decorations and never changes how it is stored.
  */
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { markdownLanguage } from '@codemirror/lang-markdown';
-import { defaultHighlightStyle, LanguageSupport, syntaxHighlighting } from '@codemirror/language';
+import { deleteMarkupBackward } from '@codemirror/lang-markdown';
+import { codeFolding, syntaxHighlighting } from '@codemirror/language';
 import { Annotation, Compartment, EditorState } from '@codemirror/state';
 import { drawSelection, EditorView, keymap } from '@codemirror/view';
+import { codeHighlight } from './highlight';
+import { markdownSupport } from './language';
+import { continueList, indentListItem, outdentListItem, shorthandInput } from './lists';
+import { livePreview } from './livePreview';
 
 /** Marks changes made by the app (e.g. loading a newer version), not by typing. */
 const external = Annotation.define<boolean>();
@@ -66,11 +70,16 @@ export function createEditor(options: EditorOptions): Editor {
         history(),
         drawSelection(),
         EditorView.lineWrapping,
-        // CommonMark + GFM (tables, task lists, strikethrough). Used directly
-        // instead of markdown(), which bundles HTML/CSS/JS parsers (~190 kB)
-        // for inline HTML and adds paste-as-link (paste must stay plain text).
-        new LanguageSupport(markdownLanguage),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        markdownSupport(),
+        syntaxHighlighting(codeHighlight),
+        livePreview(),
+        codeFolding({ placeholderText: '…' }),
+        EditorView.inputHandler.of((view, from, to, text) => {
+          const spec = shorthandInput(view.state, from, to, text);
+          if (!spec) return false;
+          view.dispatch(spec);
+          return true;
+        }),
         keymap.of([
           {
             key: 'Mod-s',
@@ -80,6 +89,10 @@ export function createEditor(options: EditorOptions): Editor {
               return true;
             },
           },
+          // Continue lists and tasks on Enter; Enter on an empty item ends the list.
+          { key: 'Enter', run: continueList },
+          { key: 'Backspace', run: deleteMarkupBackward },
+          { key: 'Tab', run: indentListItem, shift: outdentListItem },
           ...defaultKeymap,
           ...historyKeymap,
           indentWithTab,
