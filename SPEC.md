@@ -169,7 +169,7 @@ Toggle behavior:
 - **Switching list type** replaces the existing prefix. For example, a bullet list becomes a checklist instead of getting both markers. Numbered lists are renumbered in order.
 - Buttons call `preventDefault` on `mousedown`/`pointerdown` so the editor keeps focus and the selection.
 
-Placement: under the note title on every screen size, horizontally scrollable on narrow screens. (Changed 2026-10-29 from pinning it above the keyboard on mobile.) The app is not resized for the on-screen keyboard (tried and reverted: on iPhone it made the focused text jump out of view).
+Placement: under the note title on every screen size, horizontally scrollable on narrow screens. (Changed 2026-10-29 from pinning it above the keyboard on mobile.) While the on-screen keyboard is open, the app is sized to the `visualViewport` (like a native notes app): the header and bar stay at the top, the note area shrinks, and the editor scrolls just enough to keep the cursor visible above the keyboard.
 
 ## Organization: categories and sorting
 

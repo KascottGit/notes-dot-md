@@ -128,6 +128,11 @@
     return session ? session.flush() : true;
   }
 
+  /** Keep the cursor visible after the visible area changed (keyboard opened). */
+  export function revealCursor(): void {
+    editor?.revealCursor();
+  }
+
   /** Edits not yet on Drive, or a save in progress. */
   export function hasUnsavedWork(): boolean {
     return session?.hasUnsavedWork() ?? false;
