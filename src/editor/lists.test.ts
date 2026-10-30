@@ -6,7 +6,6 @@ import {
   expandTaskShorthand,
   indentItem,
   indentListItem,
-  listSiblings,
   moveItemDown,
   moveItemUp,
   moveListItem,
@@ -138,86 +137,21 @@ describe('task shorthand', () => {
   });
 });
 
-/** Move the item on 1-based line `line` to `slot`; `|` marks the cursor. */
-function move(text: string, line: number, slot: number) {
-  const state = stateOf(text);
-  const spec = moveListItem(state, state.doc.line(line).from, slot);
-  if (!spec) return null;
-  const next = state.update(spec).state;
-  const doc = next.doc.toString();
-  const head = next.selection.main.head;
-  return doc.slice(0, head) + '|' + doc.slice(head);
-}
-
-describe('listSiblings', () => {
-  it('groups each item with its sub-items', () => {
-    const state = stateOf('- a\n  - a1\n  - a2\n- b\n- c');
-    expect(listSiblings(state, state.doc.line(4).from)).toEqual({
-      blocks: [
-        { from: 1, to: 3 },
-        { from: 4, to: 4 },
-        { from: 5, to: 5 },
-      ],
-      index: 1,
-    });
-  });
-
-  it('gives a sub-item only its own siblings', () => {
-    const state = stateOf('- a\n  - a1\n  - a2\n- b');
-    expect(listSiblings(state, state.doc.line(3).from)).toEqual({
-      blocks: [
-        { from: 2, to: 2 },
-        { from: 3, to: 3 },
-      ],
-      index: 1,
-    });
-  });
-
-  it('is null off a list item line', () => {
-    expect(listSiblings(stateOf('text\n- a'), 0)).toBeNull();
-  });
-});
+/** Run a command; `|` marks the cursor. */
+const up = (text: string) => run(moveItemUp, text).text;
+const down = (text: string) => run(moveItemDown, text).text;
 
 describe('moveListItem', () => {
-  it('moves an item down and up', () => {
-    expect(move('- a\n- b|\n- c', 1, 3)).toBe('- b|\n- c\n- a');
-    expect(move('- a\n- b|\n- c', 3, 0)).toBe('- c\n- a\n- b|');
-  });
-
-  it('moves tasks, keeping their state', () => {
-    expect(move('- [ ] a\n- [x] b|', 2, 0)).toBe('- [x] b|\n- [ ] a');
-  });
-
-  it('moves sub-items along with their item', () => {
-    expect(move('- a\n  - a1\n- b|', 1, 2)).toBe('- b|\n- a\n  - a1');
-  });
-
-  it('keeps blank lines between items in place', () => {
-    expect(move('- a\n\n- b|\n\n- c', 5, 0)).toBe('- c\n\n- a\n\n- b|');
-  });
-
-  it('renumbers numbered lists from their first number', () => {
-    expect(move('3. a\n4. b\n5. |c', 3, 0)).toBe('3. |c\n4. a\n5. b');
-    expect(move('1) a\n2) b|', 1, 2)).toBe('1) b|\n2) a');
-  });
-
-  it('keeps the cursor in the moved item, across a renumbered marker', () => {
-    const lines = Array.from({ length: 10 }, (_, i) => `${i + 1}. item${i + 1}`);
-    lines[9] = '10. it|em10';
-    expect(move(lines.join('\n'), 10, 0)!.split('\n')[0]).toBe('1. it|em10');
-  });
-
-  it('moves items inside a quote', () => {
-    expect(move('> - a\n> - b|', 2, 0)).toBe('> - b|\n> - a');
-  });
-
-  it('leaves text outside the list alone', () => {
-    expect(move('# T\n\n- a\n- b\n\nend|', 4, 0)).toBe('# T\n\n- b\n- a\n\nend|');
+  it('is null off list item lines and at the ends of the note', () => {
+    const state = stateOf('- a\ntext');
+    expect(moveListItem(state, 0, -1)).toBeNull();
+    expect(moveListItem(state, state.doc.line(2).from, -1)).toBeNull();
+    expect(moveListItem(stateOf('text\n- a'), 2 + 5, 1)).toBeNull();
   });
 
   it('is one cut and paste, leaving the rest of the text untouched', () => {
     const state = stateOf('- a\n- b\n- c\n- d');
-    const spec = moveListItem(state, state.doc.line(1).from, 2)!;
+    const spec = moveListItem(state, 0, 1)!;
     const touched: [number, number][] = [];
     state.update(spec).changes.iterChangedRanges((from, to) => touched.push([from, to]));
     expect(touched).toEqual([
@@ -225,39 +159,72 @@ describe('moveListItem', () => {
       [7, 7],
     ]);
   });
-
-  it('does nothing when the item stays where it is', () => {
-    expect(move('- a\n- b', 1, 0)).toBeNull();
-    expect(move('- a\n- b', 1, 1)).toBeNull();
-    expect(move('- a\n- b', 1, 5)).toBeNull();
-    expect(move('text', 1, 0)).toBeNull();
-  });
 });
 
 describe('moveItemUp / moveItemDown', () => {
-  it('moves a list item with its sub-items', () => {
-    expect(run(moveItemDown, '- a|\n  - a1\n- b').text).toBe('- b\n- a|\n  - a1');
-    expect(run(moveItemUp, '- a\n- b|\n  - b1').text).toBe('- b|\n  - b1\n- a');
+  it('swaps items one line at a time', () => {
+    expect(down('- a|\n- b\n- c')).toBe('- b\n- a|\n- c');
+    expect(up('- a\n- b\n- c|')).toBe('- a\n- c|\n- b');
   });
 
-  it('moves a sub-item only among its siblings', () => {
-    expect(run(moveItemUp, '- a\n  - a1\n  - a2|\n- b').text).toBe('- a\n  - a2|\n  - a1\n- b');
-    const top = run(moveItemUp, '- a\n  - a1|\n- b');
-    expect(top).toEqual({ handled: true, text: '- a\n  - a1|\n- b' });
+  it('moves tasks, keeping their state', () => {
+    expect(up('- [ ] a\n- [x] b|')).toBe('- [x] b|\n- [ ] a');
   });
 
-  it('stays put at either end of the list', () => {
+  it('takes the indented lines right below the item along', () => {
+    expect(down('- a|\n  - a1\n  more a\n- b')).toBe('- b\n- a|\n  - a1\n  more a');
+  });
+
+  it('leaves unindented text below the item behind', () => {
+    expect(down('- a|\ntext\n- b')).toBe('text\n- a|\n- b');
+    expect(up('text\n- a|')).toBe('- a|\ntext');
+  });
+
+  it('ends the children at a blank line', () => {
+    expect(down('- a|\n  - a1\n\n  - a2')).toBe('\n- a|\n  - a1\n  - a2');
+  });
+
+  it('passes blank lines one line at a time', () => {
+    expect(down('- a|\n\n- b')).toBe('\n- a|\n- b');
+    expect(up('- a\n\n- b|')).toBe('- a\n- b|\n');
+  });
+
+  it('jumps above an item when moving up out of its children', () => {
+    expect(up('- a\n  - a1\n- b|')).toBe('- b|\n- a\n  - a1');
+    expect(up('- a\n  - a1\n    - a11\n- b|')).toBe('- b|\n- a\n  - a1\n    - a11');
+    expect(up('- a\n  - a1\n    - a11\n  - a2|')).toBe('- a\n  - a2|\n  - a1\n    - a11');
+  });
+
+  it('jumps past an item with children when moving down', () => {
+    expect(down('- a|\n- b\n  - b1\n- c')).toBe('- b\n  - b1\n- a|\n- c');
+  });
+
+  it('moves a sub-item one line, also past its parent', () => {
+    expect(up('- a\n  - a1\n  - a2|')).toBe('- a\n  - a2|\n  - a1');
+    expect(up('- a\n  - a1|')).toBe('  - a1|\n- a');
+  });
+
+  it('stays put at the start or end of the note', () => {
     expect(run(moveItemUp, '- a|\n- b')).toEqual({ handled: true, text: '- a|\n- b' });
-    expect(run(moveItemDown, 'x\n\n- a\n- b|\n\ny').text).toBe('x\n\n- a\n- b|\n\ny');
+    expect(run(moveItemDown, '- a\n- b|')).toEqual({ handled: true, text: '- a\n- b|' });
   });
 
-  it('renumbers numbered lists', () => {
-    expect(run(moveItemDown, '1. a|\n2. b').text).toBe('1. b\n2. a|');
+  it('renumbers numbered lists, keeping the cursor beside the number', () => {
+    expect(down('1. a|\n2. b')).toBe('1. b\n2. a|');
+    expect(up('3. a\n4. b\n5. |c')).toBe('3. a\n4. |c\n5. b');
+    expect(up('1. a\n|2. b')).toBe('|1. b\n2. a');
+    const ten = Array.from({ length: 10 }, (_, i) => `${i + 1}. item${i + 1}`);
+    ten[9] = '10. it|em10';
+    expect(up(ten.join('\n')).split('\n').slice(8)).toEqual(['9. it|em10', '10. item9']);
+  });
+
+  it('moves items inside a quote', () => {
+    expect(up('> - a\n> - b|')).toBe('> - b|\n> - a');
   });
 
   it('moves plain lines outside lists', () => {
-    expect(run(moveItemDown, 'one|\ntwo').text).toBe('two\none|');
-    expect(run(moveItemUp, 'one\ntwo|').text).toBe('two|\none');
+    expect(down('one|\ntwo')).toBe('two\none|');
+    expect(up('one\ntwo|')).toBe('two|\none');
   });
 });
 

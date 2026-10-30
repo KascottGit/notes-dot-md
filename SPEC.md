@@ -136,7 +136,7 @@ Behavior:
 - **Checkbox click:** dispatch a change that swaps `[ ]` and `[x]`. The cursor does not move and the keyboard does not open on mobile.
 - **Enter in a list** continues it, including tasks (new line starts with ` - [ ]  `). Use `insertNewlineContinueMarkup`. Enter on an empty item ends the list.
 - **Tab / Shift+Tab** indents and outdents list items.
-- **Alt+↑ / Alt+↓** move the current list item, with its sub-items, past its neighbour within its own list (numbered lists are renumbered); at either end of the list it stays put. Outside lists they move the selected lines. On phones the same moves are format bar buttons. (Added 2026-10-30. Touch-and-hold dragging of list markers was tried and dropped: Safari on iPhone starts selecting text instead.)
+- **Alt+↑ / Alt+↓** move the current list item one line up or down, together with its children. Children are the lines right below the item that are indented further; a blank or unindented line ends them. Blank lines and plain text are passed one line at a time. Moving up from under another item's children jumps above that item; moving down onto an item with children jumps past them. Numbered lists are renumbered. Outside lists the keys move the selected lines. On phones the same moves are format bar buttons. (Added 2026-10-30. Touch-and-hold dragging of list markers was tried and dropped: Safari on iPhone starts selecting text instead.)
 - **Shorthand:** typing `[]` right after a list marker expands to ` [ ]  `, and a line starting `-[ ]` is normalized to ` - [ ]  `.
 - **Copy and cut** use CodeMirror's default behavior, which copies the document text. Do not add a custom HTML clipboard handler. Copying a rendered checklist must paste as `- [ ] item`.
 - **Paste** inserts plain text. Converting pasted HTML to markdown is a later nice-to-have.
@@ -162,7 +162,7 @@ The format bar edits the markdown text through the same commands as the keyboard
 | Checklist | Line prefix ` - [ ]  ` | Ctrl+Shift+9 |
 | Quote | Line prefix ` >  ` | Ctrl+Shift+. |
 | Code block | Wrap lines in ```` ``` ```` fences | Ctrl+Alt+C |
-| Move up / Move down | Move the list item (with its sub-items) or the selected lines | Alt+↑ / Alt+↓ |
+| Move up / Move down | Move the list item with its children, or the selected lines | Alt+↑ / Alt+↓ |
 | Outdent / Indent | Un-nest or nest a list item; indent other lines | Shift+Tab / Tab |
 
 Toggle behavior:

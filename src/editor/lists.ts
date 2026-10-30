@@ -4,9 +4,8 @@
  */
 import { indentLess, indentMore, moveLineDown, moveLineUp } from '@codemirror/commands';
 import { insertNewlineContinueMarkupCommand } from '@codemirror/lang-markdown';
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import {
-  ChangeSet,
   EditorSelection,
   type ChangeSpec,
   type EditorState,
@@ -183,136 +182,134 @@ function itemOnLine(state: EditorState, pos: number): SyntaxNode | null {
   return found.at(-1) ?? null;
 }
 
-/** The lines (1-based, inclusive) of one list item with its sub-items. */
-export interface ItemBlock {
+/** Indentation width in columns (a tab counts to the next multiple of 4). */
+function indentOf(text: string): number {
+  let n = 0;
+  for (const ch of text) {
+    if (ch === ' ') n++;
+    else if (ch === '\t') n += 4 - (n % 4);
+    else break;
+  }
+  return n;
+}
+
+const isBlank = (text: string) => text.trim() === '';
+
+/**
+ * The last line of the item on line `n` with its children: the lines right
+ * below it that are indented further. A blank or less indented line ends them.
+ */
+function lastChildLine(state: EditorState, n: number): number {
+  const { doc } = state;
+  const indent = indentOf(doc.line(n).text);
+  let last = n;
+  while (last < doc.lines) {
+    const next = doc.line(last + 1).text;
+    if (isBlank(next) || indentOf(next) <= indent) break;
+    last++;
+  }
+  return last;
+}
+
+/** A text change, in the coordinates of the text it applies to. */
+interface Edit {
   from: number;
   to: number;
-}
-
-export interface ListSiblings {
-  /** Every item of the list, in order. */
-  blocks: ItemBlock[];
-  /** The block of the item that was asked about. */
-  index: number;
-}
-
-interface Siblings extends ListSiblings {
-  /** ListMark ranges, per block, when the list is numbered. */
-  numbers: { from: number; to: number }[] | null;
-}
-
-function siblingsOf(state: EditorState, pos: number): Siblings | null {
-  const { doc } = state;
-  const item = itemOnLine(state, pos);
-  const list = item?.parent;
-  if (!item || !list || (list.name !== 'BulletList' && list.name !== 'OrderedList')) return null;
-  const blocks: ItemBlock[] = [];
-  const numbers: { from: number; to: number }[] = [];
-  let index = -1;
-  for (let child = list.firstChild; child; child = child.nextSibling) {
-    if (child.name !== 'ListItem') continue;
-    const first = doc.lineAt(child.from);
-    // Items are moved as whole lines, so each must start its own line
-    // (only indentation or quote markers before it).
-    if (!/^[\s>]*$/.test(doc.sliceString(first.from, child.from))) return null;
-    const end = doc.lineAt(child.to);
-    const last = end.from === child.to && child.to > child.from ? end.number - 1 : end.number;
-    const prev = blocks.at(-1);
-    if (prev && prev.to >= first.number) return null;
-    if (child.from === item.from) index = blocks.length;
-    blocks.push({ from: first.number, to: last });
-    const mark = child.getChild('ListMark');
-    if (mark) numbers.push({ from: mark.from, to: mark.to });
-  }
-  if (index < 0) return null;
-  const ordered = list.name === 'OrderedList' && numbers.length === blocks.length;
-  return { blocks, index, numbers: ordered ? numbers : null };
-}
-
-/** The items of the list that the item starting on the line at `pos` belongs to. */
-export function listSiblings(state: EditorState, pos: number): ListSiblings | null {
-  const s = siblingsOf(state, pos);
-  return s && { blocks: s.blocks, index: s.index };
+  insert: string;
 }
 
 /**
- * Move the list item on the line at `pos`, with its sub-items, to `slot`
- * among its siblings: 0 is before the first item, `blocks.length` after the
- * last. Like Alt+↑/↓, it is a cut and a paste, so the rest of the text (and
- * its undo history) is untouched. Numbered lists are renumbered, and the
- * selection moves with the text. Null if nothing moves.
+ * Renumber every numbered list that overlaps from–to, counting from the
+ * list's lowest number (its first number before items were moved).
  */
-export function moveListItem(
-  state: EditorState,
-  pos: number,
-  slot: number,
-): TransactionSpec | null {
-  const s = siblingsOf(state, pos);
-  if (!s) return null;
-  const { blocks, index, numbers } = s;
-  const n = blocks.length;
-  if (slot < 0 || slot > n || slot === index || slot === index + 1) return null;
-
+function renumberLists(state: EditorState, from: number, to: number): Edit[] {
   const { doc } = state;
-  const from = (k: number) => doc.line(blocks[k]!.from).from;
-  const to = (k: number) => doc.line(blocks[k]!.to).to;
-  const block = doc.sliceString(from(index), to(index));
-  const down = slot > index;
+  const edits: Edit[] = [];
+  const tree = ensureSyntaxTree(state, to, 200) ?? syntaxTree(state);
+  tree.iterate({
+    from,
+    to,
+    enter(ref) {
+      if (ref.name !== 'OrderedList') return;
+      const marks = ref.node
+        .getChildren('ListItem')
+        .flatMap((item) => item.getChild('ListMark') ?? [])
+        .map((mark) => ({ mark, old: doc.sliceString(mark.from, mark.to) }));
+      const start = Math.min(...marks.map((m) => parseInt(m.old) || 1));
+      marks.forEach(({ mark, old }, k) => {
+        const text = `${start + k}${old.slice(-1)}`;
+        if (text !== old) edits.push({ from: mark.from, to: mark.to, insert: text });
+      });
+    },
+  });
+  return edits.sort((a, b) => a.from - b.from);
+}
 
-  // Cut the item with the separator (line break, blank lines) on one side of
-  // it, and paste both at the slot.
-  let cut: { from: number; to: number };
-  let at: number;
-  let paste: string;
-  let offset: number; // where the item starts within `paste`
-  if (down) {
-    cut = { from: from(index), to: from(index + 1) };
-    const gap = doc.sliceString(to(index), from(index + 1));
-    at = to(slot - 1);
-    paste = gap + block;
-    offset = gap.length;
+/** Map a position through renumbering edits, keeping it on the same side of each number. */
+function mapThrough(edits: Edit[], pos: number): number {
+  let shift = 0;
+  for (const e of edits) {
+    if (pos <= e.from) break;
+    if (pos < e.to) return e.from + shift + Math.min(pos - e.from, e.insert.length);
+    shift += e.insert.length - (e.to - e.from);
+  }
+  return pos + shift;
+}
+
+/**
+ * Move the list item on the line at `pos` one line up or down, together with
+ * its children (the indented lines right below it). Blank lines and plain
+ * text are passed one line at a time. Other items move as a whole: moving up
+ * from under an item's children jumps above that item, and moving down onto
+ * an item with children jumps past them. Numbered lists are renumbered and
+ * the selection moves with the text. Null if the line is not a list item,
+ * or at the start or end of the note.
+ */
+export function moveListItem(state: EditorState, pos: number, dir: -1 | 1): TransactionSpec | null {
+  const { doc } = state;
+  const first = doc.lineAt(pos);
+  if (!itemOnLine(state, first.from)) return null;
+  const last = doc.line(lastChildLine(state, first.number));
+  const indent = indentOf(first.text);
+
+  // Up: the line to paste before. Down: the line to paste after.
+  const up = dir < 0;
+  let target: number;
+  if (up) {
+    if (first.number === 1) return null;
+    target = first.number - 1;
+    // The line above is a child of an item further up: jump above that item.
+    let k = target;
+    while (k >= 1 && !isBlank(doc.line(k).text) && indentOf(doc.line(k).text) > indent) k--;
+    if (k < target && k >= 1 && !isBlank(doc.line(k).text) && itemOnLine(state, doc.line(k).from)) {
+      target = k;
+    }
   } else {
-    // Up: take the separator after the item, or before it for the last one.
-    cut =
-      index < n - 1
-        ? { from: from(index), to: from(index + 1) }
-        : { from: to(index - 1), to: to(index) };
-    const gap =
-      index < n - 1
-        ? doc.sliceString(to(index), from(index + 1))
-        : doc.sliceString(to(index - 1), from(index));
-    at = from(slot);
-    paste = block + gap;
-    offset = 0;
+    if (last.number === doc.lines) return null;
+    target = last.number + 1;
+    // The line below is an item: move past its children too.
+    if (itemOnLine(state, doc.line(target).from)) target = lastChildLine(state, target);
   }
-  const move = state.changes([cut, { from: at, insert: paste }]);
-  const blockStart = move.mapPos(at, -1) + offset;
-  /** Map a position through the cut and paste; the item's own text goes with it. */
-  const moved = (p: number) =>
-    p >= from(index) && p <= to(index)
-      ? blockStart + (p - from(index))
-      : move.mapPos(p, down ? -1 : 1);
 
-  // Renumber the list in its new order.
-  const renumber: ChangeSpec[] = [];
-  if (numbers) {
-    const order = blocks.map((_, k) => k);
-    order.splice(index, 1);
-    order.splice(down ? slot - 1 : slot, 0, index);
-    const first = parseInt(doc.sliceString(numbers[0]!.from, numbers[0]!.to)) || 1;
-    order.forEach((k, place) => {
-      const mark = numbers[k]!;
-      const old = doc.sliceString(mark.from, mark.to);
-      const text = `${first + place}${old.slice(-1)}`;
-      const start = moved(mark.from);
-      if (text !== old) renumber.push({ from: start, to: start + old.length, insert: text });
-    });
-  }
-  const numbered = ChangeSet.of(renumber, move.newLength);
-  const map = (p: number) => numbered.mapPos(moved(p), 1);
+  // A cut and a paste of whole lines, like Alt+↑/↓ in most editors.
+  const block = doc.sliceString(first.from, last.to);
+  const at = up ? doc.line(target).from : doc.line(target).to;
+  const move = state.changes([
+    up ? { from: first.from - 1, to: last.to } : { from: first.from, to: last.to + 1 },
+    { from: at, insert: up ? block + '\n' : '\n' + block },
+  ]);
+  const blockStart = move.mapPos(at, -1) + (up ? 0 : 1);
+  const moved = (p: number) =>
+    p >= first.from && p <= last.to ? blockStart + (p - first.from) : move.mapPos(p, up ? 1 : -1);
+
+  // The moved lines and the lines passed keep their total length.
+  const region = up ? { from: at, to: last.to } : { from: first.from, to: at };
+  const next = state.update({ changes: move }).state;
+  const edits = renumberLists(next, region.from, region.to);
+  const map = (p: number) => mapThrough(edits, moved(p));
 
   return {
-    changes: move.compose(numbered),
+    changes: move.compose(next.changes(edits)),
     selection: EditorSelection.create(
       state.selection.ranges.map((r) => EditorSelection.range(map(r.anchor), map(r.head))),
       state.selection.mainIndex,
@@ -323,8 +320,8 @@ export function moveListItem(
 
 /**
  * Move up/down (Alt+↑/↓ and the format bar). On a list item line, the item
- * moves past its neighbour with its sub-items, and stays put at either end
- * of its list. Anywhere else, the selected lines move.
+ * moves with its children (see `moveListItem`). Anywhere else, the selected
+ * lines move.
  */
 function moveItem(dir: -1 | 1): StateCommand {
   const moveLines = dir < 0 ? moveLineUp : moveLineDown;
@@ -332,17 +329,11 @@ function moveItem(dir: -1 | 1): StateCommand {
     const { state, dispatch } = target;
     if (state.readOnly) return false;
     const { main, ranges } = state.selection;
-    if (
-      ranges.length === 1 &&
-      state.doc.lineAt(main.from).number === state.doc.lineAt(main.to).number
-    ) {
-      const siblings = listSiblings(state, main.head);
-      if (siblings) {
-        const slot = dir < 0 ? siblings.index - 1 : siblings.index + 2;
-        const spec = moveListItem(state, main.head, slot);
-        if (spec) dispatch(state.update(spec, { scrollIntoView: true }));
-        return true;
-      }
+    const oneLine = state.doc.lineAt(main.from).number === state.doc.lineAt(main.to).number;
+    if (ranges.length === 1 && oneLine && itemOnLine(state, main.head)) {
+      const spec = moveListItem(state, main.head, dir);
+      if (spec) dispatch(state.update(spec, { scrollIntoView: true }));
+      return true;
     }
     return moveLines(target);
   };
