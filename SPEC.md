@@ -2,7 +2,7 @@
 
 ## Overview
 
-**notes.md** is a web app for writing notes in markdown, with every note stored as a plain `.md` file in the user's Google Drive. It is open source on GitHub in the repo `notes-dot-md`. It runs in any browser and installs as a PWA on phones and desktop. The primary desktop is EndeavourOS with Hyprland.
+**notes.md** is a web app for writing notes in markdown, with every note stored as a plain `.md` file in the user's Google Drive. It is open source on GitHub in the repo `notes-dot-md`. It runs in the browser on phones and desktop; it is not installed as an app (no PWA, decided 2026-10-30). The primary desktop is EndeavourOS with Hyprland.
 
 **Guiding principle: the file is always plain markdown.** The editor renders markdown inline (live preview), but the document text never changes form. Copying, exporting and Drive all see exactly the same markdown.
 
@@ -14,7 +14,7 @@ Goals for v1:
 - A format bar, categories, sorting, export to `.md`, and copy as markdown.
 - A data model ready for two later phases: a task board that replaces Trello, Claude reading and writing notes, and sharing with other people.
 
-Non-goal: offline support. The app requires a network connection.
+Non-goals: offline support (the app requires a network connection) and installing it as an app (PWA). It is used in the browser.
 
 ## Tech stack and architecture
 
@@ -26,9 +26,8 @@ The app is a static single-page app that talks to Google Drive straight from the
 | UI shell (note list, dialogs, toolbar) | Svelte 5 |
 | Editor | CodeMirror 6 with `@codemirror/lang-markdown` and the GFM extension from `@lezer/markdown` |
 | Code highlighting in fenced blocks | `@codemirror/language-data` |
-| Auth | OAuth 2.0 redirect flow for browser apps (`response_type=token`), no library. Changed from the GIS popup token client on 2026-10-29: popups can't hand the token back in iPhone Safari and installed PWAs |
+| Auth | OAuth 2.0 redirect flow for browser apps (`response_type=token`), no library. Changed from the GIS popup token client on 2026-10-29: popups can't hand the token back in iPhone Safari |
 | Storage | Google Drive REST API v3 via `fetch` |
-| PWA | `vite-plugin-pwa` |
 | Hosting | GitHub Pages at https://\<username>.github.io/notes-dot-md/, deployed by a GitHub Actions workflow; Vite base set to /notes-dot-md/ |
 
 Suggested module layout:
@@ -40,7 +39,8 @@ src/
   drive/notes.ts         list/read/create/save/rename/move/trash, folder bootstrap
   editor/setup.ts        CodeMirror configuration and keymaps
   editor/livePreview.ts  decoration plugin (rendering rules)
-  editor/widgets.ts      checkbox, bullet and horizontal-rule widgets
+  editor/widgets.ts      checkbox, bullet, rule, image and table widgets
+  editor/markdown.ts     markdown helpers: links and references, inline content, tables
   editor/commands.ts     format commands, shared by toolbar and shortcuts
   ui/                    Svelte components: NoteList, Toolbar, NoteHeader,
                          ConflictDialog, Toast
@@ -121,14 +121,19 @@ Rendering rules:
 | Italic | `*text*` or `_text_` | Italic | Shown dimmed |
 | Strikethrough | `~~text~~` | Struck through | Shown dimmed |
 | Inline code | `` `code` `` | Monospace with a tinted background | Shown dimmed |
-| Link | `[text](url)` | Link-colored text; Ctrl+click or tap opens it | Shown dimmed |
+| Link | `[text](url)`, `[text][label]`, `[label]` | Link-colored text; Ctrl+click or tap opens it. A reference link needs a matching `[label]: url`; otherwise it is plain text in brackets | Shown dimmed |
+| Bare URL | `https://…`, `www.…`, `me@example.com` | Link; `www.` opens over https, emails as `mailto:` | Always visible |
+| Link definition | `[label]: url` | Small, muted monospace | Always visible |
+| Image | `![alt](url)` or `![alt][label]` | The image (http/https only, at most 24em tall). No usable source or a failed load shows the alt text in a dashed box | Source shown dimmed, image after it |
+| Escape | `\*` | The character, without the backslash | Shown dimmed |
+| Entity | `&amp;`, `&#169;` | The character | Shown as typed |
 | Bullet list | ` -  ` or ` *  ` | Bullet dot widget | Shown dimmed |
 | Numbered list | ` 1.  ` | Number kept, styled | Always visible |
 | Task | ` - [ ]  ` / ` - [x]  ` | Clickable checkbox; checked items dimmed and struck | Never: always a checkbox |
 | Quote | ` >  ` | Left border, muted text | Shown dimmed |
 | Fenced code | ```` ``` ```` | Monospace block, syntax highlighting | Fences dimmed |
 | Horizontal rule | `---` | Line widget | Shown dimmed |
-| Table | GFM table | v1: monospace text only | Always visible |
+| Table | GFM table | A table: header row, column alignment from `:--` / `:-:` / `--:`, inline formatting in cells; scrolls sideways when wide. Tapping it puts the cursor in it | The whole table is monospace text while the cursor is in it |
 | Frontmatter | `---` YAML block at top | Small, muted, foldable | Always visible |
 
 Behavior:
@@ -191,11 +196,10 @@ Categories are Drive folders, so the structure the app shows is the same one the
 
 ## Export and copy
 
-Both features hand over the raw markdown text, unchanged.
+Both hand over the raw markdown text, unchanged.
 
-- **Export button:** build a `Blob` of the note text with type `text/markdown` and trigger a download named `<title>.md`.
-- **Copy button:** `navigator.clipboard.writeText(text)` copies the whole note as markdown, then shows a short "Copied as markdown" toast.
-- **Copying a selection** (Ctrl+C or the mobile copy menu) uses CodeMirror's default, which copies the markdown source of the selection.
+- **Export button:** the download icon in the note header, next to pin and delete (also on read-only notes). It builds a `Blob` of the editor text (including unsaved edits) with type `text/markdown` and downloads it as `<title>.md`.
+- **Copy:** selecting text and copying (Ctrl+C or the phone's copy menu) uses CodeMirror's default, which copies the markdown source. Select all and copy takes the whole note. There is no separate copy button (dropped 2026-10-30, since native copy already gives markdown).
 
 Acceptance check: copy a rendered checklist from the app and paste it into a GitHub README editor. The result must be `- [ ] item` lines, not plain text or HTML.
 
@@ -204,17 +208,16 @@ Acceptance check: copy a rendered checklist from the app and paste it into a Git
 The app autosaves, and it never silently overwrites a version saved from another device.
 
 - **Autosave** 2 seconds after the last keystroke, plus on Ctrl+S, on editor blur, and when the page becomes hidden (`visibilitychange`).
-- **Save status** in the note header: Saved · Saving… · Unsaved changes · Couldn't save.
+- **Save status** in the note header, under the title next to the category: Saved · Saving… · Unsaved changes · Couldn't save.
 - **Conflict check:** store the file's `version` from the last load or save. Before each save, fetch `fields=version,modifiedTime`. If the version changed, do not save. Open a dialog with three choices: Load theirs, Keep mine (overwrite), Save mine as a copy.
 - **On window focus,** re-check the open note. If it changed elsewhere and there are no unsaved local edits, reload it silently.
 - **Network errors:** retry with backoff (2 s, 5 s, 15 s), then show "Couldn't save" with a retry button. Keep the text in the editor.
 - **Leaving the page** with unsaved changes triggers the browser's `beforeunload` warning.
 
-## Mobile and PWA
+## Mobile
 
-The app must feel native on a phone and on a Linux desktop.
+The app must feel good in a phone browser and on a Linux desktop. It runs in the browser only: no web manifest, no service worker, no install.
 
-- **PWA:** web manifest (name, icons 192/512 px, `display: standalone`, theme color) with start\_url and scope set to /notes-dot-md/, and a minimal service worker that caches the app shell for installability. Notes are not cached.
 - **Viewport:** `<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">`.
 - **No zoom:** pinch and double-tap zoom are turned off (owner decision, 2026-10-29): `touch-action: pan-x pan-y`, plus cancelling Safari's gesture events, since iPhone Safari ignores `user-scalable=no`. Text inputs and the editor still use a font size of at least 16px so focusing them never zooms.
 - **Layout:** two panes (list + editor) at ≥ 900px wide, one pane below that.
@@ -309,18 +312,18 @@ Build in this order. Each milestone ends with a working deployed app and its acc
 - [x] **M1 Sign-in:** redirect sign-in, sign in and sign out, token renewal. *Done when* sign-in works on desktop and mobile, and a save made more than an hour after sign-in still succeeds.
 - [x] **M2 Drive layer:** `drive/notes.ts` with list, read, create, save, rename, move and trash; `Notes/` and `Inbox/` created on first run. *Done when* a note created in the app appears in Drive as a `.md` file and survives a round trip.
 - [x] **M3 Plain editor and saving:** CodeMirror without rendering rules, autosave, save status, conflict dialog. *Done when* edits reach Drive within 3 seconds, and editing the same note on two devices shows the conflict dialog.
-- [ ] **M4 Live preview:** every rendering rule in the editor table, checkbox widgets, list continuation, the `[]` shorthand. *Done when* all rules render, markers reappear on the active line, checkboxes toggle, and a copied checklist pastes into GitHub as `- [ ]` lines. Tested on a phone.
-- [ ] **M5 Format bar:** all buttons and shortcuts with toggle behavior, pinned above the keyboard on mobile. *Done when* each button applies and removes its format and the selection survives a tap.
-- [ ] **M6 Organization:** category filter and management, move note, sort, title search. *Done when* folders in Drive match categories in the app and the sort choice survives a reload.
-- [ ] **M7 Export and copy:** export button and copy button with toast. *Done when* the exported file opens unchanged in another editor.
-- [ ] **M8 PWA and polish:** manifest, icons, service worker, dark mode, responsive layout. *Done when* the app installs on a phone and opens standalone.
+- [x] **M4 Live preview:** every rendering rule in the editor table, checkbox widgets, list continuation, the `[]` shorthand. *Done when* all rules render, markers reappear on the active line, checkboxes toggle, and a copied checklist pastes into GitHub as `- [ ]` lines. Tested on a phone.
+- [x] **M5 Format bar:** all buttons and shortcuts with toggle behavior, pinned above the keyboard on mobile. *Done when* each button applies and removes its format and the selection survives a tap.
+- [x] **M6 Organization:** category filter and management, move note, sort, title search. *Done when* folders in Drive match categories in the app and the sort choice survives a reload.
+- [ ] **M7 Export and GFM rendering:** export button; rendered tables and images, reference links, escapes and entities (copy stays native, no button). *Done when* the exported file opens unchanged in another editor, and tables and images render in the editor while their text stays plain markdown.
+- [ ] **M8 Polish:** responsive layout and dark mode pass, favicon. No PWA. *Done when* the app looks and works right in Safari on iPhone and in Chromium and Firefox on Linux, at every width.
 - [ ] **Later — M9 Task board:** board view for `type: board` files.
 - [ ] **Later — M10 Claude access:** route B, then route C.
 - [ ] **Later — M11 Sharing:** steps 1–3 of the sharing section.
 
 ## Out of scope and open questions
 
-Out of scope for v1: offline editing, real-time collaboration, images and attachments, nested categories, a version history view (Drive keeps revisions), sharing, and rendered tables.
+Out of scope for v1: offline editing, installing as an app (PWA), real-time collaboration, uploading images and attachments (images are shown from URLs only), editing tables as a grid, footnotes, GitHub alerts (`> [!NOTE]`), rendering inline HTML, nested categories, a version history view (Drive keeps revisions), and sharing.
 
 Open questions:
 

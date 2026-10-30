@@ -5,6 +5,7 @@
 import { foldEffect, foldedRanges, unfoldEffect } from '@codemirror/language';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { toggleTaskAt } from './lists';
+import { isLoadable, isOpenable, type Inline, type Table } from './markdown';
 
 /** Replaces a `-`, `*` or `+` list marker. */
 export class BulletWidget extends WidgetType {
@@ -138,5 +139,169 @@ export class FoldToggleWidget extends WidgetType {
 
   ignoreEvent() {
     return true;
+  }
+}
+
+/** The character an entity like `&amp;` stands for. Parsing HTML text this way runs nothing. */
+function decodeEntity(entity: string): string {
+  const doc = new DOMParser().parseFromString(entity, 'text/html');
+  return doc.documentElement.textContent ?? entity;
+}
+
+/** An image, or its alt text when it has no loadable source or fails to load. */
+function imageElement(src: string | null, alt: string, view: EditorView): HTMLElement {
+  const placeholder = () => {
+    const el = document.createElement('span');
+    el.className = 'cm-md-image-missing';
+    el.textContent = alt || src || 'Image';
+    if (src) el.title = src;
+    return el;
+  };
+  if (!isLoadable(src)) return placeholder();
+  const img = document.createElement('img');
+  img.className = 'cm-md-image';
+  img.src = src;
+  img.alt = alt;
+  if (alt) img.title = alt;
+  img.referrerPolicy = 'no-referrer';
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  // The line gets taller once the image arrives.
+  img.addEventListener('load', () => view.requestMeasure());
+  img.addEventListener('error', () => {
+    img.replaceWith(placeholder());
+    view.requestMeasure();
+  });
+  return img;
+}
+
+/** Draw inline content as elements. Text always goes in as text, never as HTML. */
+function renderInline(nodes: Inline[], parent: HTMLElement, view: EditorView) {
+  for (const node of nodes) {
+    switch (node.type) {
+      case 'text':
+        parent.append(node.text);
+        break;
+      case 'entity':
+        parent.append(decodeEntity(node.text));
+        break;
+      case 'code': {
+        const el = document.createElement('code');
+        el.className = 'cm-md-code';
+        el.textContent = node.text;
+        parent.append(el);
+        break;
+      }
+      case 'image':
+        parent.append(imageElement(node.src, node.alt, view));
+        break;
+      case 'link': {
+        // Same as links in the text: tap or Ctrl+click opens them (livePreview.ts).
+        const el = document.createElement('span');
+        el.className = 'cm-md-link cm-md-link-rendered';
+        if (isOpenable(node.href)) el.dataset['href'] = node.href;
+        renderInline(node.children, el, view);
+        parent.append(el);
+        break;
+      }
+      default: {
+        const el = document.createElement(
+          node.type === 'strong' ? 'strong' : node.type === 'em' ? 'em' : 's',
+        );
+        renderInline(node.children, el, view);
+        parent.append(el);
+      }
+    }
+  }
+}
+
+/** Replaces `![alt](url)`. Tapping it puts the cursor there, which shows the source. */
+export class ImageWidget extends WidgetType {
+  constructor(
+    readonly src: string | null,
+    readonly alt: string,
+  ) {
+    super();
+  }
+
+  eq(other: ImageWidget) {
+    return other.src === this.src && other.alt === this.alt;
+  }
+
+  toDOM(view: EditorView) {
+    return imageElement(this.src, this.alt, view);
+  }
+
+  /** Let the editor handle taps, so they place the cursor. */
+  ignoreEvent() {
+    return false;
+  }
+}
+
+/** Replaces an entity like `&copy;` with its character. */
+export class EntityWidget extends WidgetType {
+  constructor(readonly entity: string) {
+    super();
+  }
+
+  eq(other: EntityWidget) {
+    return other.entity === this.entity;
+  }
+
+  toDOM() {
+    const el = document.createElement('span');
+    el.textContent = decodeEntity(this.entity);
+    return el;
+  }
+}
+
+/**
+ * Replaces a whole GFM table while the cursor is outside it. Tapping it puts
+ * the cursor in the table, which shows its text for editing.
+ */
+export class TableWidget extends WidgetType {
+  /** Compared in `eq`, so an unchanged table keeps its DOM. */
+  private readonly key: string;
+
+  constructor(readonly table: Table) {
+    super();
+    this.key = JSON.stringify(table);
+  }
+
+  eq(other: TableWidget) {
+    return other.key === this.key;
+  }
+
+  get estimatedHeight() {
+    return (this.table.rows.length + 1) * 34;
+  }
+
+  toDOM(view: EditorView) {
+    const wrap = document.createElement('div');
+    wrap.className = 'cm-md-table-widget';
+    const table = document.createElement('table');
+    const row = (cells: Inline[][], tag: 'th' | 'td') => {
+      const tr = document.createElement('tr');
+      cells.forEach((cell, i) => {
+        const el = document.createElement(tag);
+        const align = this.table.align[i];
+        if (align) el.style.textAlign = align;
+        renderInline(cell, el, view);
+        tr.append(el);
+      });
+      return tr;
+    };
+    const head = document.createElement('thead');
+    head.append(row(this.table.head, 'th'));
+    const body = document.createElement('tbody');
+    for (const cells of this.table.rows) body.append(row(cells, 'td'));
+    table.append(head, body);
+    wrap.append(table);
+    return wrap;
+  }
+
+  /** Let the editor handle taps (placing the cursor) and link taps (livePreview.ts). */
+  ignoreEvent() {
+    return false;
   }
 }

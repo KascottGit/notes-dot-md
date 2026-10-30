@@ -2,9 +2,9 @@
 
 A markdown note-taking app that keeps every note as a plain `.md` file in your own Google Drive.
 
-notes.md runs entirely in the browser and installs as a PWA on phones and desktop. There is no backend and no database: the app talks to the Google Drive API directly, and your notes stay in a `Notes/` folder you can open, back up or edit with any other tool.
+notes.md runs entirely in the browser, on phones and desktop. There is no backend and no database: the app talks to the Google Drive API directly, and your notes stay in a `Notes/` folder you can open, back up or edit with any other tool.
 
-**Status:** early development. Notes with live preview, a format bar, categories, sorting and search work; export and PWA install come next. See [Roadmap](#roadmap).
+**Status:** early development. Notes with live preview (including tables and images), a format bar, categories, sorting, search and export work; polish comes next. See [Roadmap](#roadmap).
 
 Live app: https://kascottgit.github.io/notes-dot-md/
 
@@ -16,12 +16,12 @@ Live app: https://kascottgit.github.io/notes-dot-md/
 
 ## Planned features (v1)
 
-- Live-preview editor (CodeMirror 6) with GitHub-flavored markdown, including clickable task lists
+- Live-preview editor (CodeMirror 6) with GitHub-flavored markdown: clickable task lists, tables, images and links
 - Format bar and keyboard shortcuts that toggle bold, italic, headings, lists, checklists, quotes and code, and move or indent list items
 - Categories (Drive folders), sorting by modified, created or title, and title search
 - Autosave with conflict detection, so a version saved on another device is never silently overwritten
-- Export a note as `.md` and copy it as markdown
-- Installable PWA with light and dark themes, built for phones and desktop
+- Export a note as `.md`; copying text gives markdown
+- Light and dark themes, built for phone and desktop browsers
 
 Later phases: a Trello-style task board stored as a markdown note, letting Claude read and edit notes, and sharing through Drive.
 
@@ -45,7 +45,7 @@ My Drive/
 
 ## Tech stack
 
-Vite · TypeScript · Svelte 5 · CodeMirror 6 · Google OAuth (redirect flow) · Google Drive REST API v3 · `vite-plugin-pwa` · Vitest. Hosted on GitHub Pages.
+Vite · TypeScript · Svelte 5 · CodeMirror 6 · Google OAuth (redirect flow) · Google Drive REST API v3 · Vitest. Hosted on GitHub Pages.
 
 ## Development
 
@@ -90,11 +90,11 @@ npm test          # vitest
 - [x] **M1** Google sign-in with token renewal
 - [x] **M2** Drive layer (list, read, create, save, rename, move, trash)
 - [x] **M3** Plain editor, autosave and conflict handling
-- [ ] **M4** Live preview rendering
-- [ ] **M5** Format bar and shortcuts
-- [ ] **M6** Categories, sorting and search
-- [ ] **M7** Export and copy as markdown
-- [ ] **M8** PWA, dark mode and polish
+- [x] **M4** Live preview rendering
+- [x] **M5** Format bar and shortcuts
+- [x] **M6** Categories, sorting and search
+- [ ] **M7** Export, tables and images
+- [ ] **M8** Dark mode and polish
 - [ ] Later: task board, Claude access, sharing
 
 ## Project docs

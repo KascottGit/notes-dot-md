@@ -1,7 +1,7 @@
 /**
  * Google sign-in with the OAuth 2.0 redirect flow for browser apps
- * (response_type=token). No popups: they fail in iPhone Safari and in
- * installed PWAs, where the popup can't hand the token back to the page.
+ * (response_type=token). No popups: they fail in iPhone Safari, where the
+ * popup can't hand the token back to the page.
  *
  * The access token lives in memory only. It is never written to storage or
  * logs, and it is removed from the URL as soon as the page loads. Stored:

@@ -9,6 +9,7 @@
     pin: '<path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v5"/>',
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
     back: '<path d="M15 5l-7 7 7 7"/>',
+    download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
     sort: '<path d="M7 4v16M3.5 16.5L7 20l3.5-3.5M17 20V4M13.5 7.5L17 4l3.5 3.5"/>',
     // Format bar
     bold: '<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z" stroke-width="2.4"/>',

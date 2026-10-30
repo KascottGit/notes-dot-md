@@ -1,6 +1,6 @@
 # notes.md
 
-A markdown note-taking web app (PWA) that stores every note as a plain `.md` file in the user's Google Drive. No backend: the browser talks to the Drive API directly. Hosted on GitHub Pages at `https://<username>.github.io/notes-dot-md/`.
+A markdown note-taking web app, used in the browser (no PWA), that stores every note as a plain `.md` file in the user's Google Drive. No backend: the browser talks to the Drive API directly. Hosted on GitHub Pages at `https://<username>.github.io/notes-dot-md/`.
 
 **The full spec is in `SPEC.md`. Read the relevant sections before starting any milestone.** This file covers how to work in the repo; SPEC.md covers what to build.
 
@@ -22,7 +22,7 @@ A markdown note-taking web app (PWA) that stores every note as a plain `.md` fil
 
 ## Stack
 
-Vite + TypeScript (strict) + Svelte 5 · CodeMirror 6 with `@codemirror/lang-markdown` and the GFM extension from `@lezer/markdown` · Google OAuth 2.0 redirect flow (`response_type=token`, no popups) · Google Drive REST API v3 via `fetch` · `vite-plugin-pwa` · Vitest.
+Vite + TypeScript (strict) + Svelte 5 · CodeMirror 6 with `@codemirror/lang-markdown` and the GFM extension from `@lezer/markdown` · Google OAuth 2.0 redirect flow (`response_type=token`, no popups) · Google Drive REST API v3 via `fetch` · Vitest.
 
 Package manager: npm.
 
@@ -48,7 +48,8 @@ src/
   drive/notes.ts         list/read/create/save/rename/move/trash, folder bootstrap
   editor/setup.ts        CodeMirror configuration and keymaps
   editor/livePreview.ts  decoration plugin (rendering rules)
-  editor/widgets.ts      checkbox, bullet, horizontal-rule widgets
+  editor/widgets.ts      checkbox, bullet, rule, image and table widgets
+  editor/markdown.ts     markdown helpers: links, inline content, tables (no DOM)
   editor/commands.ts     format commands, shared by toolbar and shortcuts
   ui/                    Svelte components
   store/                 app state

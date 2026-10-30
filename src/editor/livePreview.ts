@@ -7,7 +7,7 @@
  * edited. Task checkboxes always show as checkboxes.
  */
 import { foldedRanges, syntaxTree } from '@codemirror/language';
-import type { EditorState, Range } from '@codemirror/state';
+import { StateEffect, StateField, type EditorState, type Range } from '@codemirror/state';
 import {
   Decoration,
   EditorView,
@@ -16,7 +16,16 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
-import { BulletWidget, CheckboxWidget, FoldToggleWidget, RuleWidget } from './widgets';
+import { autolinkHref, isOpenable, linkParts, linkReferences, parseTable } from './markdown';
+import {
+  BulletWidget,
+  CheckboxWidget,
+  EntityWidget,
+  FoldToggleWidget,
+  ImageWidget,
+  RuleWidget,
+  TableWidget,
+} from './widgets';
 
 const hidden = Decoration.replace({});
 const dim = Decoration.mark({ class: 'cm-md-mark' });
@@ -29,9 +38,6 @@ const mark = (cls: string) => {
 const bullet = Decoration.replace({ widget: new BulletWidget() });
 const rule = Decoration.replace({ widget: new RuleWidget() });
 const checkbox = (checked: boolean) => Decoration.replace({ widget: new CheckboxWidget(checked) });
-
-/** Link targets that may be opened. Anything else (javascript:, relative paths) is not. */
-const OPENABLE = /^(?:https?:|mailto:)/i;
 
 export interface PreviewDecorations {
   decorations: DecorationSet;
@@ -50,6 +56,7 @@ export function buildDecorations(
   activeLines: ReadonlySet<number>,
 ): PreviewDecorations {
   const { doc } = state;
+  const refs = linkReferences(state);
   const decos: Range<Decoration>[] = [];
   const atomic: Range<Decoration>[] = [];
   const lineClasses = new Map<number, Set<string>>();
@@ -147,12 +154,30 @@ export function buildDecorations(
         case 'Link':
           link(node);
           return;
+        case 'Image':
+          image(node);
+          return false;
         case 'URL': {
           const parent = node.parent?.name;
-          if (parent === 'Link' || parent === 'Image') return;
-          linkText(node.from, node.to, text(node)); // Bare URL or <autolink>
+          if (parent === 'Link' || parent === 'Image' || parent === 'LinkReference') return;
+          linkText(node.from, node.to, autolinkHref(text(node))); // Bare URL or <autolink>
           return;
         }
+        case 'LinkReference':
+          addLines(node, 'cm-md-linkref'); // `[label]: url`, the target of reference links
+          return false;
+        case 'Escape':
+          marker(node.from, node.from + 1); // `\*` shows as `*`
+          return;
+        case 'Entity':
+          if (!isActive(node.from)) {
+            replace(
+              Decoration.replace({ widget: new EntityWidget(text(node)) }),
+              node.from,
+              node.to,
+            );
+          }
+          return;
 
         case 'ListMark':
           listMark(node);
@@ -183,8 +208,9 @@ export function buildDecorations(
           return;
 
         case 'Table':
+          // Text while editing; otherwise the table field draws it (tableField below).
           addLines(node, 'cm-md-table');
-          return false; // Tables are plain monospace text in v1.
+          return false;
 
         case 'Frontmatter':
           frontmatter(node);
@@ -197,7 +223,7 @@ export function buildDecorations(
   function linkText(start: number, end: number, url: string | null) {
     const rendered = !isActive(start);
     const attrs: Record<string, string> = {};
-    if (url && OPENABLE.test(url)) attrs['data-href'] = url;
+    if (isOpenable(url)) attrs['data-href'] = url;
     decos.push(
       Decoration.mark({
         class: rendered ? 'cm-md-link cm-md-link-rendered' : 'cm-md-link',
@@ -206,16 +232,29 @@ export function buildDecorations(
     );
   }
 
-  /** `[text](url)`: show only `text`, styled as a link. */
+  /**
+   * `[text](url)` or `[text][label]`: show only `text`, styled as a link.
+   * `[text]` with no matching `[label]: url` is just text in brackets.
+   */
   function link(node: SyntaxNode) {
-    const marks = node.getChildren('LinkMark');
-    const open = marks[0];
-    const close = marks[1];
-    if (!open || !close || close.from <= open.to) return;
-    const url = node.getChild('URL');
-    linkText(open.to, close.from, url ? text(url) : null);
-    marker(open.from, open.to);
-    marker(close.from, node.to); // `](url "title")`
+    const parts = linkParts(state, node, refs);
+    if (!parts || parts.textTo <= parts.textFrom) return;
+    linkText(parts.textFrom, parts.textTo, parts.href);
+    marker(node.from, parts.textFrom);
+    marker(parts.textTo, node.to); // `](url "title")` or `][label]`
+  }
+
+  /** `![alt](url)`: the image. On the active line, the source (dimmed) with the image after it. */
+  function image(node: SyntaxNode) {
+    const parts = linkParts(state, node, refs);
+    if (!parts) return;
+    const widget = new ImageWidget(parts.href, doc.sliceString(parts.textFrom, parts.textTo));
+    if (isActive(node.from)) {
+      decos.push(dim.range(node.from, node.to));
+      decos.push(Decoration.widget({ widget, side: 1 }).range(node.to));
+    } else {
+      replace(Decoration.replace({ widget }), node.from, node.to);
+    }
   }
 
   function listMark(node: SyntaxNode) {
@@ -318,8 +357,81 @@ const previewPlugin = ViewPlugin.fromClass(
   },
 );
 
+// ------------------------------------------------------------------ tables
+
+/** Whether the editor has focus, kept in the state so a state field can use it. */
+const setFocused = StateEffect.define<boolean>();
+const focusedField = StateField.define<boolean>({
+  create: () => false,
+  update(value, tr) {
+    for (const effect of tr.effects) if (effect.is(setFocused)) value = effect.value;
+    return value;
+  },
+});
+const trackFocus = EditorView.focusChangeEffect.of((_state, focusing) => setFocused.of(focusing));
+
+/** Blocks that can hold tables; the rest of the tree is skipped when looking for them. */
+const TABLE_CONTAINERS = new Set([
+  'Document',
+  'Blockquote',
+  'BulletList',
+  'OrderedList',
+  'ListItem',
+]);
+
+/**
+ * Tables drawn as tables, except while the cursor is in them (then they are
+ * text, styled by the view plugin). Whole-line replacements must come from a
+ * state field, not a view plugin. Exported for tests; needs no DOM.
+ */
+export function tableDecorations(state: EditorState, focused: boolean): DecorationSet {
+  const { doc } = state;
+  const refs = linkReferences(state);
+  const decos: Range<Decoration>[] = [];
+  syntaxTree(state).iterate({
+    enter(ref) {
+      if (ref.name !== 'Table') return TABLE_CONTAINERS.has(ref.name);
+      const first = doc.lineAt(ref.from);
+      const end = doc.lineAt(ref.to);
+      const last = end.from === ref.to && ref.to > ref.from ? doc.line(end.number - 1) : end;
+      // Only tables that start their line (not after `> ` or `- `) can be replaced whole.
+      if (doc.sliceString(first.from, ref.from).trim() !== '') return false;
+      const editing =
+        focused && state.selection.ranges.some((r) => r.from <= last.to && r.to >= first.from);
+      const table = editing ? null : parseTable(state, ref.node, refs);
+      if (table) {
+        decos.push(
+          Decoration.replace({ widget: new TableWidget(table), block: true }).range(
+            first.from,
+            last.to,
+          ),
+        );
+      }
+      return false;
+    },
+  });
+  return Decoration.set(decos);
+}
+
+const tableField = StateField.define<DecorationSet>({
+  create: (state) => tableDecorations(state, false),
+  update(value, tr) {
+    const focusChanged = tr.effects.some((e) => e.is(setFocused));
+    if (
+      tr.docChanged ||
+      tr.selection ||
+      focusChanged ||
+      syntaxTree(tr.startState) !== syntaxTree(tr.state)
+    ) {
+      return tableDecorations(tr.state, tr.state.field(focusedField));
+    }
+    return value;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
 function openLink(url: string) {
-  if (OPENABLE.test(url)) window.open(url, '_blank', 'noopener,noreferrer');
+  if (isOpenable(url)) window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 /** Ctrl/Cmd+click opens a link anywhere; a tap opens a rendered (not active) link. */
@@ -449,6 +561,50 @@ const previewTheme = EditorView.theme({
   },
 
   '.cm-line.cm-md-table': { fontFamily: 'var(--font-mono)', fontSize: '0.9em' },
+  '.cm-md-table-widget': {
+    overflowX: 'auto',
+    margin: '6px 2px 6px 6px',
+  },
+  '.cm-md-table-widget table': {
+    // Whole words: a wide table scrolls sideways instead of breaking them.
+    wordBreak: 'normal',
+    overflowWrap: 'normal',
+    borderCollapse: 'collapse',
+    fontSize: '0.95em',
+    lineHeight: '1.5',
+  },
+  '.cm-md-table-widget th, .cm-md-table-widget td': {
+    padding: '6px 12px',
+    border: '1px solid var(--border)',
+    textAlign: 'start',
+    verticalAlign: 'top',
+  },
+  '.cm-md-table-widget th': {
+    backgroundColor: 'var(--bg-muted)',
+    fontFamily: 'var(--font-heading)',
+    fontWeight: '600',
+  },
+
+  '.cm-md-image': {
+    maxWidth: '100%',
+    maxHeight: '24em',
+    verticalAlign: 'bottom',
+    borderRadius: '4px',
+  },
+  '.cm-md-image-missing': {
+    display: 'inline-block',
+    padding: '0 6px',
+    border: '1px dashed var(--border)',
+    borderRadius: '4px',
+    color: 'var(--text-muted)',
+    fontSize: '0.9em',
+  },
+
+  '.cm-line.cm-md-linkref': {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '0.85em',
+    color: 'var(--text-muted)',
+  },
 
   '.cm-line.cm-md-frontmatter': {
     fontFamily: 'var(--font-mono)',
@@ -473,5 +629,5 @@ const previewTheme = EditorView.theme({
 });
 
 export function livePreview() {
-  return [previewPlugin, linkHandlers, previewTheme];
+  return [focusedField, trackFocus, tableField, previewPlugin, linkHandlers, previewTheme];
 }

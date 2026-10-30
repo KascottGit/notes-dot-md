@@ -1,6 +1,6 @@
 <!--
   Note header: editable title (renames the file), category picker (moves the
-  file), save status, and pin / delete.
+  file), save status, and export / pin / delete.
 -->
 <script lang="ts">
   import { isPinned, type Category } from '../drive/notes';
@@ -18,6 +18,8 @@
     onMove: (folderId: string) => void;
     /** Enter in the title: go on to the text. */
     onDone: () => void;
+    /** Download the note as a `.md` file. */
+    onExport: () => void;
     onTogglePin: () => void;
     onDelete: () => void;
   }
@@ -30,6 +32,7 @@
     onRename,
     onMove,
     onDone,
+    onExport,
     onTogglePin,
     onDelete,
   }: Props = $props();
@@ -67,31 +70,35 @@
       onCommit={onRename}
       {onDone}
     />
-    <select
-      class="category"
-      aria-label="Category"
-      value={sessionState.note.folderId}
-      disabled={sessionState.readOnly}
-      onchange={(e) => {
-        const picked = e.currentTarget.value;
-        // Show the real category until the move has gone through.
-        e.currentTarget.value = sessionState.note.folderId;
-        onMove(picked);
-      }}
-    >
-      {#each categories as c (c.id)}
-        <option value={c.id}>{c.name}</option>
-      {/each}
-    </select>
+    <div class="meta">
+      <select
+        class="category"
+        aria-label="Category"
+        value={sessionState.note.folderId}
+        disabled={sessionState.readOnly}
+        onchange={(e) => {
+          const picked = e.currentTarget.value;
+          // Show the real category until the move has gone through.
+          e.currentTarget.value = sessionState.note.folderId;
+          onMove(picked);
+        }}
+      >
+        {#each categories as c (c.id)}
+          <option value={c.id}>{c.name}</option>
+        {/each}
+      </select>
+      <!-- Under the title, so the title keeps the width of the row. -->
+      <div class="status" class:error={sessionState.status === 'error'} role="status">
+        <span>{renaming ? 'Renaming…' : label}</span>
+        {#if sessionState.status === 'error'}
+          <button class="retry" onclick={onRetry}>Retry</button>
+        {/if}
+      </div>
+    </div>
   </div>
-  <div class="status" class:error={sessionState.status === 'error'} role="status">
-    <span>{renaming ? 'Renaming…' : label}</span>
-    {#if sessionState.status === 'error'}
-      <button class="retry" onclick={onRetry}>Retry</button>
-    {/if}
-  </div>
-  {#if !sessionState.readOnly}
-    <span class="actions">
+  <span class="actions">
+    <IconButton icon="download" label="Export as .md" onclick={onExport} />
+    {#if !sessionState.readOnly}
       <IconButton
         icon="pin"
         label={pinned ? 'Unpin note' : 'Pin note'}
@@ -99,8 +106,8 @@
         onclick={onTogglePin}
       />
       <IconButton icon="trash" label="Delete note" title="Move to trash" onclick={onDelete} />
-    </span>
-  {/if}
+    {/if}
+  </span>
 </div>
 {#if sessionState.status === 'error' && sessionState.error}
   <p class="detail" role="alert">{sessionState.error} Your text is still here.</p>
@@ -134,16 +141,23 @@
     min-width: 0;
   }
 
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    font-size: 0.8125rem;
+  }
+
   .category {
-    align-self: flex-start;
-    max-width: 100%;
+    flex: none;
+    max-width: 60%;
     margin-left: -4px;
     padding: 0 2px;
     border: 0;
     background: none;
     color: var(--text-muted);
     font: inherit;
-    font-size: 0.8125rem;
     cursor: pointer;
   }
 
@@ -151,9 +165,18 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
     color: var(--text-muted);
-    font-size: 0.875rem;
     white-space: nowrap;
+  }
+
+  .status > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .status::before {
+    content: '·';
   }
 
   .status.error {

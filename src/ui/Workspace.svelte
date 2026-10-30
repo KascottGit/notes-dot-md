@@ -35,6 +35,7 @@
   import NoteHeader from './NoteHeader.svelte';
   import NoteList from './NoteList.svelte';
   import Toast from './Toast.svelte';
+  import { downloadFile } from './download';
   import Toolbar from './Toolbar.svelte';
 
   let folders = $state<Folders | null>(null);
@@ -279,6 +280,12 @@
     }
   }
 
+  /** Download the open note's text, exactly as it is in the editor, as `<title>.md`. */
+  function exportNote() {
+    if (!sessionState || !editor) return;
+    downloadFile(`${sessionState.note.title}.md`, editor.getText(), 'text/markdown');
+  }
+
   async function togglePin(note: Note) {
     const current = notes.find((n) => n.id === note.id) ?? note;
     const pin = !isPinned(current);
@@ -473,6 +480,7 @@
         onRename={renameOpenNote}
         onMove={moveOpenNote}
         onDone={() => editor?.focus()}
+        onExport={exportNote}
         onTogglePin={() => sessionState && void togglePin(sessionState.note)}
         onDelete={() => sessionState && void deleteNote(sessionState.note)}
       />

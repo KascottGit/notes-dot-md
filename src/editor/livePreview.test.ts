@@ -1,8 +1,8 @@
-import { EditorState } from '@codemirror/state';
+import { EditorSelection, EditorState } from '@codemirror/state';
 import type { Decoration } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { markdownSupport } from './language';
-import { buildDecorations } from './livePreview';
+import { buildDecorations, tableDecorations } from './livePreview';
 
 interface Seen {
   from: number;
@@ -131,6 +131,65 @@ describe('links', () => {
       true,
     );
   });
+
+  it('opens www. links over https', () => {
+    const { all } = render('see www.example.com now');
+    expect(all.some((s) => s.href === 'https://www.example.com')).toBe(true);
+  });
+
+  it('resolves reference links and mutes their definitions', () => {
+    const doc = 'see [site][s] and [s]\n\n[S]: https://example.com';
+    const { all } = render(doc);
+    expect(all).toContainEqual({
+      from: 5,
+      to: 9,
+      kind: 'cm-md-link cm-md-link-rendered',
+      href: 'https://example.com',
+    });
+    expect(all.filter((s) => s.href === 'https://example.com')).toHaveLength(2);
+    expect(has(all, doc.indexOf('[S]:'), doc.indexOf('[S]:'), 'cm-md-linkref')).toBe(true);
+  });
+
+  it('leaves text in brackets alone when it is not a link', () => {
+    const { all } = render('pick [one] or [two][x]');
+    expect(hidden(all)).toEqual([]);
+    expect(all.some((s) => s.kind.includes('cm-md-link'))).toBe(false);
+  });
+});
+
+describe('images', () => {
+  const doc = 'Look: ![a cat](https://example.com/cat.png) ok';
+  const start = doc.indexOf('!');
+  const end = doc.indexOf(' ok');
+
+  it('replace the source with the image when not active', () => {
+    const { all, atomic } = render(doc);
+    expect(has(all, start, end, 'ImageWidget')).toBe(true);
+    expect(has(atomic, start, end, 'ImageWidget')).toBe(true);
+  });
+
+  it('show the source dimmed with the image after it on the active line', () => {
+    const { all } = render(doc, [1]);
+    expect(has(all, start, end, 'cm-md-mark')).toBe(true);
+    expect(has(all, end, end, 'ImageWidget')).toBe(true);
+  });
+
+  it('work as reference images too', () => {
+    const { all } = render('![cat][c]\n\n[c]: https://example.com/cat.png');
+    expect(has(all, 0, 9, 'ImageWidget')).toBe(true);
+  });
+});
+
+describe('escapes and entities', () => {
+  it('hides the backslash of an escape when not active', () => {
+    expect(hidden(render('a \\* b').all)).toEqual([[2, 3]]);
+    expect(hidden(render('a \\* b', [1]).all)).toEqual([]);
+  });
+
+  it('draws entities as their character when not active', () => {
+    expect(has(render('a &amp; b').all, 2, 7, 'EntityWidget')).toBe(true);
+    expect(has(render('a &amp; b', [1]).all, 2, 7, 'EntityWidget')).toBe(false);
+  });
 });
 
 describe('lists and tasks', () => {
@@ -195,7 +254,7 @@ describe('blocks', () => {
     expect(has(render(doc, [3]).all, 3, 6, 'cm-md-mark')).toBe(true);
   });
 
-  it('tables stay plain monospace text', () => {
+  it('tables are monospace text here; the table field draws them when not editing', () => {
     const { all } = render('| a | b |\n| - | - |\n| **1** | 2 |');
     expect(has(all, 0, 0, 'cm-md-table')).toBe(true);
     expect(hidden(all)).toEqual([]);
@@ -231,5 +290,41 @@ describe('golden rule', () => {
     const doc = '# T\n\n- [ ] a\n- [x] b\n\n**c** [d](https://e.f)\n\n---\n';
     const { state } = render(doc);
     expect(state.doc.toString()).toBe(doc);
+  });
+});
+
+describe('tables', () => {
+  const doc = 'Intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nEnd';
+  const tableFrom = doc.indexOf('|');
+  const tableTo = doc.indexOf('\n\nEnd');
+
+  function tables(cursor: number, focused: boolean, text = doc) {
+    const state = EditorState.create({
+      doc: text,
+      selection: EditorSelection.cursor(cursor),
+      extensions: [markdownSupport()],
+    });
+    const seen: [number, number, string][] = [];
+    tableDecorations(state, focused).between(0, text.length, (from, to, value) => {
+      seen.push([from, to, (value.spec as { widget: object }).widget.constructor.name]);
+    });
+    return seen;
+  }
+
+  it('draws the whole table as a table while the cursor is elsewhere', () => {
+    expect(tables(0, true)).toEqual([[tableFrom, tableTo, 'TableWidget']]);
+  });
+
+  it('shows the text while the cursor is in the table', () => {
+    expect(tables(tableFrom + 3, true)).toEqual([]);
+    expect(tables(tableTo, true)).toEqual([]);
+  });
+
+  it('draws it when the editor does not have focus, wherever the cursor is', () => {
+    expect(tables(tableFrom + 3, false)).toEqual([[tableFrom, tableTo, 'TableWidget']]);
+  });
+
+  it('leaves tables that share a line with a quote or list marker as text', () => {
+    expect(tables(0, false, '> | a | b |\n> | - | - |')).toEqual([]);
   });
 });
