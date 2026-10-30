@@ -18,6 +18,7 @@
     toggleQuote,
     toggleStrikethrough,
   } from '../editor/commands';
+  import Icon, { type IconName } from './Icon.svelte';
 
   interface Props {
     run: (command: StateCommand) => void;
@@ -31,7 +32,7 @@
   const shift = isMac ? '⇧' : 'Shift+';
 
   interface Button {
-    id: string;
+    id: IconName;
     label: string;
     shortcut: string;
     command: StateCommand;
@@ -100,48 +101,6 @@
 
 <svelte:window onpointerdown={onWindowPointerDown} onkeydown={onKeydown} />
 
-{#snippet icon(id: string)}
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    {#if id === 'bold'}
-      <path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z" class="thick" />
-    {:else if id === 'italic'}
-      <path d="M10 5h8M6 19h8M14 5l-4 14" />
-    {:else if id === 'strike'}
-      <path
-        d="M4 12h16M16 7.5C15.4 6 14 5 12 5c-2.5 0-4 1.3-4 3 0 1.5 1 2.4 3 3M8 16.5c.6 1.5 2 2.5 4 2.5 2.5 0 4-1.3 4-3 0-.7-.2-1.3-.6-1.8"
-      />
-    {:else if id === 'code'}
-      <path d="M9 7l-5 5 5 5M15 7l5 5-5 5" />
-    {:else if id === 'link'}
-      <path
-        d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"
-      />
-    {:else if id === 'bullet'}
-      <path d="M10 6h10M10 12h10M10 18h10" /><circle cx="5" cy="6" r="1.3" class="dot" /><circle
-        cx="5"
-        cy="12"
-        r="1.3"
-        class="dot"
-      /><circle cx="5" cy="18" r="1.3" class="dot" />
-    {:else if id === 'number'}
-      <path
-        d="M10 6h10M10 12h10M10 18h10M4 5l1.5-1V9M3.5 14.5c.3-.8 1-1.2 1.7-1.2.9 0 1.5.6 1.5 1.3 0 1.2-3.2 2.4-3.2 3.9h3.4"
-        class="thin"
-      />
-    {:else if id === 'task'}
-      <rect x="3.5" y="4" width="6" height="6" rx="1.2" /><path
-        d="M4.7 16.6l1.5 1.5 2.8-3M13 7h7M13 17h7"
-      />
-    {:else if id === 'quote'}
-      <path d="M5 6v12M10 8h9M10 12h9M10 16h6" />
-    {:else if id === 'codeblock'}
-      <rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path
-        d="M10 9.5l-2.5 2.5 2.5 2.5M14 9.5l2.5 2.5-2.5 2.5"
-      />
-    {/if}
-  </svg>
-{/snippet}
-
 <div class="toolbar" role="toolbar" aria-label="Formatting" bind:this={root}>
   <div class="scroll">
     <button
@@ -169,7 +128,7 @@
         onpointerdown={keepFocus}
         onclick={() => choose(b.command)}
       >
-        {@render icon(b.id)}
+        <Icon name={b.id} />
       </button>
     {/each}
 
@@ -184,7 +143,7 @@
         onpointerdown={keepFocus}
         onclick={() => choose(b.command)}
       >
-        {@render icon(b.id)}
+        <Icon name={b.id} />
       </button>
     {/each}
   </div>
@@ -262,29 +221,6 @@
   .caret {
     color: var(--text-muted);
     font-size: 0.7em;
-  }
-
-  svg {
-    width: 20px;
-    height: 20px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  svg :global(.thick) {
-    stroke-width: 2.4;
-  }
-
-  svg :global(.thin) {
-    stroke-width: 1.5;
-  }
-
-  svg :global(.dot) {
-    fill: currentColor;
-    stroke: none;
   }
 
   .sep {

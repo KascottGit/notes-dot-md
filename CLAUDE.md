@@ -68,6 +68,34 @@ src/
 - Fonts are tokens too: `--font-body` (serif, note text), `--font-ui` / `--font-heading` (sans), `--font-mono`.
 - Commits: Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
 
+## UI and design rules
+
+The UI must look and behave the same everywhere. Before adding any control, look for an existing component that does the job and reuse it; only add a new one when nothing fits, and then use it everywhere that kind of control appears.
+
+**Shared components (`src/ui/`). Use these, never a one-off version:**
+
+| Need | Use |
+| --- | --- |
+| Rename something (note title, category name) | `InlineName`: edit in place; Enter or leaving saves, Escape cancels. Never a dialog or a "Rename" button. Non-editable names (Inbox, All notes, read-only notes) use it with `readonly` so they line up. |
+| An icon action (pin, delete, back, sort...) | `IconButton` (44×44). Icons come only from `Icon.svelte`'s `ICONS`; add new icons there. No inline `<svg>` anywhere else. |
+| Ask for a new name | `NameDialog` (creating things only). |
+| Confirm a choice with consequences | `confirm()` only for bulk or hard-to-undo actions (e.g. moving all of a category's notes). |
+| Feedback after an action | `Toast`, with Undo for anything undoable. |
+
+**Same action, same control.** Delete is always the trash `IconButton` (and swipe left on touch), moves to the Drive trash, and offers Undo or confirms as above. Pin is always the pin icon. If two places do the same thing, they use the same component, icon, wording and order.
+
+**Layout.**
+- Any text that can be long (note titles, category names, file names) sits in a `flex: 1; min-width: 0` box with ellipsis, and the full text in a `title` tooltip. Controls next to it are compact (icon buttons), so the text keeps the room: in the 300px sidebar a name must show at least ~20 characters.
+- Never use text-link buttons ("Rename", "Delete") for actions that have an icon; never let a row of controls squeeze its label.
+- Colors, fonts and the scrollbar come from the tokens in `app.css`; no hard-coded colors in components (white text on the colored swipe actions is the one exception).
+- Touch targets are at least 44×44px; inputs and the editor use at least 16px text.
+
+**Check every UI change visually before committing.** Make a temporary `harness.html` in the repo root that mounts the changed components with sample data, serve it with `npx vite --port <free port>`, and screenshot it with headless Firefox (`firefox --headless --no-remote --profile <scratch dir> --window-size=W,H --screenshot out.png <url>`; a profile `user.js` with `user_pref("ui.systemUsesDarkTheme", 1);` gives dark mode). Cover:
+- desktop (1000px wide, 300px sidebar) and phone (390px wide);
+- light and dark;
+- long content: a 40+ character note title and category name, many categories, an empty list.
+Look at every screenshot, fix what's off, and delete `harness.html` before committing.
+
 ## Testing
 
 - **Unit tests (Vitest)** for pure logic: format commands (wrap/unwrap, line prefixes, list switching), markdown helpers, and the Drive client with `fetch` mocked.

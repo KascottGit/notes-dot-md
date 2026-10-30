@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import Icon from './Icon.svelte';
 
   interface Props {
     pinned: boolean;
@@ -105,13 +106,13 @@
 >
   {#if offset > 0}
     <div class="action pin" class:armed aria-hidden="true">
-      <svg viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v5" /></svg>
+      <span class="glyph"><Icon name="pin" /></span>
       <span>{pinned ? 'Unpin' : 'Pin'}</span>
     </div>
   {:else if offset < 0}
     <div class="action delete" class:armed aria-hidden="true">
       <span>Delete</span>
-      <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+      <span class="glyph"><Icon name="trash" /></span>
     </div>
   {/if}
   <div class="content" class:dragging style:transform={offset ? `translateX(${offset}px)` : ''}>
@@ -164,18 +165,12 @@
     background: var(--danger-strong);
   }
 
-  .action svg {
-    width: 20px;
-    height: 20px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  .glyph {
+    display: inline-flex;
     transition: transform 120ms ease;
   }
 
-  .action.armed svg {
+  .action.armed .glyph {
     transform: scale(1.25);
   }
 </style>

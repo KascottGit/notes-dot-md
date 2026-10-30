@@ -9,6 +9,9 @@
     splitPinned,
     type SortOrder,
   } from '../store/noteList';
+  import Icon from './Icon.svelte';
+  import IconButton from './IconButton.svelte';
+  import InlineName from './InlineName.svelte';
   import SwipeItem from './SwipeItem.svelte';
 
   interface Props {
@@ -29,7 +32,8 @@
     onSort: (sort: SortOrder) => void;
     onQuery: (query: string) => void;
     onNewCategory: () => void;
-    onRenameCategory: (category: Category) => void;
+    /** Rename a category. Resolves when done (the name shows the final value). */
+    onRenameCategory: (category: Category, name: string) => Promise<void>;
     onDeleteCategory: (category: Category) => void;
     onTogglePin: (note: Note) => void;
     onDeleteNote: (note: Note) => void;
@@ -89,9 +93,7 @@
     >
       <span class="title">
         {#if isPinned(note)}
-          <svg class="pin" viewBox="0 0 24 24" aria-label="Pinned" role="img"
-            ><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v5" /></svg
-          >
+          <span class="pin" title="Pinned"><Icon name="pin" size={14} filled /></span>
         {/if}
         {note.title}
       </span>
@@ -132,7 +134,8 @@
         aria-pressed={selectedCategory === c.id}
         onclick={() => onSelectCategory(c.id)}
       >
-        {c.name} <span class="count">{counts.get(c.id) ?? 0}</span>
+        <span class="label" title={c.name}>{c.name}</span>
+        <span class="count">{counts.get(c.id) ?? 0}</span>
       </button>
     {/each}
     <button class="chip add" onclick={onNewCategory} disabled={loading} aria-label="New category">
@@ -141,21 +144,35 @@
   </div>
 
   <div class="bar">
-    <h2>{current?.name ?? 'All notes'}</h2>
+    <div class="name">
+      <InlineName
+        value={current?.name ?? 'All notes'}
+        label="Category name"
+        readonly={!current || current.id === inboxId}
+        onCommit={(name) => (current ? onRenameCategory(current, name) : Promise.resolve())}
+      />
+    </div>
     {#if current && current.id !== inboxId}
-      <button class="small" onclick={() => onRenameCategory(current)}>Rename</button>
-      <button class="small" onclick={() => onDeleteCategory(current)}>Delete</button>
+      <IconButton
+        icon="trash"
+        label={`Delete category ${current.name}`}
+        title="Delete category"
+        onclick={() => onDeleteCategory(current)}
+      />
     {/if}
-    <select
-      class="sort"
-      aria-label="Sort notes"
-      value={sort}
-      onchange={(e) => onSort(e.currentTarget.value as SortOrder)}
-    >
-      {#each Object.entries(SORT_LABELS) as [value, label] (value)}
-        <option {value}>{label}</option>
-      {/each}
-    </select>
+    <!-- An icon button so the category name keeps the room; the native menu opens on tap. -->
+    <label class="sort" title={`Sort: ${SORT_LABELS[sort]}`}>
+      <Icon name="sort" />
+      <select
+        aria-label={`Sort notes (now: ${SORT_LABELS[sort]})`}
+        value={sort}
+        onchange={(e) => onSort(e.currentTarget.value as SortOrder)}
+      >
+        {#each Object.entries(SORT_LABELS) as [value, label] (value)}
+          <option {value}>{label}</option>
+        {/each}
+      </select>
+    </label>
   </div>
 
   {#if error}
@@ -259,6 +276,16 @@
     inset: -4px -2px;
   }
 
+  .chip {
+    max-width: 100%;
+  }
+
+  .chip .label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .chip.active {
     border-color: var(--accent);
     background: var(--selection);
@@ -283,35 +310,37 @@
     border-top: 1px solid var(--border);
   }
 
-  h2 {
+  .name {
     flex: 1;
     min-width: 0;
-    margin: 0;
-    overflow: hidden;
-    font-size: 1rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
-  .small {
-    min-height: 44px;
-    padding: 0 8px;
-    border: 0;
-    background: none;
-    color: var(--accent);
-    font: inherit;
-    font-size: 0.875rem;
+  /* Same look as IconButton; the transparent select on top takes the taps. */
+  .sort {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    color: var(--text-muted);
     cursor: pointer;
   }
 
-  .sort {
-    min-height: 44px;
-    padding: 0 8px;
-    border: 0;
-    background: none;
-    color: var(--text-muted);
-    font: inherit;
-    font-size: 0.875rem;
+  .sort:hover {
+    background: var(--bg-muted);
+    color: var(--text);
+  }
+
+  .sort select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    font-size: 16px;
+    opacity: 0;
     cursor: pointer;
   }
 
@@ -341,16 +370,10 @@
   }
 
   .pin {
-    flex: none;
-    width: 14px;
-    height: 14px;
+    display: inline-flex;
     margin-right: 4px;
+    color: var(--pin);
     vertical-align: -1px;
-    fill: none;
-    stroke: var(--pin);
-    stroke-width: 2.2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 
   .item {

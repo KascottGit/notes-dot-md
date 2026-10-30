@@ -1,10 +1,12 @@
 <!--
   Note header: editable title (renames the file), category picker (moves the
-  file), and the save status.
+  file), save status, and pin / delete.
 -->
 <script lang="ts">
   import { isPinned, type Category } from '../drive/notes';
   import type { SessionState } from '../store/noteSession';
+  import IconButton from './IconButton.svelte';
+  import InlineName from './InlineName.svelte';
 
   interface Props {
     sessionState: SessionState;
@@ -33,17 +35,8 @@
   }: Props = $props();
 
   const pinned = $derived(isPinned(sessionState.note));
-
-  let input = $state<HTMLInputElement>();
-  let draft = $state('');
-  let editing = $state(false);
+  let title = $state<InlineName>();
   let renaming = $state(false);
-
-  // Show the current title, except while the user is typing or a rename is on its way.
-  $effect(() => {
-    const title = sessionState.note.title;
-    if (!editing && !renaming) draft = title;
-  });
 
   const label = $derived(
     sessionState.readOnly
@@ -58,55 +51,21 @@
 
   /** Put the cursor in the title with all of it selected (for new notes). */
   export function focusTitle() {
-    input?.focus();
-    input?.select();
-  }
-
-  async function commit() {
-    const title = draft.trim();
-    if (!title || title === sessionState.note.title) {
-      editing = false;
-      draft = sessionState.note.title;
-      return;
-    }
-    renaming = true;
-    editing = false;
-    try {
-      await onRename(title);
-    } finally {
-      // The field then shows the final name (it may differ, e.g. "Plan (2)").
-      renaming = false;
-    }
-  }
-
-  function onKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      input?.blur(); // Commits via blur.
-      onDone();
-    } else if (event.key === 'Escape') {
-      draft = sessionState.note.title;
-      editing = false;
-      input?.blur();
-    }
+    title?.focus();
   }
 </script>
 
 <div class="header">
-  <button class="back" onclick={onBack} aria-label="Back to notes">←</button>
+  <span class="back"><IconButton icon="back" label="Back to notes" onclick={onBack} /></span>
   <div class="title">
-    <input
-      bind:this={input}
-      class="name"
-      aria-label="Note title"
-      bind:value={draft}
-      readonly={sessionState.readOnly || renaming}
-      enterkeyhint="done"
-      autocomplete="off"
-      spellcheck="false"
-      onfocus={() => (editing = true)}
-      onblur={commit}
-      onkeydown={onKeydown}
+    <InlineName
+      bind:this={title}
+      bind:busy={renaming}
+      value={sessionState.note.title}
+      label="Note title"
+      readonly={sessionState.readOnly}
+      onCommit={onRename}
+      {onDone}
     />
     <select
       class="category"
@@ -132,23 +91,15 @@
     {/if}
   </div>
   {#if !sessionState.readOnly}
-    <button
-      class="icon"
-      class:on={pinned}
-      aria-pressed={pinned}
-      aria-label={pinned ? 'Unpin note' : 'Pin note'}
-      title={pinned ? 'Unpin' : 'Pin to the top'}
-      onclick={onTogglePin}
-    >
-      <svg viewBox="0 0 24 24" aria-hidden="true"
-        ><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v5" /></svg
-      >
-    </button>
-    <button class="icon" aria-label="Delete note" title="Move to trash" onclick={onDelete}>
-      <svg viewBox="0 0 24 24" aria-hidden="true"
-        ><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg
-      >
-    </button>
+    <span class="actions">
+      <IconButton
+        icon="pin"
+        label={pinned ? 'Unpin note' : 'Pin note'}
+        pressed={pinned}
+        onclick={onTogglePin}
+      />
+      <IconButton icon="trash" label="Delete note" title="Move to trash" onclick={onDelete} />
+    </span>
   {/if}
 </div>
 {#if sessionState.status === 'error' && sessionState.error}
@@ -161,26 +112,18 @@
     align-items: center;
     gap: 8px;
     min-height: 56px;
-    padding: 4px 16px;
+    padding: 4px 10px 4px 16px;
     border-bottom: 1px solid var(--border);
   }
 
   .back {
     display: none;
-    min-width: 44px;
-    min-height: 44px;
-    margin-left: -8px;
-    border: 0;
-    border-radius: 8px;
-    background: none;
-    color: var(--text);
-    font-size: 1.25rem;
-    cursor: pointer;
+    margin-left: -10px;
   }
 
   @media (max-width: 899px) {
     .back {
-      display: block;
+      display: inline-flex;
     }
   }
 
@@ -189,31 +132,6 @@
     flex: 1;
     flex-direction: column;
     min-width: 0;
-  }
-
-  .name {
-    width: 100%;
-    min-width: 0;
-    padding: 2px 6px;
-    margin-left: -6px;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background: none;
-    color: var(--text);
-    font-family: var(--font-heading);
-    /* 16px+ so focusing it never zooms on phones. */
-    font-size: 1.0625rem;
-    font-weight: 600;
-    text-overflow: ellipsis;
-  }
-
-  .name:hover:not([readonly]) {
-    border-color: var(--border);
-  }
-
-  .name:focus {
-    border-color: var(--accent);
-    outline: none;
   }
 
   .category {
@@ -253,42 +171,9 @@
     cursor: pointer;
   }
 
-  .icon {
+  .actions {
     display: inline-flex;
     flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    margin-right: -6px;
-    border: 0;
-    border-radius: 8px;
-    background: none;
-    color: var(--text-muted);
-    cursor: pointer;
-  }
-
-  .icon:hover {
-    background: var(--bg-muted);
-    color: var(--text);
-  }
-
-  .icon.on {
-    color: var(--pin);
-  }
-
-  .icon.on svg {
-    fill: currentColor;
-  }
-
-  .icon svg {
-    width: 20px;
-    height: 20px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 
   .detail {

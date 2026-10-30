@@ -46,8 +46,8 @@
   let sort = $state<SortOrder>(loadSort());
   let query = $state('');
   let lastListLoad = 0;
-  /** The category name dialog: creating one, or renaming `category`. */
-  let nameDialog = $state<{ mode: 'create' } | { mode: 'rename'; category: Category } | null>(null);
+  /** The new-category dialog is open. */
+  let creatingCategory = $state(false);
   let header = $state<NoteHeader>();
   let toast = $state<{ message: string; action?: { label: string; run: () => void } } | null>(null);
   let listError = $state<string | null>(null);
@@ -346,26 +346,36 @@
     return taken ? { error: `There is already a category called "${name}".` } : { name };
   }
 
-  async function submitCategoryName(raw: string): Promise<string | null> {
-    if (!folders || !nameDialog) return null;
-    const editing = nameDialog.mode === 'rename' ? nameDialog.category : null;
-    const checked = checkCategoryName(raw, editing?.id);
+  async function createCategory(raw: string): Promise<string | null> {
+    if (!folders) return null;
+    const checked = checkCategoryName(raw);
     if ('error' in checked) return checked.error;
     try {
-      if (editing) {
-        const renamed = await renameFolder(drive, editing.id, checked.name);
-        categories = sortCategories(
-          categories.map((c) => (c.id === renamed.id ? renamed : c)),
-          folders.inboxId,
-        );
-      } else {
-        const created = await createFolder(drive, folders.rootId, checked.name);
-        categories = sortCategories([...categories, created], folders.inboxId);
-        selectedCategory = created.id;
-      }
+      const created = await createFolder(drive, folders.rootId, checked.name);
+      categories = sortCategories([...categories, created], folders.inboxId);
+      selectedCategory = created.id;
       return null;
     } catch (err) {
-      return `Couldn't save the category: ${message(err)}`;
+      return `Couldn't create the category: ${message(err)}`;
+    }
+  }
+
+  /** Inline rename from the list. Problems show as a toast; the name stays as it was. */
+  async function renameCategory(category: Category, raw: string) {
+    if (!folders) return;
+    const checked = checkCategoryName(raw, category.id);
+    if ('error' in checked) {
+      toast = { message: checked.error };
+      return;
+    }
+    try {
+      const renamed = await renameFolder(drive, category.id, checked.name);
+      categories = sortCategories(
+        categories.map((c) => (c.id === renamed.id ? renamed : c)),
+        folders.inboxId,
+      );
+    } catch (err) {
+      toast = { message: `Couldn't rename the category: ${message(err)}` };
     }
   }
 
@@ -444,8 +454,8 @@
       onSelectCategory={(id) => (selectedCategory = id)}
       onSort={selectSort}
       onQuery={(q) => (query = q)}
-      onNewCategory={() => (nameDialog = { mode: 'create' })}
-      onRenameCategory={(category) => (nameDialog = { mode: 'rename', category })}
+      onNewCategory={() => (creatingCategory = true)}
+      onRenameCategory={renameCategory}
       onDeleteCategory={deleteCategory}
       onTogglePin={togglePin}
       onDeleteNote={deleteNote}
@@ -490,13 +500,12 @@
 {/if}
 
 <NameDialog
-  open={nameDialog !== null}
-  title={nameDialog?.mode === 'rename' ? 'Rename category' : 'New category'}
+  open={creatingCategory}
+  title="New category"
   label="Name"
-  initial={nameDialog?.mode === 'rename' ? nameDialog.category.name : ''}
-  confirmLabel={nameDialog?.mode === 'rename' ? 'Rename' : 'Create'}
-  onSubmit={submitCategoryName}
-  onClose={() => (nameDialog = null)}
+  confirmLabel="Create"
+  onSubmit={createCategory}
+  onClose={() => (creatingCategory = false)}
 />
 
 {#if sessionState}
