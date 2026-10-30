@@ -2,7 +2,7 @@
  * Notes and categories on Google Drive.
  *
  *   My Drive/Notes/            app root
- *   My Drive/Notes/Inbox/      default category
+ *   My Drive/Notes/General/    default category (called Inbox before 2026-10-30)
  *   My Drive/Notes/<category>/<title>.md
  *
  * Notes are identified by Drive file id, never by path or title.
@@ -19,7 +19,9 @@ import {
 } from './names';
 
 export const ROOT_FOLDER_NAME = 'Notes';
-export const INBOX_FOLDER_NAME = 'Inbox';
+export const DEFAULT_FOLDER_NAME = 'General';
+/** The default category's old name. A folder by that name is renamed on the next start. */
+export const OLD_DEFAULT_FOLDER_NAME = 'Inbox';
 export const FOLDER_MIME = 'application/vnd.google-apps.folder';
 export const NOTE_MIME = 'text/markdown';
 /** Tag on every file and folder the app creates. */
@@ -55,7 +57,7 @@ export interface Category {
 
 export interface Folders {
   rootId: string;
-  inboxId: string;
+  defaultId: string;
 }
 
 interface DriveFile {
@@ -168,7 +170,8 @@ async function isLiveFolder(drive: DriveClient, id: string): Promise<boolean> {
 }
 
 /**
- * Find (or on first run, create) `Notes/` and `Notes/Inbox/`.
+ * Find (or on first run, create) `Notes/` and `Notes/General/`. An `Inbox/`
+ * from before the rename becomes `General/`: same folder, same notes.
  * The root id is cached in localStorage and re-checked on every start.
  */
 export async function ensureFolders(
@@ -181,10 +184,14 @@ export async function ensureFolders(
     rootId = found?.id ?? (await createFolder(drive, 'root', ROOT_FOLDER_NAME)).id;
     writeCache(storage, rootId);
   }
-  const inbox =
-    (await findFolder(drive, rootId, INBOX_FOLDER_NAME)) ??
-    (await createFolder(drive, rootId, INBOX_FOLDER_NAME));
-  return { rootId, inboxId: inbox.id };
+  let general: { id: string } | null = await findFolder(drive, rootId, DEFAULT_FOLDER_NAME);
+  if (!general) {
+    const old = await findFolder(drive, rootId, OLD_DEFAULT_FOLDER_NAME);
+    general = old
+      ? await renameFolder(drive, old.id, DEFAULT_FOLDER_NAME)
+      : await createFolder(drive, rootId, DEFAULT_FOLDER_NAME);
+  }
+  return { rootId, defaultId: general.id };
 }
 
 /** Forget the cached root id, e.g. on sign out. */

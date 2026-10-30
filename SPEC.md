@@ -56,7 +56,7 @@ Notes live in a `Notes/` folder in My Drive, one `.md` file per note and one sub
 ```
 My Drive/
   Notes/                 app root, created on first sign-in
-    Inbox/               default category
+    General/             default category (called Inbox before 2026-10-30)
     School/
     Projects/
       Drive layer.md
@@ -184,16 +184,17 @@ Placement: under the note title on every screen size, horizontally scrollable on
 
 Categories are Drive folders, so the structure the app shows is the same one the user sees in Drive.
 
-- **Note list:** a sidebar on screens ≥ 900px wide, its own screen with back navigation on mobile.
+- **Note list:** a sidebar on screens ≥ 900px wide (36% of the width, 300–520px), its own screen with back navigation on mobile. On desktop the notes are cards in a grid: two columns when the sidebar has room (cards at least 190px), else one. On phones it is a single list.
+- **Default category:** `General` (renamed from `Inbox` on 2026-10-30, which felt like a mail tool). It comes first and cannot be renamed or deleted. On start, a `Notes/Inbox/` folder is renamed to `General` when no `General` exists: same folder id, same notes.
 - **Category filter:** "All notes" plus one entry per category folder. Show the note count per category.
-- **Category management:** create and rename. Delete is allowed only when the category is empty; otherwise offer to move its notes to Inbox first.
+- **Category management:** create and rename. Delete is allowed only when the category is empty; otherwise offer to move its notes to General first.
 - **Move a note:** a category dropdown in the note header, which runs the Drive move request.
 - **Sort:** Last modified (default, newest first), Created, Title A–Z. Persist the choice in `localStorage`.
 - **Search:** client-side filter on titles. Full-text search through Drive's `fullText contains` query is a nice-to-have.
 - **Title:** the filename is the source of truth. Editing the title field in the note header renames the file.
-- **New note:** created in the selected category (Inbox under "All notes"), titled `Untitled`, with the title field focused.
-- **Pinned notes:** `appProperties.pinned = "true"`, shown in a Pinned section above all other notes. Toggle with the pin button in the note header, or on touch screens by swiping a note left to right and releasing (like Apple Notes).
-- **Delete a note:** the trash button in the note header, or on touch screens swipe a note right to left and release. The note moves to the Drive trash, with an Undo toast that takes it back out.
+- **New note:** created in the selected category (General under "All notes"), titled `Untitled`, with the title field focused.
+- **Pinned notes:** `appProperties.pinned = "true"`, shown in a Pinned section above all other notes. Toggle with the pin button in the note header, the pin button that shows when hovering a note in the list (mouse only), or on touch screens by swiping a note left to right and releasing (like Apple Notes).
+- **Delete a note:** the trash button in the note header, the trash button that shows when hovering a note in the list (mouse only), or on touch screens: swipe a note right to left to open a Delete button, then tap it. The swipe alone never deletes (changed 2026-10-30 to avoid accidents); the open button closes on a tap elsewhere or a swipe back. The note moves to the Drive trash, with an Undo toast that takes it back out.
 
 ## Export and copy
 
@@ -311,7 +312,7 @@ Build in this order. Each milestone ends with a working deployed app and its acc
 
 - [x] **M0 Project setup:** Vite + Svelte + TypeScript, ESLint and Prettier, GitHub Actions deploy to GitHub Pages under /notes-dot-md/. *Done when* an empty app shell is live at the Pages URL.
 - [x] **M1 Sign-in:** redirect sign-in, sign in and sign out, token renewal. *Done when* sign-in works on desktop and mobile, and a save made more than an hour after sign-in still succeeds.
-- [x] **M2 Drive layer:** `drive/notes.ts` with list, read, create, save, rename, move and trash; `Notes/` and `Inbox/` created on first run. *Done when* a note created in the app appears in Drive as a `.md` file and survives a round trip.
+- [x] **M2 Drive layer:** `drive/notes.ts` with list, read, create, save, rename, move and trash; `Notes/` and the default category folder created on first run. *Done when* a note created in the app appears in Drive as a `.md` file and survives a round trip.
 - [x] **M3 Plain editor and saving:** CodeMirror without rendering rules, autosave, save status, conflict dialog. *Done when* edits reach Drive within 3 seconds, and editing the same note on two devices shows the conflict dialog.
 - [x] **M4 Live preview:** every rendering rule in the editor table, checkbox widgets, list continuation, the `[]` shorthand. *Done when* all rules render, markers reappear on the active line, checkboxes toggle, and a copied checklist pastes into GitHub as `- [ ]` lines. Tested on a phone.
 - [x] **M5 Format bar:** all buttons and shortcuts with toggle behavior, pinned above the keyboard on mobile. *Done when* each button applies and removes its format and the selection survives a tap.

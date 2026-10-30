@@ -60,11 +60,11 @@ export function countByCategory(notes: Note[]): Map<string, number> {
   return counts;
 }
 
-/** Inbox first, then the rest by name. */
-export function sortCategories(categories: Category[], inboxId: string | null): Category[] {
+/** The default category (General) first, then the rest by name. */
+export function sortCategories(categories: Category[], defaultId: string | null): Category[] {
   return [...categories].sort((a, b) => {
-    if (a.id === inboxId) return -1;
-    if (b.id === inboxId) return 1;
+    if (a.id === defaultId) return -1;
+    if (b.id === defaultId) return 1;
     return collator.compare(a.name, b.name);
   });
 }

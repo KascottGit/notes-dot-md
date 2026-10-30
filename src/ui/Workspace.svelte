@@ -12,6 +12,7 @@
     getNote,
     listCategories,
     listNotesIn,
+    DEFAULT_FOLDER_NAME,
     moveNote,
     readNote,
     renameFolder,
@@ -106,7 +107,7 @@
       drive,
       found.map((c) => c.id),
     );
-    categories = sortCategories(found, folders.inboxId);
+    categories = sortCategories(found, folders.defaultId);
     // The open note's metadata comes from its session, which is newer.
     const open = session?.state.note;
     notes = loaded.map((n) => (open && n.id === open.id ? open : n));
@@ -233,7 +234,7 @@
       return;
     }
     try {
-      const note = await createNote(drive, selectedCategory ?? folders.inboxId, 'Untitled');
+      const note = await createNote(drive, selectedCategory ?? folders.defaultId, 'Untitled');
       notes = [...notes, note];
       show(note, '');
       await tick();
@@ -359,7 +360,7 @@
     if ('error' in checked) return checked.error;
     try {
       const created = await createFolder(drive, folders.rootId, checked.name);
-      categories = sortCategories([...categories, created], folders.inboxId);
+      categories = sortCategories([...categories, created], folders.defaultId);
       selectedCategory = created.id;
       return null;
     } catch (err) {
@@ -379,7 +380,7 @@
       const renamed = await renameFolder(drive, category.id, checked.name);
       categories = sortCategories(
         categories.map((c) => (c.id === renamed.id ? renamed : c)),
-        folders.inboxId,
+        folders.defaultId,
       );
     } catch (err) {
       toast = { message: `Couldn't rename the category: ${message(err)}` };
@@ -387,11 +388,11 @@
   }
 
   /**
-   * Delete a category: only when empty, else offer to move its notes to Inbox
+   * Delete a category: only when empty, else offer to move its notes to General
    * first. The folder goes to the Drive trash.
    */
   async function deleteCategory(category: Category) {
-    if (!folders || category.id === folders.inboxId) return;
+    if (!folders || category.id === folders.defaultId) return;
     openError = null;
     try {
       const { notes: inside, otherFiles } = await folderContents(drive, category.id);
@@ -406,13 +407,13 @@
         const plural = inside.length === 1 ? 'note' : 'notes';
         if (
           !confirm(
-            `"${category.name}" has ${inside.length} ${plural}. Move them to Inbox and delete the category?`,
+            `"${category.name}" has ${inside.length} ${plural}. Move them to ${DEFAULT_FOLDER_NAME} and delete the category?`,
           )
         ) {
           return;
         }
-        // One at a time, so name clashes in Inbox get (2), (3)... correctly.
-        for (const note of inside) replaceNote(await moveNote(drive, note, folders.inboxId));
+        // One at a time, so name clashes in General get (2), (3)... correctly.
+        for (const note of inside) replaceNote(await moveNote(drive, note, folders.defaultId));
       } else if (!confirm(`Delete the category "${category.name}"? It goes to the Drive trash.`)) {
         return;
       }
@@ -449,7 +450,7 @@
     <NoteList
       {notes}
       {categories}
-      inboxId={folders?.inboxId ?? null}
+      defaultId={folders?.defaultId ?? null}
       {selectedCategory}
       selectedNoteId={sessionState?.note.id ?? null}
       {sort}
@@ -523,7 +524,8 @@
 <style>
   .workspace {
     display: grid;
-    grid-template-columns: 300px 1fr;
+    /* Wide enough for two columns of notes on larger screens. */
+    grid-template-columns: clamp(300px, 36vw, 520px) minmax(0, 1fr);
     flex: 1;
     min-height: 0;
   }
@@ -566,7 +568,8 @@
   /* One pane at a time on narrow screens. */
   @media (max-width: 899px) {
     .workspace {
-      grid-template-columns: 1fr;
+      /* minmax(0, …): long names must not make the pane wider than the screen. */
+      grid-template-columns: minmax(0, 1fr);
     }
 
     aside {

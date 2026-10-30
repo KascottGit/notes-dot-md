@@ -32,7 +32,7 @@ Offline editing is not a goal: the app needs a network connection.
 ```
 My Drive/
   Notes/                 created on first sign-in
-    Inbox/               default category
+    General/             default category
     School/
     Projects/
       Drive layer.md

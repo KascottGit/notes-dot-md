@@ -27,8 +27,8 @@ function fakeEditor(initial: string): TextPort & { type(text: string): void; tex
 
 async function setup(content = 'hello') {
   const fake = fakeDrive();
-  const { inboxId } = await ensureFolders(fake.drive);
-  const note = await createNote(fake.drive, inboxId, 'Note', content);
+  const { defaultId } = await ensureFolders(fake.drive);
+  const note = await createNote(fake.drive, defaultId, 'Note', content);
   const editor = fakeEditor(content);
   const states: SessionState[] = [];
   const session = new NoteSession(fake.drive, note, content, editor, (s) => states.push(s));
@@ -38,7 +38,7 @@ async function setup(content = 'hello') {
   };
   /** Someone else saves the note from another device. */
   const remoteSave = (text: string) => saveNote(fake.drive, note.id, text);
-  return { ...fake, inboxId, note, editor, session, states, edit, remoteSave };
+  return { ...fake, defaultId, note, editor, session, states, edit, remoteSave };
 }
 
 const lastStatus = (states: SessionState[]) => states.at(-1)?.status;
@@ -185,7 +185,7 @@ describe('conflicts', () => {
   });
 
   it('Save mine as a copy keeps both', async () => {
-    const { session, edit, remoteSave, drive, note, editor, inboxId } = await setup();
+    const { session, edit, remoteSave, drive, note, editor, defaultId } = await setup();
     await remoteSave('theirs');
     edit('mine');
     await session.save();
@@ -193,7 +193,7 @@ describe('conflicts', () => {
     const copy = (await session.resolveConflict('copy')) as Note;
 
     expect(copy.name).toBe('Note (my copy).md');
-    expect(copy.folderId).toBe(inboxId);
+    expect(copy.folderId).toBe(defaultId);
     expect(await readNote(drive, copy.id)).toBe('mine');
     expect(await readNote(drive, note.id)).toBe('theirs');
     expect(editor.text).toBe('theirs');
@@ -280,8 +280,8 @@ describe('errors', () => {
 
   it('a read-only note never saves', async () => {
     const fake = fakeDrive();
-    const { inboxId } = await ensureFolders(fake.drive);
-    const note = await createNote(fake.drive, inboxId, 'Shared', 'x');
+    const { defaultId } = await ensureFolders(fake.drive);
+    const note = await createNote(fake.drive, defaultId, 'Shared', 'x');
     const editor = fakeEditor('x');
     const session = new NoteSession(fake.drive, { ...note, canEdit: false }, 'x', editor, () => {});
     editor.type('changed');

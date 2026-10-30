@@ -16,9 +16,9 @@
 
   interface Props {
     notes: Note[];
-    /** Already in display order (Inbox first). */
+    /** Already in display order (General first). */
     categories: Category[];
-    inboxId: string | null;
+    defaultId: string | null;
     /** null = All notes. */
     selectedCategory: string | null;
     selectedNoteId: string | null;
@@ -42,7 +42,7 @@
   let {
     notes,
     categories,
-    inboxId,
+    defaultId,
     selectedCategory,
     selectedNoteId,
     sort,
@@ -85,23 +85,41 @@
     onPin={() => onTogglePin(note)}
     onDelete={() => onDeleteNote(note)}
   >
-    <button
-      class="item"
-      class:selected={note.id === selectedNoteId}
-      aria-current={note.id === selectedNoteId ? 'true' : undefined}
-      onclick={() => onOpen(note)}
-    >
-      <span class="title">
-        {#if isPinned(note)}
-          <span class="pin" title="Pinned"><Icon name="pin" size={14} filled /></span>
-        {/if}
-        {note.title}
-      </span>
-      <span class="meta">
-        {#if selectedCategory === null}{categoryName(note.folderId)} ·{/if}
-        {when(note)}
-      </span>
-    </button>
+    <div class="row" class:selected={note.id === selectedNoteId}>
+      <button
+        class="item"
+        aria-current={note.id === selectedNoteId ? 'true' : undefined}
+        title={note.title}
+        onclick={() => onOpen(note)}
+      >
+        <span class="title">
+          {#if isPinned(note)}
+            <span class="pin" title="Pinned"><Icon name="pin" size={14} filled /></span>
+          {/if}
+          {note.title}
+        </span>
+        <span class="meta">
+          {when(note)}{#if selectedCategory === null}{` · ${categoryName(note.folderId)}`}{/if}
+        </span>
+      </button>
+      <!-- With a mouse, pin and delete show on hover (touch screens swipe instead). -->
+      {#if note.canEdit}
+        <span class="hover-actions">
+          <IconButton
+            icon="pin"
+            label={isPinned(note) ? 'Unpin note' : 'Pin note'}
+            pressed={isPinned(note)}
+            onclick={() => onTogglePin(note)}
+          />
+          <IconButton
+            icon="trash"
+            label="Delete note"
+            title="Move to trash"
+            onclick={() => onDeleteNote(note)}
+          />
+        </span>
+      {/if}
+    </div>
   </SwipeItem>
 {/snippet}
 
@@ -148,11 +166,11 @@
       <InlineName
         value={current?.name ?? 'All notes'}
         label="Category name"
-        readonly={!current || current.id === inboxId}
+        readonly={!current || current.id === defaultId}
         onCommit={(name) => (current ? onRenameCategory(current, name) : Promise.resolve())}
       />
     </div>
-    {#if current && current.id !== inboxId}
+    {#if current && current.id !== defaultId}
       <IconButton
         icon="trash"
         label={`Delete category ${current.name}`}
@@ -360,6 +378,20 @@
     list-style: none;
   }
 
+  /* Desktop: notes as cards, two columns when the sidebar has room. */
+  @media (min-width: 900px) {
+    ul {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 6px;
+    }
+
+    .row {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+  }
+
   h3 {
     margin: 8px 12px 4px;
     color: var(--text-muted);
@@ -374,6 +406,20 @@
     margin-right: 4px;
     color: var(--pin);
     vertical-align: -1px;
+  }
+
+  .row {
+    position: relative;
+    border-radius: 8px;
+    background: var(--bg);
+  }
+
+  .row:hover {
+    background: var(--bg-muted);
+  }
+
+  .row.selected {
+    background: var(--selection);
   }
 
   .item {
@@ -392,12 +438,30 @@
     cursor: pointer;
   }
 
-  .item:hover {
-    background: var(--bg-muted);
+  .hover-actions {
+    display: none;
   }
 
-  .item.selected {
-    background: var(--selection);
+  /* Only where there is a mouse: on touch screens nothing shows on hover. */
+  @media (hover: hover) and (pointer: fine) {
+    .hover-actions {
+      position: absolute;
+      top: 50%;
+      right: 2px;
+      display: flex;
+      border-radius: 8px;
+      /* The row's color, so the buttons cover the end of the title cleanly. */
+      background: inherit;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%);
+    }
+
+    .row:hover .hover-actions,
+    .row:focus-within .hover-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
 
   .title {
@@ -408,8 +472,11 @@
   }
 
   .meta {
+    overflow: hidden;
     color: var(--text-muted);
     font-size: 0.8125rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .message {

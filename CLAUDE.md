@@ -77,22 +77,22 @@ The UI must look and behave the same everywhere. Before adding any control, look
 
 | Need | Use |
 | --- | --- |
-| Rename something (note title, category name) | `InlineName`: edit in place; Enter or leaving saves, Escape cancels. Never a dialog or a "Rename" button. Non-editable names (Inbox, All notes, read-only notes) use it with `readonly` so they line up. |
+| Rename something (note title, category name) | `InlineName`: edit in place; Enter or leaving saves, Escape cancels. Never a dialog or a "Rename" button. Non-editable names (General, All notes, read-only notes) use it with `readonly` so they line up. |
 | An icon action (pin, delete, back, sort...) | `IconButton` (44×44). Icons come only from `Icon.svelte`'s `ICONS`; add new icons there. No inline `<svg>` anywhere else. |
 | Ask for a new name | `NameDialog` (creating things only). |
 | Confirm a choice with consequences | `confirm()` only for bulk or hard-to-undo actions (e.g. moving all of a category's notes). |
 | Feedback after an action | `Toast`, with Undo for anything undoable. |
 
-**Same action, same control.** Delete is always the trash `IconButton` (and swipe left on touch), moves to the Drive trash, and offers Undo or confirms as above. Pin is always the pin icon. If two places do the same thing, they use the same component, icon, wording and order.
+**Same action, same control.** Delete is always the trash `IconButton` (on touch also swipe left, which opens a Delete button to tap; never delete on release), moves to the Drive trash, and offers Undo or confirms as above. Pin is always the pin icon. If two places do the same thing, they use the same component, icon, wording and order.
 
 **Layout.**
-- Any text that can be long (note titles, category names, file names) sits in a `flex: 1; min-width: 0` box with ellipsis, and the full text in a `title` tooltip. Controls next to it are compact (icon buttons), so the text keeps the room: in the 300px sidebar a name must show at least ~20 characters.
+- Any text that can be long (note titles, category names, file names) sits in a `flex: 1; min-width: 0` box with ellipsis, and the full text in a `title` tooltip. Controls next to it are compact (icon buttons), so the text keeps the room: a note card or a 300px sidebar must show at least ~20 characters of a name. Row actions that only matter with a mouse (pin, delete in the note list) show on hover, under `@media (hover: hover) and (pointer: fine)`, and touch screens use swipes instead.
 - Never use text-link buttons ("Rename", "Delete") for actions that have an icon; never let a row of controls squeeze its label.
 - Colors, fonts and the scrollbar come from the tokens in `app.css`; no hard-coded colors in components (white text on the colored swipe actions is the one exception).
 - Touch targets are at least 44×44px; inputs and the editor use at least 16px text.
 
 **Check every UI change visually before committing.** Make a temporary `harness.html` in the repo root that mounts the changed components with sample data, serve it with `npx vite --port <free port>`, and screenshot it with headless Firefox (`firefox --headless --no-remote --profile <scratch dir> --window-size=W,H --screenshot out.png <url>`; a profile `user.js` with `user_pref("ui.systemUsesDarkTheme", 1);` gives dark mode). Cover:
-- desktop (1000px wide, 300px sidebar) and phone (390px wide);
+- desktop at 1280px (two columns of note cards) and 1000px (one column), and phone (390px wide). Headless Firefox reports no mouse, so add `user_pref("ui.primaryPointerCapabilities", 6);` to the profile to see hover-only controls;
 - light and dark;
 - long content: a 40+ character note title and category name, many categories, an empty list.
 Look at every screenshot, fix what's off, and delete `harness.html` before committing.

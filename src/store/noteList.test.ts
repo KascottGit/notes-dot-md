@@ -82,16 +82,16 @@ describe('categories', () => {
     expect(counts.get('inbox')).toBe(1);
   });
 
-  it('puts Inbox first, then sorts by name', () => {
+  it('puts the default category first, then sorts by name', () => {
     const sorted = sortCategories(
       [
         { id: 's', name: 'School' },
-        { id: 'i', name: 'Inbox' },
+        { id: 'g', name: 'General' },
         { id: 'a', name: 'Archive' },
       ],
-      'i',
+      'g',
     );
-    expect(sorted.map((c) => c.name)).toEqual(['Inbox', 'Archive', 'School']);
+    expect(sorted.map((c) => c.name)).toEqual(['General', 'Archive', 'School']);
   });
 });
 

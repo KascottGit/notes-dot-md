@@ -33,7 +33,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
   };
 }
 
-/** A Drive with Notes/ and Notes/Inbox/ already set up. */
+/** A Drive with Notes/ and Notes/General/ already set up. */
 async function withFolders() {
   const fake = fakeDrive();
   const folders = await ensureFolders(fake.drive);
@@ -41,29 +41,51 @@ async function withFolders() {
 }
 
 describe('ensureFolders', () => {
-  it('creates Notes/ and Notes/Inbox/ on first run, tagged as the app’s', async () => {
+  it('creates Notes/ and Notes/General/ on first run, tagged as the app’s', async () => {
     const { drive, files } = fakeDrive();
     const storage = memoryStorage();
 
-    const { rootId, inboxId } = await ensureFolders(drive, storage);
+    const { rootId, defaultId } = await ensureFolders(drive, storage);
 
     const root = files.get(rootId)!;
-    const inbox = files.get(inboxId)!;
+    const general = files.get(defaultId)!;
     expect(root).toMatchObject({ name: 'Notes', mimeType: FOLDER_MIME, parents: ['root'] });
-    expect(inbox).toMatchObject({ name: 'Inbox', mimeType: FOLDER_MIME, parents: [rootId] });
+    expect(general).toMatchObject({ name: 'General', mimeType: FOLDER_MIME, parents: [rootId] });
     expect(root.appProperties).toEqual(APP_PROPERTIES);
-    expect(inbox.appProperties).toEqual(APP_PROPERTIES);
+    expect(general.appProperties).toEqual(APP_PROPERTIES);
     expect(storage.data.get('mdnotes.rootId')).toBe(rootId);
   });
 
   it('reuses existing folders instead of creating new ones', async () => {
     const { drive, files } = fakeDrive([
       { id: 'notes', name: 'Notes', mimeType: FOLDER_MIME, parents: ['root'] },
+      { id: 'general', name: 'General', mimeType: FOLDER_MIME, parents: ['notes'] },
+    ]);
+
+    await expect(ensureFolders(drive)).resolves.toEqual({ rootId: 'notes', defaultId: 'general' });
+    expect(files.size).toBe(2);
+  });
+
+  it('renames an Inbox from before to General, keeping the folder and its notes', async () => {
+    const { drive, files } = fakeDrive([
+      { id: 'notes', name: 'Notes', mimeType: FOLDER_MIME, parents: ['root'] },
       { id: 'inbox', name: 'Inbox', mimeType: FOLDER_MIME, parents: ['notes'] },
     ]);
 
-    await expect(ensureFolders(drive)).resolves.toEqual({ rootId: 'notes', inboxId: 'inbox' });
+    await expect(ensureFolders(drive)).resolves.toEqual({ rootId: 'notes', defaultId: 'inbox' });
+    expect(files.get('inbox')!.name).toBe('General');
     expect(files.size).toBe(2);
+  });
+
+  it('keeps Inbox as a normal category when General already exists', async () => {
+    const { drive, files } = fakeDrive([
+      { id: 'notes', name: 'Notes', mimeType: FOLDER_MIME, parents: ['root'] },
+      { id: 'general', name: 'General', mimeType: FOLDER_MIME, parents: ['notes'] },
+      { id: 'inbox', name: 'Inbox', mimeType: FOLDER_MIME, parents: ['notes'] },
+    ]);
+
+    expect((await ensureFolders(drive)).defaultId).toBe('general');
+    expect(files.get('inbox')!.name).toBe('Inbox');
   });
 
   it('picks the oldest root if there are two', async () => {
@@ -89,11 +111,11 @@ describe('ensureFolders', () => {
   it('uses the cached root id without searching', async () => {
     const { drive, calls } = fakeDrive([
       { id: 'cached', name: 'Notes', mimeType: FOLDER_MIME },
-      { id: 'inbox', name: 'Inbox', mimeType: FOLDER_MIME, parents: ['cached'] },
+      { id: 'general', name: 'General', mimeType: FOLDER_MIME, parents: ['cached'] },
     ]);
     const storage = memoryStorage({ 'mdnotes.rootId': 'cached' });
 
-    expect(await ensureFolders(drive, storage)).toEqual({ rootId: 'cached', inboxId: 'inbox' });
+    expect(await ensureFolders(drive, storage)).toEqual({ rootId: 'cached', defaultId: 'general' });
     const rootSearches = calls.filter((c) => c.url.searchParams.get('q')?.includes("'root'"));
     expect(rootSearches).toHaveLength(0);
   });
@@ -114,39 +136,43 @@ describe('ensureFolders', () => {
 
 describe('notes', () => {
   it('round-trips content exactly', async () => {
-    const { drive, inboxId } = await withFolders();
+    const { drive, defaultId } = await withFolders();
     const content =
       '# Plan ☕\n\n- [ ] task\n- [x] done\n\n```ts\nconst a = "b";\n```\n\r\nend  \n';
 
-    const note = await createNote(drive, inboxId, 'Plan', content);
+    const note = await createNote(drive, defaultId, 'Plan', content);
 
     expect(await readNote(drive, note.id)).toBe(content);
   });
 
   it('creates <title>.md with markdown type and the app tag', async () => {
-    const { drive, files, inboxId } = await withFolders();
+    const { drive, files, defaultId } = await withFolders();
 
-    const note = await createNote(drive, inboxId, 'Drive: layer?');
+    const note = await createNote(drive, defaultId, 'Drive: layer?');
 
-    expect(note).toMatchObject({ name: 'Drive layer.md', title: 'Drive layer', folderId: inboxId });
+    expect(note).toMatchObject({
+      name: 'Drive layer.md',
+      title: 'Drive layer',
+      folderId: defaultId,
+    });
     expect(files.get(note.id)).toMatchObject({
       mimeType: 'text/markdown',
-      parents: [inboxId],
+      parents: [defaultId],
       appProperties: APP_PROPERTIES,
       content: '',
     });
   });
 
   it('adds (2) when a note with the same name exists', async () => {
-    const { drive, inboxId } = await withFolders();
-    await createNote(drive, inboxId, 'Untitled');
-    const second = await createNote(drive, inboxId, 'Untitled');
+    const { drive, defaultId } = await withFolders();
+    await createNote(drive, defaultId, 'Untitled');
+    const second = await createNote(drive, defaultId, 'Untitled');
     expect(second.name).toBe('Untitled (2).md');
   });
 
   it('saves new content and bumps the version', async () => {
-    const { drive, inboxId } = await withFolders();
-    const note = await createNote(drive, inboxId, 'A', 'one');
+    const { drive, defaultId } = await withFolders();
+    const note = await createNote(drive, defaultId, 'A', 'one');
 
     const saved = await saveNote(drive, note.id, 'two');
 
@@ -155,25 +181,25 @@ describe('notes', () => {
   });
 
   it('lists only markdown notes in a folder', async () => {
-    const { drive, add, inboxId } = await withFolders();
-    await createNote(drive, inboxId, 'Mine');
-    add({ name: 'Uploaded.md', mimeType: 'application/octet-stream', parents: [inboxId] });
-    add({ name: 'Old.markdown', mimeType: 'text/plain', parents: [inboxId] });
-    add({ name: 'photo.jpg', mimeType: 'image/jpeg', parents: [inboxId] });
-    add({ name: 'Doc', mimeType: 'application/vnd.google-apps.document', parents: [inboxId] });
-    add({ name: 'Sub', mimeType: FOLDER_MIME, parents: [inboxId] });
-    add({ name: 'Trashed.md', parents: [inboxId], trashed: true });
+    const { drive, add, defaultId } = await withFolders();
+    await createNote(drive, defaultId, 'Mine');
+    add({ name: 'Uploaded.md', mimeType: 'application/octet-stream', parents: [defaultId] });
+    add({ name: 'Old.markdown', mimeType: 'text/plain', parents: [defaultId] });
+    add({ name: 'photo.jpg', mimeType: 'image/jpeg', parents: [defaultId] });
+    add({ name: 'Doc', mimeType: 'application/vnd.google-apps.document', parents: [defaultId] });
+    add({ name: 'Sub', mimeType: FOLDER_MIME, parents: [defaultId] });
+    add({ name: 'Trashed.md', parents: [defaultId], trashed: true });
     add({ name: 'Elsewhere.md', parents: ['root'] });
 
-    const titles = (await listNotes(drive, inboxId)).map((n) => n.title).sort();
+    const titles = (await listNotes(drive, defaultId)).map((n) => n.title).sort();
 
     expect(titles).toEqual(['Mine', 'Old', 'Uploaded']);
   });
 
   it('follows pagination when listing', async () => {
-    const { drive, add, inboxId } = await withFolders();
-    for (let i = 0; i < 1001; i++) add({ name: `n${i}.md`, parents: [inboxId] });
-    expect(await listNotes(drive, inboxId)).toHaveLength(1001);
+    const { drive, add, defaultId } = await withFolders();
+    for (let i = 0; i < 1001; i++) add({ name: `n${i}.md`, parents: [defaultId] });
+    expect(await listNotes(drive, defaultId)).toHaveLength(1001);
   });
 
   it('lists categories by name', async () => {
@@ -181,13 +207,13 @@ describe('notes', () => {
     await createFolder(drive, rootId, 'School');
     await createFolder(drive, rootId, 'Projects');
     const names = (await listCategories(drive, rootId)).map((c) => c.name);
-    expect(names).toEqual(['Inbox', 'Projects', 'School']);
+    expect(names).toEqual(['General', 'Projects', 'School']);
   });
 
   it('renames, keeping names unique', async () => {
-    const { drive, inboxId } = await withFolders();
-    await createNote(drive, inboxId, 'Taken');
-    const note = await createNote(drive, inboxId, 'Draft');
+    const { drive, defaultId } = await withFolders();
+    await createNote(drive, defaultId, 'Taken');
+    const note = await createNote(drive, defaultId, 'Draft');
 
     const renamed = await renameNote(drive, note, 'Final');
     expect(renamed).toMatchObject({ id: note.id, name: 'Final.md', title: 'Final' });
@@ -197,17 +223,17 @@ describe('notes', () => {
   });
 
   it('renaming to the same title is a no-op', async () => {
-    const { drive, calls, inboxId } = await withFolders();
-    const note = await createNote(drive, inboxId, 'Same');
+    const { drive, calls, defaultId } = await withFolders();
+    const note = await createNote(drive, defaultId, 'Same');
     const before = calls.length;
     expect(await renameNote(drive, note, 'Same')).toBe(note);
     expect(calls.length).toBe(before);
   });
 
   it('moves a note to another category', async () => {
-    const { drive, files, rootId, inboxId } = await withFolders();
+    const { drive, files, rootId, defaultId } = await withFolders();
     const school = await createFolder(drive, rootId, 'School');
-    const note = await createNote(drive, inboxId, 'Essay');
+    const note = await createNote(drive, defaultId, 'Essay');
 
     const moved = await moveNote(drive, note, school.id);
 
@@ -217,34 +243,34 @@ describe('notes', () => {
   });
 
   it('renames on move when the name is taken in the target', async () => {
-    const { drive, rootId, inboxId } = await withFolders();
+    const { drive, rootId, defaultId } = await withFolders();
     const school = await createFolder(drive, rootId, 'School');
     await createNote(drive, school.id, 'Essay');
-    const note = await createNote(drive, inboxId, 'Essay');
+    const note = await createNote(drive, defaultId, 'Essay');
 
     expect((await moveNote(drive, note, school.id)).name).toBe('Essay (2).md');
   });
 
   it('keeps a .markdown name on move when it is free', async () => {
-    const { drive, add, rootId, inboxId } = await withFolders();
+    const { drive, add, rootId, defaultId } = await withFolders();
     const school = await createFolder(drive, rootId, 'School');
-    add({ id: 'old', name: 'Old.markdown', parents: [inboxId] });
+    add({ id: 'old', name: 'Old.markdown', parents: [defaultId] });
     const note = await getNote(drive, 'old');
 
-    expect((await moveNote(drive, { ...note, folderId: inboxId }, school.id)).name).toBe(
+    expect((await moveNote(drive, { ...note, folderId: defaultId }, school.id)).name).toBe(
       'Old.markdown',
     );
   });
 
   it('trashes instead of deleting', async () => {
-    const { drive, files, calls, inboxId } = await withFolders();
-    const note = await createNote(drive, inboxId, 'Bye');
+    const { drive, files, calls, defaultId } = await withFolders();
+    const note = await createNote(drive, defaultId, 'Bye');
 
     await trashNote(drive, note.id);
 
     expect(files.get(note.id)!.trashed).toBe(true);
     expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
-    expect(await listNotes(drive, inboxId)).toEqual([]);
+    expect(await listNotes(drive, defaultId)).toEqual([]);
   });
 });
 
@@ -265,7 +291,7 @@ describe('categories', () => {
     await trashFolder(drive, old.id);
     expect(files.get(old.id)!.trashed).toBe(true);
     expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
-    expect((await listCategories(drive, rootId)).map((c) => c.name)).toEqual(['Inbox']);
+    expect((await listCategories(drive, rootId)).map((c) => c.name)).toEqual(['General']);
   });
 
   it('reports notes and other files in a folder', async () => {
@@ -282,8 +308,8 @@ describe('categories', () => {
   });
 
   it('lists the notes of many categories, with the right category on each', async () => {
-    const { drive, rootId, inboxId } = await withFolders();
-    const ids = [inboxId];
+    const { drive, rootId, defaultId } = await withFolders();
+    const ids = [defaultId];
     for (let i = 0; i < 30; i++) ids.push((await createFolder(drive, rootId, `C${i}`)).id);
     for (const id of ids) await createNote(drive, id, `Note in ${id}`);
 
@@ -296,14 +322,14 @@ describe('categories', () => {
 
 describe('pin and delete', () => {
   it('pins and unpins, keeping the app tag', async () => {
-    const { drive, files, inboxId } = await withFolders();
-    const note = await createNote(drive, inboxId, 'Plan');
+    const { drive, files, defaultId } = await withFolders();
+    const note = await createNote(drive, defaultId, 'Plan');
     expect(isPinned(note)).toBe(false);
 
     const pinned = await setPinned(drive, note, true);
     expect(isPinned(pinned)).toBe(true);
     expect(files.get(note.id)!.appProperties).toEqual({ ...APP_PROPERTIES, pinned: 'true' });
-    expect(isPinned((await listNotes(drive, inboxId))[0]!)).toBe(true);
+    expect(isPinned((await listNotes(drive, defaultId))[0]!)).toBe(true);
 
     const unpinned = await setPinned(drive, pinned, false);
     expect(isPinned(unpinned)).toBe(false);
@@ -311,15 +337,15 @@ describe('pin and delete', () => {
   });
 
   it('undo after delete takes the note out of the trash, content intact', async () => {
-    const { drive, inboxId } = await withFolders();
-    const note = await createNote(drive, inboxId, 'Oops', 'keep me');
+    const { drive, defaultId } = await withFolders();
+    const note = await createNote(drive, defaultId, 'Oops', 'keep me');
     await trashNote(drive, note.id);
-    expect(await listNotes(drive, inboxId)).toEqual([]);
+    expect(await listNotes(drive, defaultId)).toEqual([]);
 
     const back = await untrashNote(drive, note);
 
-    expect(back.folderId).toBe(inboxId);
-    expect((await listNotes(drive, inboxId)).map((n) => n.id)).toEqual([note.id]);
+    expect(back.folderId).toBe(defaultId);
+    expect((await listNotes(drive, defaultId)).map((n) => n.id)).toEqual([note.id]);
     expect(await readNote(drive, note.id)).toBe('keep me');
   });
 });
