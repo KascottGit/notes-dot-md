@@ -24,6 +24,7 @@ import { codeHighlight } from './highlight';
 import { markdownSupport } from './language';
 import { continueList, indentListItem, outdentListItem, shorthandInput } from './lists';
 import { livePreview } from './livePreview';
+import { listReorder } from './reorder';
 
 /** Marks changes made by the app (e.g. loading a newer version), not by typing. */
 const external = Annotation.define<boolean>();
@@ -105,6 +106,7 @@ export function createEditor(options: EditorOptions): Editor {
         markdownSupport(),
         syntaxHighlighting(codeHighlight),
         livePreview(),
+        listReorder(),
         codeFolding({ placeholderText: '…' }),
         EditorView.inputHandler.of((view, from, to, text) => {
           const spec = shorthandInput(view.state, from, to, text);

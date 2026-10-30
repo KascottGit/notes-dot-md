@@ -41,6 +41,7 @@ src/
   editor/setup.ts        CodeMirror configuration and keymaps
   editor/livePreview.ts  decoration plugin (rendering rules)
   editor/widgets.ts      checkbox, bullet and horizontal-rule widgets
+  editor/reorder.ts      reordering list items by touch (hold and drag)
   editor/commands.ts     format commands, shared by toolbar and shortcuts
   ui/                    Svelte components: NoteList, Toolbar, NoteHeader,
                          ConflictDialog, Toast
@@ -136,6 +137,7 @@ Behavior:
 - **Checkbox click:** dispatch a change that swaps `[ ]` and `[x]`. The cursor does not move and the keyboard does not open on mobile.
 - **Enter in a list** continues it, including tasks (new line starts with ` - [ ]  `). Use `insertNewlineContinueMarkup`. Enter on an empty item ends the list.
 - **Tab / Shift+Tab** indents and outdents list items.
+- **Reorder list items** (added 2026-10-30): on touch screens, touch and hold an item's marker (checkbox, bullet or number), then drag it up or down, like Apple Notes. The item moves with its sub-items among the items of its own list, and the other items slide out of the way while dragging. Numbered lists are renumbered. The text changes as a cut and paste of whole lines, and the whole drag is one undo step. A quick tap on a checkbox still toggles it. With a keyboard, Alt+↑/↓ moves lines.
 - **Shorthand:** typing `[]` right after a list marker expands to ` [ ]  `, and a line starting `-[ ]` is normalized to ` - [ ]  `.
 - **Copy and cut** use CodeMirror's default behavior, which copies the document text. Do not add a custom HTML clipboard handler. Copying a rendered checklist must paste as `- [ ] item`.
 - **Paste** inserts plain text. Converting pasted HTML to markdown is a later nice-to-have.
