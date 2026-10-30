@@ -2,7 +2,7 @@
 
 ## Overview
 
-**notes.md** is a web app for writing notes in markdown, with every note stored as a plain `.md` file in the user's Google Drive. It is open source on GitHub in the repo `notes-dot-md`. It runs in any browser and installs as a PWA on Android and desktop. The primary desktop is EndeavourOS with Hyprland.
+**notes.md** is a web app for writing notes in markdown, with every note stored as a plain `.md` file in the user's Google Drive. It is open source on GitHub in the repo `notes-dot-md`. It runs in any browser and installs as a PWA on phones and desktop. The primary desktop is EndeavourOS with Hyprland.
 
 **Guiding principle: the file is always plain markdown.** The editor renders markdown inline (live preview), but the document text never changes form. Copying, exporting and Drive all see exactly the same markdown.
 
@@ -142,7 +142,7 @@ Behavior:
 - **Theme** follows `prefers-color-scheme`, with light and dark styles.
 - **Fonts:** note text in a gentle serif (Source Serif 4), headings and app UI in a matching sans (Inter), code in JetBrains Mono (the locally installed JetBrainsMono Nerd Font is preferred when present). Fonts are bundled with the app.
 
-Risk: Android keyboards (Gboard) can misbehave next to hidden text, for example cursor jumps or autocorrect landing in the wrong place. Test on a real Android phone as soon as the first decorations exist.
+Risk: mobile keyboards can misbehave next to hidden text, for example cursor jumps or autocorrect landing in the wrong place. Test on a real phone as soon as the first decorations exist.
 
 ## Format bar
 
@@ -209,14 +209,14 @@ The app autosaves, and it never silently overwrites a version saved from another
 
 ## Mobile and PWA
 
-The app must feel native on an Android phone and on a Linux desktop.
+The app must feel native on a phone and on a Linux desktop.
 
 - **PWA:** web manifest (name, icons 192/512 px, `display: standalone`, theme color) with start\_url and scope set to /notes-dot-md/, and a minimal service worker that caches the app shell for installability. Notes are not cached.
 - **Viewport:** `<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">`.
 - **No zoom:** pinch and double-tap zoom are turned off (owner decision, 2026-10-29): `touch-action: pan-x pan-y`, plus cancelling Safari's gesture events, since iPhone Safari ignores `user-scalable=no`. Text inputs and the editor still use a font size of at least 16px so focusing them never zooms.
 - **Layout:** two panes (list + editor) at ≥ 900px wide, one pane below that.
 - **Touch targets** of at least 44 × 44px for toolbar buttons and checkboxes.
-- **Test targets:** Chrome on Android; Chromium and Firefox on Linux (Wayland/Hyprland). On Hyprland the app can also run as `chromium --app=<url>`.
+- **Test targets:** a mobile browser on a phone (currently Safari on iPhone); Chromium and Firefox on Linux (Wayland/Hyprland). On Hyprland the app can also run as `chromium --app=<url>`.
 
 ## Later phase: task board (Trello replacement)
 
@@ -303,14 +303,14 @@ Open point: whether sharing a whole category folder through the Picker also give
 Build in this order. Each milestone ends with a working deployed app and its acceptance criteria checked.
 
 - [x] **M0 Project setup:** Vite + Svelte + TypeScript, ESLint and Prettier, GitHub Actions deploy to GitHub Pages under /notes-dot-md/. *Done when* an empty app shell is live at the Pages URL.
-- [x] **M1 Sign-in:** redirect sign-in, sign in and sign out, token renewal. *Done when* sign-in works on desktop and Android, and a save made more than an hour after sign-in still succeeds.
+- [x] **M1 Sign-in:** redirect sign-in, sign in and sign out, token renewal. *Done when* sign-in works on desktop and mobile, and a save made more than an hour after sign-in still succeeds.
 - [x] **M2 Drive layer:** `drive/notes.ts` with list, read, create, save, rename, move and trash; `Notes/` and `Inbox/` created on first run. *Done when* a note created in the app appears in Drive as a `.md` file and survives a round trip.
 - [x] **M3 Plain editor and saving:** CodeMirror without rendering rules, autosave, save status, conflict dialog. *Done when* edits reach Drive within 3 seconds, and editing the same note on two devices shows the conflict dialog.
-- [ ] **M4 Live preview:** every rendering rule in the editor table, checkbox widgets, list continuation, the `[]` shorthand. *Done when* all rules render, markers reappear on the active line, checkboxes toggle, and a copied checklist pastes into GitHub as `- [ ]` lines. Tested on Android.
+- [ ] **M4 Live preview:** every rendering rule in the editor table, checkbox widgets, list continuation, the `[]` shorthand. *Done when* all rules render, markers reappear on the active line, checkboxes toggle, and a copied checklist pastes into GitHub as `- [ ]` lines. Tested on a phone.
 - [ ] **M5 Format bar:** all buttons and shortcuts with toggle behavior, pinned above the keyboard on mobile. *Done when* each button applies and removes its format and the selection survives a tap.
 - [ ] **M6 Organization:** category filter and management, move note, sort, title search. *Done when* folders in Drive match categories in the app and the sort choice survives a reload.
 - [ ] **M7 Export and copy:** export button and copy button with toast. *Done when* the exported file opens unchanged in another editor.
-- [ ] **M8 PWA and polish:** manifest, icons, service worker, dark mode, responsive layout. *Done when* the app installs on Android and opens standalone.
+- [ ] **M8 PWA and polish:** manifest, icons, service worker, dark mode, responsive layout. *Done when* the app installs on a phone and opens standalone.
 - [ ] **Later — M9 Task board:** board view for `type: board` files.
 - [ ] **Later — M10 Claude access:** route B, then route C.
 - [ ] **Later — M11 Sharing:** steps 1–3 of the sharing section.

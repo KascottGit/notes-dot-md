@@ -101,10 +101,10 @@ Look at every screenshot, fix what's off, and delete `harness.html` before commi
 - **Unit tests (Vitest)** for pure logic: format commands (wrap/unwrap, line prefixes, list switching), markdown helpers, and the Drive client with `fetch` mocked.
 - **Never call the real Google APIs in automated tests.**
 - Editor commands: test by creating an `EditorState`, applying the command, and asserting on the resulting document text and selection.
-- Live preview and mobile behavior need manual testing. Android keyboards (Gboard) can misbehave around hidden text, so include an Android check in the manual test steps for any editor milestone.
+- Live preview and mobile behavior need manual testing. Mobile keyboards can misbehave around hidden text, so include a phone check in the manual test steps for any editor milestone.
 
 ## Environment
 
 - Copy `.env.example` to `.env` and set `VITE_GOOGLE_CLIENT_ID`. The client ID is not secret, but `.env` stays out of git.
 - Authorized JavaScript origins in Google Cloud: `http://localhost:5173` and `https://<username>.github.io` (origins never include the path). Authorized redirect URIs: `http://localhost:5173/notes-dot-md/` and `https://<username>.github.io/notes-dot-md/` (with path and trailing slash).
-- Main dev machine: EndeavourOS with Hyprland (Wayland). Test in Chromium and Firefox on Linux, and Chrome on Android.
+- Main dev machine: EndeavourOS with Hyprland (Wayland). Test in Chromium and Firefox on Linux, and in a mobile browser on a phone (currently Safari on iPhone).

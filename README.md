@@ -2,7 +2,7 @@
 
 A markdown note-taking app that keeps every note as a plain `.md` file in your own Google Drive.
 
-notes.md runs entirely in the browser and installs as a PWA on Android and desktop. There is no backend and no database: the app talks to the Google Drive API directly, and your notes stay in a `Notes/` folder you can open, back up or edit with any other tool.
+notes.md runs entirely in the browser and installs as a PWA on phones and desktop. There is no backend and no database: the app talks to the Google Drive API directly, and your notes stay in a `Notes/` folder you can open, back up or edit with any other tool.
 
 **Status:** early development. Notes with live preview, a format bar, categories, sorting and search work; export and PWA install come next. See [Roadmap](#roadmap).
 
@@ -21,7 +21,7 @@ Live app: https://kascottgit.github.io/notes-dot-md/
 - Categories (Drive folders), sorting by modified, created or title, and title search
 - Autosave with conflict detection, so a version saved on another device is never silently overwritten
 - Export a note as `.md` and copy it as markdown
-- Installable PWA with light and dark themes, built for Android and desktop Linux
+- Installable PWA with light and dark themes, built for phones and desktop
 
 Later phases: a Trello-style task board stored as a markdown note, letting Claude read and edit notes, and sharing through Drive.
 
