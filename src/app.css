@@ -3,8 +3,6 @@
 
   --bg: #ffffff;
   --bg-muted: #f4f4f6;
-  /* Things lifted above the page, like an item being dragged. */
-  --bg-raised: #ffffff;
   --text: #1b1b1f;
   --text-muted: #6b6b76;
   --border: #e2e2e8;
@@ -38,7 +36,6 @@
   :root {
     --bg: #1b1b1f;
     --bg-muted: #26262c;
-    --bg-raised: #2c2c33;
     --text: #e8e8ee;
     --text-muted: #9a9aa6;
     --border: #36363e;

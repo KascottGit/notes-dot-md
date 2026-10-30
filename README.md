@@ -16,7 +16,7 @@ Live app: https://kascottgit.github.io/notes-dot-md/
 
 ## Planned features (v1)
 
-- Live-preview editor (CodeMirror 6) with GitHub-flavored markdown, including clickable task lists and list items you can reorder by touch
+- Live-preview editor (CodeMirror 6) with GitHub-flavored markdown, including clickable task lists
 - Format bar and keyboard shortcuts that toggle bold, italic, headings, lists, checklists, quotes and code
 - Categories (Drive folders), sorting by modified, created or title, and title search
 - Autosave with conflict detection, so a version saved on another device is never silently overwritten

@@ -49,7 +49,6 @@ src/
   editor/setup.ts        CodeMirror configuration and keymaps
   editor/livePreview.ts  decoration plugin (rendering rules)
   editor/widgets.ts      checkbox, bullet, horizontal-rule widgets
-  editor/reorder.ts      reordering list items by touch (hold and drag)
   editor/commands.ts     format commands, shared by toolbar and shortcuts
   ui/                    Svelte components
   store/                 app state
