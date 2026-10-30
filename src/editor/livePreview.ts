@@ -486,7 +486,7 @@ const previewTheme = EditorView.theme({
   '.cm-md-code': {
     fontFamily: 'var(--font-mono)',
     fontSize: '0.9em',
-    backgroundColor: 'var(--bg-muted)',
+    backgroundColor: 'var(--code-bg)',
     borderRadius: '4px',
     padding: '0.1em 0.25em',
   },
@@ -546,7 +546,7 @@ const previewTheme = EditorView.theme({
   '.cm-line.cm-md-codeblock': {
     fontFamily: 'var(--font-mono)',
     fontSize: '0.9em',
-    backgroundColor: 'var(--bg-muted)',
+    backgroundColor: 'var(--code-bg)',
     paddingLeft: '12px',
     paddingRight: '12px',
   },

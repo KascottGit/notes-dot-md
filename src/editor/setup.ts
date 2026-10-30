@@ -2,7 +2,7 @@
  * CodeMirror configuration. The document is plain markdown text; rendering
  * (live preview) only adds decorations and never changes how it is stored.
  */
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, toggleComment } from '@codemirror/commands';
 import { deleteMarkupBackward } from '@codemirror/lang-markdown';
 import { codeFolding, syntaxHighlighting } from '@codemirror/language';
 import { Annotation, Compartment, EditorState, type StateCommand } from '@codemirror/state';
@@ -31,6 +31,7 @@ import {
   shorthandInput,
 } from './lists';
 import { livePreview } from './livePreview';
+import { pasteImages } from './paste';
 
 /** Marks changes made by the app (e.g. loading a newer version), not by typing. */
 const external = Annotation.define<boolean>();
@@ -57,6 +58,15 @@ export interface Editor {
   focus(): void;
   destroy(): void;
 }
+
+/**
+ * CodeMirror's default keys, without Mod-/ (toggle comment, which inserts
+ * `<!-- -->` in markdown). On Nordic and German keyboards Shift+7 types `/`,
+ * so Ctrl+Shift+7 arrives as Ctrl+/ and would never reach the numbered list.
+ */
+export const baseKeymap: readonly KeyBinding[] = defaultKeymap.filter(
+  (binding) => binding.run !== toggleComment,
+);
 
 /** Format shortcuts (SPEC "Format bar"). Mod is Ctrl, or Cmd on a Mac. */
 export const formatKeymap: KeyBinding[] = [
@@ -112,6 +122,7 @@ export function createEditor(options: EditorOptions): Editor {
         markdownSupport(),
         syntaxHighlighting(codeHighlight),
         livePreview(),
+        pasteImages,
         codeFolding({ placeholderText: '…' }),
         EditorView.inputHandler.of((view, from, to, text) => {
           const spec = shorthandInput(view.state, from, to, text);
@@ -135,8 +146,8 @@ export function createEditor(options: EditorOptions): Editor {
           { key: 'Tab', run: indentItem, shift: outdentItem },
           { key: 'Alt-ArrowUp', run: moveItemUp },
           { key: 'Alt-ArrowDown', run: moveItemDown },
-          ...formatKeymap, // Before defaultKeymap, which uses Mod-i for something else.
-          ...defaultKeymap,
+          ...formatKeymap, // Before the defaults, which use Mod-i for something else.
+          ...baseKeymap,
           ...historyKeymap,
         ]),
         editable.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),

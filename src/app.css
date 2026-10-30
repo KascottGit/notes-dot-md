@@ -3,6 +3,8 @@
 
   --bg: #ffffff;
   --bg-muted: #f4f4f6;
+  /* Code backgrounds in the editor: see-through, so the selection drawn behind the text shows. */
+  --code-bg: rgb(20 20 70 / 5%);
   --text: #1b1b1f;
   --text-muted: #6b6b76;
   --border: #e2e2e8;
@@ -36,6 +38,7 @@
   :root {
     --bg: #1b1b1f;
     --bg-muted: #26262c;
+    --code-bg: rgb(200 200 255 / 5%);
     --text: #e8e8ee;
     --text-muted: #9a9aa6;
     --border: #36363e;

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { markdownSupport } from './language';
 import {
   autolinkHref,
+  imageMarkdown,
   linkParts,
   linkReferences,
   parseInline,
@@ -161,5 +162,21 @@ describe('parseTable', () => {
         ],
       ],
     ]);
+  });
+});
+
+describe('imageMarkdown', () => {
+  it('writes an image, escaping brackets in the alt text and spaces or parens in the URL', () => {
+    expect(imageMarkdown('https://x.y/a.png', 'A cat')).toBe('![A cat](https://x.y/a.png)');
+    expect(imageMarkdown('https://x.y/a b(1).png', 'a [b]\nc')).toBe(
+      '![a \\[b\\] c](https://x.y/a%20b%281%29.png)',
+    );
+  });
+
+  it('round-trips through the parser', () => {
+    const doc = imageMarkdown('https://x.y/a b(1).png', 'a [b]');
+    const state = stateOf(doc);
+    const parts = linkParts(state, find(state, 'Image'), linkReferences(state))!;
+    expect(parts.href).toBe('https://x.y/a%20b%281%29.png');
   });
 });

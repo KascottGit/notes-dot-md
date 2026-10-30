@@ -22,6 +22,19 @@ export function autolinkHref(text: string): string {
   return text;
 }
 
+/** `![alt](src)` for an image, escaping what would end the alt text or the URL early. */
+export function imageMarkdown(src: string, alt: string): string {
+  const safeAlt = alt
+    .replace(/[\\[\]]/g, '\\$&')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const safeSrc = src.replace(
+    /[\s()<>]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`,
+  );
+  return `![${safeAlt}](${safeSrc})`;
+}
+
 /** `<url>` in a link destination means the URL without the brackets. */
 const destination = (text: string) => text.replace(/^<(.*)>$/, '$1');
 

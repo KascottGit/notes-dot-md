@@ -144,7 +144,8 @@ Behavior:
 - **Alt+↑ / Alt+↓** move the current list item one line up or down, together with its children. Children are the lines right below the item that are indented further; a blank or unindented line ends them. Blank lines and plain text are passed one line at a time. Moving up from under another item's children jumps above that item; moving down onto an item with children jumps past them. Numbered lists are renumbered. Outside lists the keys move the selected lines. On phones the same moves are format bar buttons. (Added 2026-10-30. Touch-and-hold dragging of list markers was tried and dropped: Safari on iPhone starts selecting text instead.)
 - **Shorthand:** typing `[]` right after a list marker expands to ` [ ]  `, and a line starting `-[ ]` is normalized to ` - [ ]  `.
 - **Copy and cut** use CodeMirror's default behavior, which copies the document text. Do not add a custom HTML clipboard handler. Copying a rendered checklist must paste as `- [ ] item`.
-- **Paste** inserts plain text. Converting pasted HTML to markdown is a later nice-to-have.
+- **Paste** inserts plain text. One exception: an image copied from a web page (Copy Image; the clipboard holds HTML with only `<img>`) pastes as `![alt](url)`. Converting other pasted HTML to markdown is a later nice-to-have.
+- **No comment shortcut:** CodeMirror's Ctrl+/ (toggle comment, `<!-- -->`) is removed. On Nordic and German keyboards Ctrl+Shift+7 arrives as Ctrl+/, and must make a numbered list.
 - **Theme** follows `prefers-color-scheme`, with light and dark styles.
 - **Fonts:** note text in a gentle serif (Source Serif 4), headings and app UI in a matching sans (Inter), code in JetBrains Mono (the locally installed JetBrainsMono Nerd Font is preferred when present). Fonts are bundled with the app.
 
@@ -333,6 +334,8 @@ Open questions:
 
 To do (later):
 
+- [ ] **Better table editing.** Tables render as tables and turn into plain text while the cursor is in them. Ideas: edit cells in place, Tab to the next cell, buttons to add or remove rows and columns, and keeping the pipes aligned in the text.
+- [ ] **Paste image data** (screenshots, photos, and images copied on iPhone, which often come without a URL): upload the image to Drive next to the note and insert `![alt](…)` pointing at it. Needs a way to show Drive images (they are not public URLs).
 - [ ] **Keep the header and format bar visible above the iPhone keyboard.** Goal: like Apple Notes, the header and bar stay at the top and the note area shrinks to fit above the keyboard, with the cursor line kept visible. Tried on 2026-10-29: (1) sizing the app to the `visualViewport` and following its `offsetTop` made the tapped line end up hidden; (2) adding a scroll-cursor-into-view step after each resize made the screen flicker until the editor was tapped again, likely a loop between Safari panning the page, the app scrolling it back and the editor scrolling. Needs testing on a real iPhone; ideas: only react to `resize` (not `scroll`), avoid `window.scrollTo`, debounce until the keyboard animation ends, or remember the keyboard height and shrink before Safari pans.
 
 ## Handing this to Claude Code
