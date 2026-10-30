@@ -80,6 +80,16 @@ body {
   overscroll-behavior: none;
 }
 
+/* Less motion when the system asks for it: slides and fades become instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* No pinch or double-tap zoom: only scrolling gestures (see ui/preventZoom.ts). */
 html,
 body,

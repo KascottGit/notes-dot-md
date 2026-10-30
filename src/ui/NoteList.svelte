@@ -268,19 +268,44 @@
     padding: 0 8px 8px;
   }
 
+  /* Phones: one row that scrolls sideways, so the notes start higher. */
+  @media (max-width: 899px) {
+    .categories {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .categories::-webkit-scrollbar {
+      display: none;
+    }
+
+    .chip {
+      flex: none;
+      max-width: 70vw;
+    }
+  }
+
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    min-height: 36px;
+    min-height: 34px;
     padding: 0 12px;
-    border: 1px solid var(--border);
+    border: 0;
     border-radius: 999px;
-    background: none;
+    background: var(--bg-muted);
     color: var(--text);
     font: inherit;
     font-size: 0.875rem;
     cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .chip:hover {
+    background: var(--selection);
   }
 
   /* Still a 44px touch target. */
@@ -305,13 +330,23 @@
   }
 
   .chip.active {
-    border-color: var(--accent);
-    background: var(--selection);
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  .chip.active .count {
+    color: inherit;
+    opacity: 0.8;
   }
 
   .chip.add {
+    background: none;
     color: var(--text-muted);
-    border-style: dashed;
+  }
+
+  .chip.add:hover {
+    background: var(--bg-muted);
+    color: var(--text);
   }
 
   .count {
@@ -412,6 +447,7 @@
     position: relative;
     border-radius: 8px;
     background: var(--bg);
+    transition: background-color 120ms ease;
   }
 
   .row:hover {

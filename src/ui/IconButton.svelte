@@ -41,6 +41,9 @@
     background: none;
     color: var(--text-muted);
     cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
   }
 
   .icon-button:hover:not(:disabled) {

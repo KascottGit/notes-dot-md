@@ -88,6 +88,7 @@ The UI must look and behave the same everywhere. Before adding any control, look
 **Layout.**
 - Any text that can be long (note titles, category names, file names) sits in a `flex: 1; min-width: 0` box with ellipsis, and the full text in a `title` tooltip. Controls next to it are compact (icon buttons), so the text keeps the room: a note card or a 300px sidebar must show at least ~20 characters of a name. Row actions that only matter with a mouse (pin, delete in the note list) show on hover, under `@media (hover: hover) and (pointer: fine)`, and touch screens use swipes instead.
 - Never use text-link buttons ("Rename", "Delete") for actions that have an icon; never let a row of controls squeeze its label.
+- Keep it calm: no extra bars or borders when spacing does the job, one accent color for the current choice. Interactive elements fade their hover color (`transition` ~120ms); larger moves are 180–220ms slides. `app.css` turns all motion off under `prefers-reduced-motion`.
 - Colors, fonts and the scrollbar come from the tokens in `app.css`; no hard-coded colors in components (white text on the colored swipe actions is the one exception).
 - Touch targets are at least 44×44px; inputs and the editor use at least 16px text.
 

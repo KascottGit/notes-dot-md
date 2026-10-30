@@ -46,6 +46,14 @@
     color: var(--bg);
     box-shadow: 0 6px 24px rgb(0 0 0 / 25%);
     transform: translateX(-50%);
+    animation: rise 180ms ease-out;
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 12px);
+    }
   }
 
   span {

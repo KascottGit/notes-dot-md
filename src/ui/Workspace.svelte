@@ -31,13 +31,24 @@
   import { NoteSession, type ConflictChoice, type SessionState } from '../store/noteSession';
   import { clearStash, readStash, saveStash, type Stash } from '../store/stash';
   import { safeLocalStorage } from '../store/storage';
+  import type { Account } from '../drive/account';
   import ConflictDialog from './ConflictDialog.svelte';
+  import IconButton from './IconButton.svelte';
   import NameDialog from './NameDialog.svelte';
   import NoteHeader from './NoteHeader.svelte';
   import NoteList from './NoteList.svelte';
   import Toast from './Toast.svelte';
   import { downloadFile } from './download';
   import Toolbar from './Toolbar.svelte';
+
+  interface Props {
+    account: Account | null;
+    onSignOut: () => void;
+    /** Dev builds only: drop the access token to test renewal. */
+    onExpireToken?: (() => void) | undefined;
+  }
+
+  let { account, onSignOut, onExpireToken }: Props = $props();
 
   let folders = $state<Folders | null>(null);
   let categories = $state<Category[]>([]);
@@ -61,6 +72,14 @@
   let sessionState = $state<SessionState | null>(null);
   /** Which pane shows on narrow screens. */
   let view = $state<'list' | 'editor'>('list');
+  /** Slide between list and note on phones, but not on the first screen. */
+  let animate = $state(false);
+  let firstView = true;
+  $effect(() => {
+    void view;
+    if (firstView) firstView = false;
+    else animate = true;
+  });
   /** Leaving for Google's sign-in page, with unsaved text stashed. */
   let redirecting = false;
   let stopStashOnRedirect: (() => void) | null = null;
@@ -445,8 +464,22 @@
   }
 </script>
 
-<div class="workspace" data-view={view}>
+<div class="workspace" data-view={view} class:animate>
   <aside>
+    <div class="brand">
+      <span class="app">notes.md</span>
+      {#if import.meta.env.DEV}<span class="dev">dev</span>{/if}
+      <span class="email" title={account?.emailAddress}>{account?.emailAddress ?? ''}</span>
+      {#if onExpireToken}
+        <IconButton icon="expire" label="Expire token (dev)" onclick={onExpireToken} />
+      {/if}
+      <IconButton
+        icon="logout"
+        label="Sign out"
+        title={account ? `Sign out (${account.emailAddress})` : 'Sign out'}
+        onclick={onSignOut}
+      />
+    </div>
     <NoteList
       {notes}
       {categories}
@@ -531,8 +564,51 @@
   }
 
   aside {
+    display: flex;
+    flex-direction: column;
     min-height: 0;
     border-right: 1px solid var(--border);
+  }
+
+  aside > :global(.list) {
+    flex: 1;
+  }
+
+  /* The app name and account, at the top of the note list. */
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 52px;
+    padding: 4px 4px 0 16px;
+  }
+
+  .app {
+    font-family: var(--font-heading);
+    font-size: 1.0625rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  .dev {
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--bg-muted);
+    color: var(--text-muted);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .email {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .main {
@@ -579,6 +655,28 @@
     .workspace[data-view='list'] .main,
     .workspace[data-view='editor'] aside {
       display: none;
+    }
+
+    .workspace.animate[data-view='editor'] .main {
+      animation: from-right 220ms ease-out;
+    }
+
+    .workspace.animate[data-view='list'] aside {
+      animation: from-left 220ms ease-out;
+    }
+
+    @keyframes from-right {
+      from {
+        opacity: 0.6;
+        transform: translateX(24%);
+      }
+    }
+
+    @keyframes from-left {
+      from {
+        opacity: 0.6;
+        transform: translateX(-24%);
+      }
     }
   }
 </style>

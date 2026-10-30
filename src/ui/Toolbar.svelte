@@ -198,6 +198,7 @@
     color: var(--text);
     font: inherit;
     cursor: pointer;
+    transition: background-color 120ms ease;
   }
 
   .tool:hover {

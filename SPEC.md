@@ -186,7 +186,8 @@ Categories are Drive folders, so the structure the app shows is the same one the
 
 - **Note list:** a sidebar on screens ≥ 900px wide (36% of the width, 300–520px), its own screen with back navigation on mobile. On desktop the notes are cards in a grid: two columns when the sidebar has room (cards at least 190px), else one. On phones it is a single list.
 - **Default category:** `General` (renamed from `Inbox` on 2026-10-30, which felt like a mail tool). It comes first and cannot be renamed or deleted. On start, a `Notes/Inbox/` folder is renamed to `General` when no `General` exists: same folder id, same notes.
-- **Category filter:** "All notes" plus one entry per category folder. Show the note count per category.
+- **Category filter:** "All notes" plus one chip per category folder, with the note count. On phones the chips are one row that scrolls sideways; on desktop they wrap.
+- **Account:** no app header bar (dropped in M8 to give the note more room). The top of the note list shows the app name, the signed-in email (when there is room) and a sign-out icon button.
 - **Category management:** create and rename. Delete is allowed only when the category is empty; otherwise offer to move its notes to General first.
 - **Move a note:** a category dropdown in the note header, which runs the Drive move request.
 - **Sort:** Last modified (default, newest first), Created, Title A–Z. Persist the choice in `localStorage`.
@@ -222,7 +223,9 @@ The app must feel good in a phone browser and on a Linux desktop. It runs in the
 
 - **Viewport:** `<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">`.
 - **No zoom:** pinch and double-tap zoom are turned off (owner decision, 2026-10-29): `touch-action: pan-x pan-y`, plus cancelling Safari's gesture events, since iPhone Safari ignores `user-scalable=no`. Text inputs and the editor still use a font size of at least 16px so focusing them never zooms.
-- **Layout:** two panes (list + editor) at ≥ 900px wide, one pane below that.
+- **Layout:** two panes (list + editor) at ≥ 900px wide, one pane below that. The note header (title, category · status, actions) and the format bar form one block above the note, lined up with the note text column (760px max). On phones the note slides in from the right and the list from the left.
+- **Motion:** short and quiet: 120ms color fades on hover, 180–220ms slides. With `prefers-reduced-motion`, all of it is instant.
+- **Icons:** `favicon.svg`, a 32px PNG fallback and a 180px `apple-touch-icon.png` (Safari bookmarks and favorites).
 - **Touch targets** of at least 44 × 44px for toolbar buttons and checkboxes.
 - **Test targets:** a mobile browser on a phone (currently Safari on iPhone); Chromium and Firefox on Linux (Wayland/Hyprland). On Hyprland the app can also run as `chromium --app=<url>`.
 
