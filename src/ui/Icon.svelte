@@ -25,6 +25,11 @@
     quote: '<path d="M5 6v12M10 8h9M10 12h9M10 16h6"/>',
     codeblock:
       '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M10 9.5l-2.5 2.5 2.5 2.5M14 9.5l2.5 2.5-2.5 2.5"/>',
+    // Format bar: moving and nesting lines
+    moveUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+    moveDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+    outdent: '<path d="M11 6h9M11 12h9M11 18h9M7.5 9l-3 3 3 3"/>',
+    indent: '<path d="M11 6h9M11 12h9M11 18h9M4.5 9l3 3-3 3"/>',
   } as const;
 
   export type IconName = keyof typeof ICONS;

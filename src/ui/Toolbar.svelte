@@ -18,6 +18,7 @@
     toggleQuote,
     toggleStrikethrough,
   } from '../editor/commands';
+  import { indentItem, moveItemDown, moveItemUp, outdentItem } from '../editor/lists';
   import Icon, { type IconName } from './Icon.svelte';
 
   interface Props {
@@ -62,6 +63,15 @@
     { id: 'task', label: 'Checklist', shortcut: `${mod}${shift}9`, command: toggleChecklist },
     { id: 'quote', label: 'Quote', shortcut: `${mod}${shift}.`, command: toggleQuote },
     { id: 'codeblock', label: 'Code block', shortcut: `${mod}${alt}C`, command: toggleCodeBlock },
+  ];
+
+  // Same commands as Alt+↑/↓ and Tab/Shift+Tab. In a list they move or nest
+  // the whole item with its sub-items.
+  const lines: Button[] = [
+    { id: 'moveUp', label: 'Move up', shortcut: `${alt}↑`, command: moveItemUp },
+    { id: 'moveDown', label: 'Move down', shortcut: `${alt}↓`, command: moveItemDown },
+    { id: 'outdent', label: 'Outdent', shortcut: `${shift}Tab`, command: outdentItem },
+    { id: 'indent', label: 'Indent', shortcut: 'Tab', command: indentItem },
   ];
 
   const headings = ([1, 2, 3] as const).map((level) => ({
@@ -117,34 +127,20 @@
       H<span class="caret" aria-hidden="true">▾</span>
     </button>
 
-    <span class="sep" aria-hidden="true"></span>
-
-    {#each inline as b (b.id)}
-      <button
-        class="tool"
-        aria-label={b.label}
-        title={`${b.label} (${b.shortcut})`}
-        onmousedown={keepFocus}
-        onpointerdown={keepFocus}
-        onclick={() => choose(b.command)}
-      >
-        <Icon name={b.id} />
-      </button>
-    {/each}
-
-    <span class="sep" aria-hidden="true"></span>
-
-    {#each blocks as b (b.id)}
-      <button
-        class="tool"
-        aria-label={b.label}
-        title={`${b.label} (${b.shortcut})`}
-        onmousedown={keepFocus}
-        onpointerdown={keepFocus}
-        onclick={() => choose(b.command)}
-      >
-        <Icon name={b.id} />
-      </button>
+    {#each [inline, blocks, lines] as group, i (i)}
+      <span class="sep" aria-hidden="true"></span>
+      {#each group as b (b.id)}
+        <button
+          class="tool"
+          aria-label={b.label}
+          title={`${b.label} (${b.shortcut})`}
+          onmousedown={keepFocus}
+          onpointerdown={keepFocus}
+          onclick={() => choose(b.command)}
+        >
+          <Icon name={b.id} />
+        </button>
+      {/each}
     {/each}
   </div>
   {#if menuOpen}
@@ -177,7 +173,6 @@
   .scroll {
     display: flex;
     align-items: center;
-    gap: 2px;
     max-width: 760px;
     margin: 0 auto;
     padding: 2px 8px;
@@ -227,7 +222,7 @@
     flex: none;
     width: 1px;
     height: 24px;
-    margin: 0 4px;
+    margin: 0 2px;
     background: var(--border);
   }
 

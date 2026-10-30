@@ -2,7 +2,7 @@
  * CodeMirror configuration. The document is plain markdown text; rendering
  * (live preview) only adds decorations and never changes how it is stored.
  */
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { deleteMarkupBackward } from '@codemirror/lang-markdown';
 import { codeFolding, syntaxHighlighting } from '@codemirror/language';
 import { Annotation, Compartment, EditorState, type StateCommand } from '@codemirror/state';
@@ -22,7 +22,14 @@ import {
 } from './commands';
 import { codeHighlight } from './highlight';
 import { markdownSupport } from './language';
-import { continueList, indentListItem, outdentListItem, shorthandInput } from './lists';
+import {
+  continueList,
+  indentItem,
+  moveItemDown,
+  moveItemUp,
+  outdentItem,
+  shorthandInput,
+} from './lists';
 import { livePreview } from './livePreview';
 
 /** Marks changes made by the app (e.g. loading a newer version), not by typing. */
@@ -124,11 +131,13 @@ export function createEditor(options: EditorOptions): Editor {
           // Continue lists and tasks on Enter; Enter on an empty item ends the list.
           { key: 'Enter', run: continueList },
           { key: 'Backspace', run: deleteMarkupBackward },
-          { key: 'Tab', run: indentListItem, shift: outdentListItem },
+          // Same commands as the format bar's move and indent buttons.
+          { key: 'Tab', run: indentItem, shift: outdentItem },
+          { key: 'Alt-ArrowUp', run: moveItemUp },
+          { key: 'Alt-ArrowDown', run: moveItemDown },
           ...formatKeymap, // Before defaultKeymap, which uses Mod-i for something else.
           ...defaultKeymap,
           ...historyKeymap,
-          indentWithTab,
         ]),
         editable.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
         EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
