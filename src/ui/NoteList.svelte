@@ -9,6 +9,8 @@
     splitPinned,
     type SortOrder,
   } from '../store/noteList';
+  import Chip from './Chip.svelte';
+  import ChipRow from './ChipRow.svelte';
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
   import InlineName from './InlineName.svelte';
@@ -139,30 +141,29 @@
     <button class="new" onclick={onNew} disabled={loading}>New note</button>
   </div>
 
-  <div class="categories" role="group" aria-label="Categories">
-    <button
-      class="chip"
-      class:active={selectedCategory === null}
-      aria-pressed={selectedCategory === null}
+  <ChipRow label="Categories">
+    <Chip
+      label="All notes"
+      count={notes.length}
+      active={selectedCategory === null}
       onclick={() => onSelectCategory(null)}
-    >
-      All notes <span class="count">{notes.length}</span>
-    </button>
+    />
     {#each categories as c (c.id)}
-      <button
-        class="chip"
-        class:active={selectedCategory === c.id}
-        aria-pressed={selectedCategory === c.id}
+      <Chip
+        label={c.name}
+        count={counts.get(c.id) ?? 0}
+        active={selectedCategory === c.id}
         onclick={() => onSelectCategory(c.id)}
-      >
-        <span class="label" title={c.name}>{c.name}</span>
-        <span class="count">{counts.get(c.id) ?? 0}</span>
-      </button>
+      />
     {/each}
-    <button class="chip add" onclick={onNewCategory} disabled={loading} aria-label="New category">
-      + Category
-    </button>
-  </div>
+    <Chip
+      label="+ Category"
+      variant="add"
+      ariaLabel="New category"
+      disabled={loading}
+      onclick={onNewCategory}
+    />
+  </ChipRow>
 
   <div class="bar">
     <div class="name">
@@ -262,100 +263,6 @@
     font: inherit;
     font-weight: 600;
     cursor: pointer;
-  }
-
-  .categories {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 0 8px 8px;
-  }
-
-  /* Phones: one row that scrolls sideways, so the notes start higher. */
-  @media (max-width: 899px) {
-    .categories {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-
-    .categories::-webkit-scrollbar {
-      display: none;
-    }
-
-    .chip {
-      flex: none;
-      max-width: 70vw;
-    }
-  }
-
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 34px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--bg-muted);
-    color: var(--text);
-    font: inherit;
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition:
-      background-color 120ms ease,
-      color 120ms ease;
-  }
-
-  .chip:hover {
-    background: var(--selection);
-  }
-
-  /* Still a 44px touch target. */
-  .chip {
-    position: relative;
-  }
-
-  .chip::after {
-    content: '';
-    position: absolute;
-    inset: -4px -2px;
-  }
-
-  .chip {
-    max-width: 100%;
-  }
-
-  .chip .label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .chip.active {
-    background: var(--accent);
-    color: var(--on-accent);
-  }
-
-  .chip.active .count {
-    color: inherit;
-    opacity: 0.8;
-  }
-
-  .chip.add {
-    background: none;
-    color: var(--text-muted);
-  }
-
-  .chip.add:hover {
-    background: var(--bg-muted);
-    color: var(--text);
-  }
-
-  .count {
-    color: var(--text-muted);
-    font-size: 0.8125rem;
-    font-variant-numeric: tabular-nums;
   }
 
   .bar {

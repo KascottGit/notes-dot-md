@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   addCard,
+  addColumn,
   archiveCard,
+  boardTags,
+  deleteColumn,
+  hasTag,
   bodyForFile,
   countTasks,
   doneColumnIndex,
@@ -14,6 +18,7 @@ import {
   parseBoard,
   parseMeta,
   renameCard,
+  renameColumn,
   replaceBody,
   setDueDate,
   visibleColumns,
@@ -291,5 +296,72 @@ describe('card edits', () => {
       'Archive',
       ['Email supervisor', 'Write internship report'],
     ]);
+  });
+});
+
+const M = '<!-- notes.md:board -->';
+
+describe('tags on cards', () => {
+  const text = `${M}\n# Todo\n## Plan #trip\n#home\nPack for #Trip and #beach\n\n\`\`\`\n#not-a-tag\n\`\`\`\n## Other\nNo tags\n# Done\n## Old #home\n# Archive\n## Gone #home\n`;
+  const board = parseBoard(text);
+
+  it('collects tags from the title and body, once each, not in code', () => {
+    expect(board.columns[0]!.cards[0]!.tags).toEqual(['trip', 'home', 'beach']);
+    expect(board.columns[0]!.cards[1]!.tags).toEqual([]);
+  });
+
+  it('matches a tag in any case', () => {
+    expect(hasTag(board.columns[0]!.cards[0]!, 'TRIP')).toBe(true);
+    expect(hasTag(board.columns[0]!.cards[1]!, 'trip')).toBe(false);
+  });
+
+  it('lists the board tags by use, leaving out Archive', () => {
+    expect(boardTags(board)).toEqual([
+      { tag: 'home', count: 2 },
+      { tag: 'beach', count: 1 },
+      { tag: 'trip', count: 1 },
+    ]);
+  });
+});
+
+describe('columns', () => {
+  it('adds a column after the shown ones, before Archive', () => {
+    const plain = addColumn(`${M}\n\n# Todo\n\n# Done\n`, 'Later');
+    expect(plain.text).toBe(`${M}\n\n# Todo\n\n# Done\n\n# Later\n`);
+    expect(plain.column).toBe(2);
+    const withArchive = addColumn(`${M}\n\n# Todo\n\n# Archive\n\n## Old\n`);
+    expect(withArchive.text).toBe(`${M}\n\n# Todo\n\n# Untitled\n\n# Archive\n\n## Old\n`);
+    expect(withArchive.column).toBe(1);
+  });
+
+  it('renames a column, but never to Archive or nothing', () => {
+    const text = `${M}\n# Todo\n## A\n`;
+    expect(renameColumn(text, 0, '  Next   up ')).toBe(`${M}\n# Next up\n## A\n`);
+    expect(renameColumn(text, 0, 'archive')).toBe(text);
+    expect(renameColumn(text, 0, '  ')).toBe(text);
+  });
+
+  it('deletes an empty column', () => {
+    expect(deleteColumn(`${M}\n\n# Todo\n\n# Doing\n\n# Done\n`, 1)).toBe(
+      `${M}\n\n# Todo\n\n# Done\n`,
+    );
+  });
+
+  it('moves a deleted column’s cards to Archive, in order', () => {
+    const text = `${M}\n\n# Todo\n\n## A\n\nbody\n\n## B\n\n# Done\n`;
+    const next = deleteColumn(text, 0);
+    const board = parseBoard(next);
+    expect(board.columns.map((c) => c.title)).toEqual(['Done', 'Archive']);
+    expect(board.columns[1]!.cards.map((c) => c.title)).toEqual(['A', 'B']);
+    expect(next).toContain('## A\n\nbody\n');
+  });
+
+  it('keeps text under a deleted column’s heading as an archived card', () => {
+    const next = deleteColumn(`${M}\n\n# Ideas\n\nSome notes\n\n# Done\n`, 0);
+    const board = parseBoard(next);
+    expect(board.columns.map((c) => c.title)).toEqual(['Done', 'Archive']);
+    const card = board.columns[1]!.cards[0]!;
+    expect(card.title).toBe('Ideas');
+    expect(next.slice(card.body.from, card.body.to)).toBe('Some notes');
   });
 });

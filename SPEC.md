@@ -292,7 +292,18 @@ A board file opens in its own view, not the note editor, with the rules below. T
 - A card is dragged by its title row (on touch, press and hold for about 300ms, so scrolling still works). The body is for editing, not dragging.
 - Dropping moves the card's exact lines (heading + body) to the new place, then saves. Nothing else in the file changes.
 - While dragging, the board scrolls when the card nears an edge.
-- Columns can be dragged by their heading on desktop to reorder them. This moves the column's lines.
+- Columns are dragged by their heading to reorder them, with a mouse or (press and hold) on touch: sideways on desktop, up and down on phones where they are stacked. This moves the column's lines.
+
+**Columns** (added 2026-10-31)
+- **Rename:** tap or click the column title (`InlineName`). It writes only the text after `# `. "Archive" is refused, since that name hides a column.
+- **Add:** "Add column" after the last column adds `# Untitled` before the hidden Archive and puts the cursor in its title.
+- **Delete:** the trash `IconButton` in the column header (on hover with a mouse, always on touch). The column's cards move to the Archive column in order, and any text between its heading and first card becomes an archived card with the column's title, so no text is lost. A column with cards asks to confirm first; either way there is an Undo toast.
+
+**Filter by tag** (added 2026-10-31)
+- When cards use `#tags` (in the title or body, not in code), a row of chips above the columns shows "All cards" and each tag with how many cards have it, most used first. Choosing a tag shows only the cards that have it (any case); choosing it again or "All cards" shows all. Column counts show the cards shown.
+- The filter is not saved; it resets when the board is opened again.
+- A card added while filtering gets the tag as its first line, so it doesn't vanish.
+- Drag and drop still works while filtering: a card dropped between shown cards lands between them in the file, with hidden cards kept in place.
 
 **Layout**
 - **Desktop (≥ 900px):** like Trello. Columns side by side, about 280px wide, and the board scrolls sideways. Each column scrolls on its own when it is taller than the screen. Cards show their full body.

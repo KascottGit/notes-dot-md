@@ -84,6 +84,7 @@ The UI must look and behave the same everywhere. Before adding any control, look
 | Ask for a new name | `NameDialog` (creating things only). |
 | Confirm a choice with consequences | `confirm()` only for bulk or hard-to-undo actions (e.g. moving all of a category's notes). |
 | Feedback after an action | `Toast`, with Undo for anything undoable. |
+| Pick one filter from a row (categories, board tags) | `Chip` inside a `ChipRow` (wraps on desktop, scrolls sideways on phones). |
 
 **Same action, same control.** Delete is always the trash `IconButton` (on touch also swipe left, which opens a Delete button to tap; never delete on release), moves to the Drive trash, and offers Undo or confirms as above. Pin is always the pin icon. If two places do the same thing, they use the same component, icon, wording and order.
 

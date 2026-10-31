@@ -7,7 +7,7 @@
  * touch the lines they are about, so the rest of the file stays exactly as it
  * was. No DOM or Svelte code, so the board view, tests and tools can share it.
  */
-import { TAG_WORD } from './tags';
+import { findTags, TAG_WORD } from './tags';
 
 export const BOARD_MARKER = '<!-- notes.md:board -->';
 export const ARCHIVE_TITLE = 'Archive';
@@ -35,6 +35,8 @@ export interface BoardCard {
   block: Span;
   meta: CardMeta;
   tasks: { done: number; total: number };
+  /** Every `#tag` in the title and body (not in code), without the `#`, as first written. */
+  tags: string[];
 }
 
 export interface BoardColumn {
@@ -194,17 +196,54 @@ export function parseBoard(text: string): Board {
     } else {
       const body = contentSpan(lines, head.index, next, text.length);
       const bodyText = text.slice(body.from, body.to);
+      const title = headingText(line.text);
+      const tagLines = [title];
+      for (let k = head.index + 1; k < next; k++) if (!inCode[k]) tagLines.push(lines[k]!.text);
       columns.at(-1)!.cards.push({
-        title: headingText(line.text),
+        title,
         heading: { from: line.from, to: line.to },
         body,
         block: { from: line.from, to: lineStart(next) },
         meta: parseMeta(bodyText),
         tasks: countTasks(bodyText),
+        tags: uniqueTags(tagLines),
       });
     }
   }
   return { intro, columns };
+}
+
+/** Tags in some lines, each once (case-insensitive), without the `#`. */
+function uniqueTags(lines: readonly string[]): string[] {
+  const seen = new Map<string, string>();
+  for (const line of lines) {
+    for (const t of findTags(line)) {
+      const tag = line.slice(t.from + 1, t.to);
+      if (!seen.has(tag.toLowerCase())) seen.set(tag.toLowerCase(), tag);
+    }
+  }
+  return [...seen.values()];
+}
+
+/** Does a card have this tag (without `#`, any case)? */
+export function hasTag(card: BoardCard, tag: string): boolean {
+  const wanted = tag.toLowerCase();
+  return card.tags.some((t) => t.toLowerCase() === wanted);
+}
+
+/** The tags used on the shown columns' cards, most used first, with how many cards have each. */
+export function boardTags(board: Board): { tag: string; count: number }[] {
+  const counts = new Map<string, { tag: string; count: number }>();
+  for (const { column } of visibleColumns(board)) {
+    for (const card of column.cards) {
+      for (const tag of card.tags) {
+        const entry = counts.get(tag.toLowerCase());
+        if (entry) entry.count++;
+        else counts.set(tag.toLowerCase(), { tag, count: 1 });
+      }
+    }
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
 /** The columns the board view shows (all but Archive), with their index in `board.columns`. */
@@ -466,4 +505,63 @@ export function archiveCard(text: string, ref: CardRef): string {
   }
   if (archive === ref.column) return text;
   return moveCard(next, ref, { column: archive, card: board.columns[archive]!.cards.length });
+}
+
+// ---------------------------------------------------------------- Columns
+
+/** A column title that would hide the column, or none at all. */
+export function isReservedTitle(title: string): boolean {
+  return cleanTitle(title).toLowerCase() === ARCHIVE_TITLE.toLowerCase();
+}
+
+/**
+ * Add an empty column after the shown ones (before Archive, if there is one).
+ * Returns the new text and the column's index in `board.columns`.
+ */
+export function addColumn(text: string, title = 'Untitled'): { text: string; column: number } {
+  const board = parseBoard(text);
+  const clean = cleanTitle(title);
+  const name = clean && !isReservedTitle(clean) ? clean : 'Untitled';
+  const archive = board.columns.findIndex((c) => c.archive);
+  const at = archive === -1 ? text.length : board.columns[archive]!.heading.from;
+  const next = insertBlock(text, at, `# ${name}\n`);
+  return { text: next, column: archive === -1 ? board.columns.length : archive };
+}
+
+/** Change a column's title, keeping its heading marker. Not to "Archive", which would hide it. */
+export function renameColumn(text: string, column: number, title: string): string {
+  const col = parseBoard(text).columns[column];
+  const clean = cleanTitle(title);
+  if (!col || col.archive || !clean || isReservedTitle(clean)) return text;
+  const line = text.slice(col.heading.from, col.heading.to);
+  const prefix = /^ {0,3}#[ \t]+/.exec(line)?.[0] ?? '# ';
+  return text.slice(0, col.heading.from) + prefix + clean + text.slice(col.heading.to);
+}
+
+/**
+ * Delete a column. Its cards move to the Archive column (in order), and any
+ * text between its heading and first card becomes an archived card with the
+ * column's title, so no text is lost.
+ */
+export function deleteColumn(text: string, column: number): string {
+  const col = parseBoard(text).columns[column];
+  if (!col || col.archive) return text;
+  let next = text;
+  for (let i = 0; i < col.cards.length; i++) next = archiveCard(next, { column, card: 0 });
+  const left = parseBoard(next).columns[column]!;
+  const intro = next.slice(left.intro.from, left.intro.to).replace(/^(?:[ \t]*\n)+/, '');
+  next = removeSpan(next, left.block).text;
+  if (intro.trim()) {
+    let board = parseBoard(next);
+    let archive = board.columns.findIndex((c) => c.archive);
+    if (archive === -1) {
+      next = insertBlock(next, next.length, `# ${ARCHIVE_TITLE}\n`);
+      board = parseBoard(next);
+      archive = board.columns.length - 1;
+    }
+    const added = addCard(next, archive, left.title);
+    const card = parseBoard(added.text).columns[archive]!.cards[added.card.card]!;
+    next = replaceBody(added.text, card.body, intro);
+  }
+  return next;
 }

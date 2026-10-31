@@ -9,12 +9,18 @@
   import type { StateCommand } from '@codemirror/state';
   import {
     addCard,
+    addColumn,
     archiveCard,
+    boardTags,
+    deleteColumn,
     doneColumnIndex,
+    hasTag,
+    isReservedTitle,
     moveCard,
     moveColumn,
     parseBoard,
     renameCard,
+    renameColumn,
     replaceBody,
     setDueDate,
     visibleColumns,
@@ -25,7 +31,11 @@
   import type { Editor } from '../editor/setup';
   import BoardCard from './BoardCard.svelte';
   import CardBody from './CardBody.svelte';
+  import Chip from './Chip.svelte';
+  import ChipRow from './ChipRow.svelte';
   import Icon from './Icon.svelte';
+  import IconButton from './IconButton.svelte';
+  import InlineName from './InlineName.svelte';
 
   interface Props {
     text: string;
@@ -41,6 +51,21 @@
   const board = $derived(parseBoard(text));
   const columns = $derived(visibleColumns(board));
   const doneIndex = $derived(doneColumnIndex(board));
+
+  // ---------------------------------------------------------- Tag filter
+
+  /** Show only cards with this tag (without `#`); null shows all. */
+  let tagFilter = $state<string | null>(null);
+  const tags = $derived.by(() => {
+    const found = boardTags(board);
+    // Keep the chosen tag in the row (at 0) until it is cleared, so it can be.
+    if (tagFilter && !found.some((t) => t.tag.toLowerCase() === tagFilter!.toLowerCase())) {
+      found.unshift({ tag: tagFilter, count: 0 });
+    }
+    return found;
+  });
+  const shown = (card: Board['columns'][number]['cards'][number]) =>
+    !tagFilter || hasTag(card, tagFilter);
 
   /** Which text an editor edits: the board intro, a column intro or a card body. */
   type Part =
@@ -110,9 +135,66 @@
 
   async function newCard(column: number) {
     const added = addCard(text, column);
-    onEdit(added.text);
+    let next = added.text;
+    // While filtering, a new card gets the tag, or it would be hidden right away.
+    const card = parseBoard(next).columns[column]?.cards[added.card.card];
+    if (tagFilter && card) next = replaceBody(next, card.body, `#${tagFilter}`);
+    onEdit(next);
     await tick();
     newCardKey = key(added.card);
+  }
+
+  // ---------------------------------------------------------- Column actions
+
+  let columnNames = $state<Record<number, InlineName | undefined>>({});
+  /** The column whose title is being edited. */
+  let editingColumn = $state<number | null>(null);
+
+  /** Focus right away, inside the tap, so phones open the keyboard. */
+  function editColumnTitle(column: number) {
+    if (readOnly) return;
+    editingColumn = column;
+    columnNames[column]?.focus();
+  }
+
+  async function newColumn() {
+    const added = addColumn(text);
+    onEdit(added.text);
+    onSave();
+    await tick();
+    editColumnTitle(added.column);
+  }
+
+  async function renameCol(column: number, title: string) {
+    if (isReservedTitle(title)) {
+      onToast('"Archive" is kept for deleted cards. Pick another name.');
+      return;
+    }
+    onEdit(renameColumn(text, column, title));
+    onSave();
+  }
+
+  function removeColumn(column: number) {
+    const col = board.columns[column];
+    if (!col) return;
+    const n = col.cards.length;
+    if (
+      n > 0 &&
+      !confirm(
+        `Delete the column "${col.title}"? Its ${n} card${n === 1 ? '' : 's'} move to Archive.`,
+      )
+    ) {
+      return;
+    }
+    const before = text;
+    const after = deleteColumn(text, column);
+    if (after === before) return;
+    onEdit(after);
+    onSave();
+    onToast(`Column "${col.title}" deleted`, () => {
+      if (text === after) onEdit(before);
+      else onToast('The board changed since. Its cards are in the Archive column (open as text).');
+    });
   }
 
   async function rename(ref: CardRef, title: string) {
@@ -169,7 +251,6 @@
   function startPress(event: PointerEvent, item: Item, el: HTMLElement, onTap?: () => void) {
     if (readOnly || event.button !== 0 || press || drag) return;
     const touch = event.pointerType !== 'mouse';
-    if (item.kind === 'column' && touch) return; // Columns move with a mouse only.
     if (!touch) event.preventDefault(); // No text selection while dragging.
     press = {
       item,
@@ -291,7 +372,18 @@
         return y < r.top + r.height / 2;
       });
       if (index === -1) index = cards.length;
-      drop = { column, index };
+      // The shown cards may skip filtered-out ones: turn the place on screen into
+      // a place among the column's other cards in the file.
+      const at = (el: HTMLElement) => Number(el.dataset.card);
+      let place =
+        index < cards.length
+          ? at(cards[index]!)
+          : cards.length > 0
+            ? at(cards.at(-1)!) + 1
+            : (board.columns[column]?.cards.length ?? 0);
+      const from = item.ref;
+      if (from.column === column && place > from.card) place--;
+      drop = { column, index: place };
       const list = colEl.querySelector<HTMLElement>('[data-cards]')!.getBoundingClientRect();
       const top =
         index < cards.length
@@ -301,17 +393,24 @@
             : list.top + 4;
       indicator = { left: list.left + 8, top, width: list.width - 16, height: 2 };
     } else {
+      // Side by side on desktop; stacked on phones.
+      const stacked = !desktop();
       const others = cols.filter((c) => c !== drag!.el);
       let index = others.findIndex((c) => {
         const r = c.getBoundingClientRect();
-        return x < r.left + r.width / 2;
+        return stacked ? y < r.top + r.height / 2 : x < r.left + r.width / 2;
       });
       if (index === -1) index = others.length;
       drop = { column: -1, index };
       const r = (others[index] ?? others.at(-1))?.getBoundingClientRect();
       if (!r) return;
-      const left = index < others.length ? r.left - 7 : r.right + 5;
-      indicator = { left, top: r.top, width: 2, height: Math.max(r.height, 80) };
+      if (stacked) {
+        const top = index < others.length ? r.top - 9 : r.bottom + 7;
+        indicator = { left: r.left, top, width: r.width, height: 2 };
+      } else {
+        const left = index < others.length ? r.left - 7 : r.right + 5;
+        indicator = { left, top: r.top, width: 2, height: Math.max(r.height, 80) };
+      }
     }
   }
 
@@ -390,6 +489,23 @@
 </script>
 
 <div class="board" bind:this={root} data-scroll>
+  {#if tags.length > 0}
+    <div class="filter">
+      <ChipRow label="Filter cards by tag" scroll>
+        <Chip label="All cards" active={tagFilter === null} onclick={() => (tagFilter = null)} />
+        {#each tags as t (t.tag.toLowerCase())}
+          {@const active = tagFilter?.toLowerCase() === t.tag.toLowerCase()}
+          <Chip
+            label={`#${t.tag}`}
+            count={t.count}
+            {active}
+            title={active ? 'Show all cards' : `Only cards with #${t.tag}`}
+            onclick={() => (tagFilter = active ? null : t.tag)}
+          />
+        {/each}
+      </ChipRow>
+    </div>
+  {/if}
   {#if board.intro.to > board.intro.from}
     <div class="intro">
       <CardBody
@@ -405,23 +521,57 @@
 
   <div class="columns" data-scroll>
     {#each columns as { column, index: ci } (`${ci}:${column.title}`)}
+      {@const count = column.cards.filter(shown).length}
       <section
         class="column"
         class:dragging={dragging?.kind === 'column' && dragging.column === ci}
         data-column={ci}
         aria-label={column.title}
       >
+        <!-- Tap the title to rename; press and hold (or drag with a mouse) to move the column. -->
         <header
           class="column-head"
           class:movable={!readOnly}
+          class:editing={editingColumn === ci}
           role="presentation"
           onpointerdown={(e) => {
             const el = e.currentTarget.parentElement;
-            if (el && desktop()) startPress(e, { kind: 'column', column: ci }, el);
+            if (editingColumn === ci || !el || (e.target as Element).closest('button')) return;
+            startPress(e, { kind: 'column', column: ci }, el, () => editColumnTitle(ci));
+          }}
+          onmousedown={(e) => {
+            // After a tap, the browser's own mousedown must not take focus away from the title.
+            if (!(e.target as Element).closest('input, button')) e.preventDefault();
           }}
         >
-          <h2 title={column.title}>{column.title}</h2>
-          <span class="count">{column.cards.length}</span>
+          <div
+            class="column-title"
+            onfocusin={() => (editingColumn = ci)}
+            onfocusout={() => (editingColumn = null)}
+          >
+            <InlineName
+              bind:this={columnNames[ci]}
+              value={column.title}
+              label="Column title"
+              readonly={readOnly}
+              onCommit={(title) => renameCol(ci, title)}
+            />
+          </div>
+          <span
+            class="count"
+            title={tagFilter ? `${count} of ${column.cards.length} cards shown` : undefined}
+            >{count}</span
+          >
+          {#if !readOnly}
+            <span class="column-delete">
+              <IconButton
+                icon="trash"
+                label={`Delete column ${column.title}`}
+                title="Delete column"
+                onclick={() => removeColumn(ci)}
+              />
+            </span>
+          {/if}
         </header>
         <div class="cards" data-cards data-scroll>
           {#if column.intro.to > column.intro.from}
@@ -438,26 +588,29 @@
           {/if}
           {#each column.cards as card, i (`${i}:${card.title}`)}
             {@const ref = { column: ci, card: i }}
-            <BoardCard
-              {card}
-              body={slice(card.body)}
-              {readOnly}
-              done={ci === doneIndex}
-              dragging={dragging?.kind === 'card' &&
-                dragging.ref.column === ci &&
-                dragging.ref.card === i}
-              focusTitle={newCardKey === key(ref)}
-              onBody={(t) => editPart({ kind: 'card', ...ref }, t)}
-              onRename={(title) => rename(ref, title)}
-              onTitleDone={() => {
-                if (newCardKey === key(ref)) newCardKey = null;
-              }}
-              onDelete={() => remove(ref)}
-              onPress={(e, el, onTap) => startPress(e, { kind: 'card', ref }, el, onTap)}
-              onFocus={(e) => focused(e, { kind: 'card', ...ref })}
-              onDestroyed={destroyed}
-              {onSave}
-            />
+            {#if shown(card)}
+              <BoardCard
+                {card}
+                index={i}
+                body={slice(card.body)}
+                {readOnly}
+                done={ci === doneIndex}
+                dragging={dragging?.kind === 'card' &&
+                  dragging.ref.column === ci &&
+                  dragging.ref.card === i}
+                focusTitle={newCardKey === key(ref)}
+                onBody={(t) => editPart({ kind: 'card', ...ref }, t)}
+                onRename={(title) => rename(ref, title)}
+                onTitleDone={() => {
+                  if (newCardKey === key(ref)) newCardKey = null;
+                }}
+                onDelete={() => remove(ref)}
+                onPress={(e, el, onTap) => startPress(e, { kind: 'card', ref }, el, onTap)}
+                onFocus={(e) => focused(e, { kind: 'card', ...ref })}
+                onDestroyed={destroyed}
+                {onSave}
+              />
+            {/if}
           {/each}
         </div>
         {#if !readOnly}
@@ -468,8 +621,13 @@
         {/if}
       </section>
     {/each}
-    {#if columns.length === 0}
-      <p class="empty">No columns yet. Open as text and add a <code># Column</code> heading.</p>
+    {#if !readOnly}
+      <button class="add-column" onclick={() => void newColumn()}>
+        <Icon name="plus" size={18} />
+        Add column
+      </button>
+    {:else if columns.length === 0}
+      <p class="empty">No columns yet.</p>
     {/if}
   </div>
 
@@ -538,9 +696,9 @@
     display: flex;
     flex: none;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     min-height: 44px;
-    padding: 0 14px;
+    padding: 2px 4px 0 14px;
   }
 
   .column-head.movable {
@@ -548,16 +706,79 @@
     user-select: none;
   }
 
-  h2 {
+  .column-head {
+    /* Press and hold to drag on touch screens: no text selection or callout. */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .column-head.editing {
+    cursor: auto;
+  }
+
+  .column-title {
     flex: 1;
     min-width: 0;
-    margin: 0;
-    overflow: hidden;
-    font-family: var(--font-heading);
+  }
+
+  .column-title :global(.inline-name) {
     font-size: 0.9375rem;
     font-weight: 650;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+
+  /* Until tapped, the title is part of the drag handle. */
+  .column-head:not(.editing) .column-title :global(.inline-name) {
+    cursor: inherit;
+    pointer-events: none;
+  }
+
+  /* With a mouse, delete opens up on hover (as on cards); touch screens always show it. */
+  @media (hover: hover) and (pointer: fine) {
+    .column-delete {
+      width: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition:
+        width 120ms ease,
+        opacity 120ms ease;
+    }
+
+    .column-head:hover .column-delete,
+    .column-delete:focus-within {
+      width: 44px;
+      opacity: 1;
+    }
+  }
+
+  .filter {
+    flex: none;
+    padding: 10px 8px 0;
+  }
+
+  .add-column {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    width: 288px;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .add-column:hover {
+    background: var(--bg-muted);
+    color: var(--text);
   }
 
   .count {
@@ -659,6 +880,10 @@
     .column {
       width: auto;
       max-height: none;
+    }
+
+    .add-column {
+      width: auto;
     }
 
     .cards {

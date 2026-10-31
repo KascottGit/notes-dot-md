@@ -13,6 +13,8 @@
 
   interface Props {
     card: BoardCard;
+    /** Position in its column (also when some cards are filtered out). */
+    index: number;
     body: string;
     readOnly: boolean;
     /** In the last column. */
@@ -34,6 +36,7 @@
 
   let {
     card,
+    index,
     body,
     readOnly,
     done,
@@ -65,7 +68,7 @@
   });
 </script>
 
-<article class="card" class:done class:dragging bind:this={el} data-card>
+<article class="card" class:done class:dragging bind:this={el} data-card={index}>
   <div
     class="title-row"
     class:editing
