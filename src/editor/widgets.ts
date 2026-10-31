@@ -5,7 +5,7 @@
 import { foldEffect, foldedRanges, unfoldEffect } from '@codemirror/language';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { toggleTaskAt } from './lists';
-import { isLoadable, isOpenable, type Inline, type Table } from './markdown';
+import { isLoadable, isOpenable, type Inline } from './markdown';
 
 /** Replaces a `-`, `*` or `+` list marker. */
 export class BulletWidget extends WidgetType {
@@ -176,7 +176,7 @@ function imageElement(src: string | null, alt: string, view: EditorView): HTMLEl
 }
 
 /** Draw inline content as elements. Text always goes in as text, never as HTML. */
-function renderInline(nodes: Inline[], parent: HTMLElement, view: EditorView) {
+export function renderInline(nodes: Inline[], parent: HTMLElement, view: EditorView) {
   for (const node of nodes) {
     switch (node.type) {
       case 'text':
@@ -252,56 +252,5 @@ export class EntityWidget extends WidgetType {
     const el = document.createElement('span');
     el.textContent = decodeEntity(this.entity);
     return el;
-  }
-}
-
-/**
- * Replaces a whole GFM table while the cursor is outside it. Tapping it puts
- * the cursor in the table, which shows its text for editing.
- */
-export class TableWidget extends WidgetType {
-  /** Compared in `eq`, so an unchanged table keeps its DOM. */
-  private readonly key: string;
-
-  constructor(readonly table: Table) {
-    super();
-    this.key = JSON.stringify(table);
-  }
-
-  eq(other: TableWidget) {
-    return other.key === this.key;
-  }
-
-  get estimatedHeight() {
-    return (this.table.rows.length + 1) * 34;
-  }
-
-  toDOM(view: EditorView) {
-    const wrap = document.createElement('div');
-    wrap.className = 'cm-md-table-widget';
-    const table = document.createElement('table');
-    const row = (cells: Inline[][], tag: 'th' | 'td') => {
-      const tr = document.createElement('tr');
-      cells.forEach((cell, i) => {
-        const el = document.createElement(tag);
-        const align = this.table.align[i];
-        if (align) el.style.textAlign = align;
-        renderInline(cell, el, view);
-        tr.append(el);
-      });
-      return tr;
-    };
-    const head = document.createElement('thead');
-    head.append(row(this.table.head, 'th'));
-    const body = document.createElement('tbody');
-    for (const cells of this.table.rows) body.append(row(cells, 'td'));
-    table.append(head, body);
-    wrap.append(table);
-    return wrap;
-  }
-
-  /** Let the editor handle taps (placing the cursor) and link taps (livePreview.ts). */
-  ignoreEvent() {
-    return false;
   }
 }

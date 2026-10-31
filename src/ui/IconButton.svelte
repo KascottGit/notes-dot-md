@@ -1,6 +1,7 @@
 <!-- A 44×44 icon-only button. Use it for every icon action (pin, delete, back...). -->
 <script lang="ts">
-  import Icon, { type IconName } from './Icon.svelte';
+  import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
 
   interface Props {
     icon: IconName;

@@ -1,4 +1,4 @@
-import { EditorSelection, EditorState } from '@codemirror/state';
+import { EditorState } from '@codemirror/state';
 import type { Decoration } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { markdownSupport } from './language';
@@ -298,34 +298,34 @@ describe('tables', () => {
   const tableFrom = doc.indexOf('|');
   const tableTo = doc.indexOf('\n\nEnd');
 
-  function tables(cursor: number, focused: boolean, text = doc) {
+  function tables(asText: { from: number; to: number }[] = [], text = doc, readOnly = false) {
     const state = EditorState.create({
       doc: text,
-      selection: EditorSelection.cursor(cursor),
-      extensions: [markdownSupport()],
+      extensions: [markdownSupport(), EditorState.readOnly.of(readOnly)],
     });
-    const seen: [number, number, string][] = [];
-    tableDecorations(state, focused).between(0, text.length, (from, to, value) => {
-      seen.push([from, to, (value.spec as { widget: object }).widget.constructor.name]);
+    const seen: [number, number, string, boolean][] = [];
+    tableDecorations(state, asText).between(0, text.length, (from, to, value) => {
+      const widget = (value.spec as { widget: { editable: boolean } }).widget;
+      seen.push([from, to, widget.constructor.name, widget.editable]);
     });
     return seen;
   }
 
-  it('draws the whole table as a table while the cursor is elsewhere', () => {
-    expect(tables(0, true)).toEqual([[tableFrom, tableTo, 'TableWidget']]);
+  it('always draws the whole table as an editable table', () => {
+    expect(tables()).toEqual([[tableFrom, tableTo, 'TableWidget', true]]);
   });
 
-  it('shows the text while the cursor is in the table', () => {
-    expect(tables(tableFrom + 3, true)).toEqual([]);
-    expect(tables(tableTo, true)).toEqual([]);
+  it('is not editable in a read-only note', () => {
+    expect(tables([], doc, true)).toEqual([[tableFrom, tableTo, 'TableWidget', false]]);
   });
 
-  it('draws it when the editor does not have focus, wherever the cursor is', () => {
-    expect(tables(tableFrom + 3, false)).toEqual([[tableFrom, tableTo, 'TableWidget']]);
+  it('shows the text after "Edit as text"', () => {
+    expect(tables([{ from: tableFrom, to: tableTo }])).toEqual([]);
+    expect(tables([{ from: 0, to: 2 }])).toEqual([[tableFrom, tableTo, 'TableWidget', true]]);
   });
 
   it('leaves tables that share a line with a quote or list marker as text', () => {
-    expect(tables(0, false, '> | a | b |\n> | - | - |')).toEqual([]);
+    expect(tables([], '> | a | b |\n> | - | - |')).toEqual([]);
   });
 });
 

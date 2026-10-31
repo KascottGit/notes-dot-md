@@ -7,7 +7,7 @@
  * edited. Task checkboxes always show as checkboxes.
  */
 import { foldedRanges, syntaxTree } from '@codemirror/language';
-import { StateEffect, StateField, type EditorState, type Range } from '@codemirror/state';
+import { StateField, type EditorState, type Range } from '@codemirror/state';
 import {
   Decoration,
   EditorView,
@@ -25,8 +25,8 @@ import {
   FoldToggleWidget,
   ImageWidget,
   RuleWidget,
-  TableWidget,
 } from './widgets';
+import { showTableText, TableWidget } from './tableWidget';
 
 const hidden = Decoration.replace({});
 const dim = Decoration.mark({ class: 'cm-md-mark' });
@@ -392,16 +392,24 @@ const previewPlugin = ViewPlugin.fromClass(
 
 // ------------------------------------------------------------------ tables
 
-/** Whether the editor has focus, kept in the state so a state field can use it. */
-const setFocused = StateEffect.define<boolean>();
-const focusedField = StateField.define<boolean>({
-  create: () => false,
+/**
+ * Tables shown as their markdown lines after "Edit as text", until the
+ * cursor leaves them. Ranges move with edits.
+ */
+const tableTextField = StateField.define<readonly { from: number; to: number }[]>({
+  create: () => [],
   update(value, tr) {
-    for (const effect of tr.effects) if (effect.is(setFocused)) value = effect.value;
-    return value;
+    let next = tr.docChanged
+      ? value.map((r) => ({ from: tr.changes.mapPos(r.from, 1), to: tr.changes.mapPos(r.to, -1) }))
+      : value;
+    for (const effect of tr.effects) if (effect.is(showTableText)) next = [...next, effect.value];
+    if (next.length > 0 && (tr.selection || tr.docChanged)) {
+      const { ranges } = tr.state.selection;
+      next = next.filter((r) => ranges.some((s) => s.from <= r.to && s.to >= r.from));
+    }
+    return next;
   },
 });
-const trackFocus = EditorView.focusChangeEffect.of((_state, focusing) => setFocused.of(focusing));
 
 /** Blocks that can hold tables; the rest of the tree is skipped when looking for them. */
 const TABLE_CONTAINERS = new Set([
@@ -413,11 +421,15 @@ const TABLE_CONTAINERS = new Set([
 ]);
 
 /**
- * Tables drawn as tables, except while the cursor is in them (then they are
- * text, styled by the view plugin). Whole-line replacements must come from a
- * state field, not a view plugin. Exported for tests; needs no DOM.
+ * Tables drawn as tables (edited cell by cell, tableWidget.ts), except those
+ * shown as text after "Edit as text" (styled by the view plugin then).
+ * Whole-line replacements must come from a state field, not a view plugin.
+ * Exported for tests; needs no DOM.
  */
-export function tableDecorations(state: EditorState, focused: boolean): DecorationSet {
+export function tableDecorations(
+  state: EditorState,
+  asText: readonly { from: number; to: number }[],
+): DecorationSet {
   const { doc } = state;
   const refs = linkReferences(state);
   const decos: Range<Decoration>[] = [];
@@ -429,16 +441,11 @@ export function tableDecorations(state: EditorState, focused: boolean): Decorati
       const last = end.from === ref.to && ref.to > ref.from ? doc.line(end.number - 1) : end;
       // Only tables that start their line (not after `> ` or `- `) can be replaced whole.
       if (doc.sliceString(first.from, ref.from).trim() !== '') return false;
-      const editing =
-        focused && state.selection.ranges.some((r) => r.from <= last.to && r.to >= first.from);
-      const table = editing ? null : parseTable(state, ref.node, refs);
+      const text = asText.some((r) => r.from <= last.to && r.to >= first.from);
+      const table = text ? null : parseTable(state, ref.node, refs);
       if (table) {
-        decos.push(
-          Decoration.replace({ widget: new TableWidget(table), block: true }).range(
-            first.from,
-            last.to,
-          ),
-        );
+        const widget = new TableWidget(table, !state.readOnly);
+        decos.push(Decoration.replace({ widget, block: true }).range(first.from, last.to));
       }
       return false;
     },
@@ -447,16 +454,17 @@ export function tableDecorations(state: EditorState, focused: boolean): Decorati
 }
 
 const tableField = StateField.define<DecorationSet>({
-  create: (state) => tableDecorations(state, false),
+  create: (state) => tableDecorations(state, []),
   update(value, tr) {
-    const focusChanged = tr.effects.some((e) => e.is(setFocused));
+    const before = tr.startState.field(tableTextField);
+    const after = tr.state.field(tableTextField);
     if (
       tr.docChanged ||
-      tr.selection ||
-      focusChanged ||
+      before !== after ||
+      tr.startState.readOnly !== tr.state.readOnly ||
       syntaxTree(tr.startState) !== syntaxTree(tr.state)
     ) {
-      return tableDecorations(tr.state, tr.state.field(focusedField));
+      return tableDecorations(tr.state, after);
     }
     return value;
   },
@@ -604,8 +612,19 @@ const previewTheme = EditorView.theme({
 
   '.cm-line.cm-md-table': { fontFamily: 'var(--font-mono)', fontSize: '0.9em' },
   '.cm-md-table-widget': {
-    overflowX: 'auto',
     margin: '6px 2px 6px 6px',
+  },
+  // The table with a "+" bar to its right and one below it, as wide as the table.
+  '.cm-md-table-grid': {
+    display: 'inline-grid',
+    gridTemplateColumns: 'minmax(0, auto) auto',
+    gap: '4px',
+    maxWidth: '100%',
+    verticalAlign: 'top',
+  },
+  '.cm-md-table-scroll': {
+    minWidth: '0',
+    overflowX: 'auto',
   },
   '.cm-md-table-widget table': {
     // Whole words: a wide table scrolls sideways instead of breaking them.
@@ -626,6 +645,86 @@ const previewTheme = EditorView.theme({
     fontFamily: 'var(--font-heading)',
     fontWeight: '600',
   },
+  '.cm-md-table-widget.editable th, .cm-md-table-widget.editable td': { cursor: 'text' },
+  // Empty cells keep a line's height.
+  '.cm-md-table-widget th:empty::before, .cm-md-table-widget td:empty::before': {
+    content: '"\\200b"',
+  },
+  '.cm-md-table-widget .cm-md-cell-editing': {
+    outline: '2px solid var(--accent)',
+    outlineOffset: '-2px',
+  },
+  '.cm-md-cell-input': {
+    display: 'block',
+    width: '100%',
+    minWidth: '2em',
+    margin: '0',
+    padding: '0',
+    border: '0',
+    outline: 'none',
+    resize: 'none',
+    overflow: 'hidden',
+    background: 'transparent',
+    color: 'inherit',
+    font: 'inherit',
+    lineHeight: 'inherit',
+    textAlign: 'inherit',
+  },
+  '.cm-md-table-add': {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0',
+    border: '0',
+    borderRadius: '6px',
+    backgroundColor: 'var(--bg-muted)',
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+    opacity: '0',
+    transition: 'opacity 120ms ease, background-color 120ms ease, color 120ms ease',
+  },
+  // A bigger target than the thin bar.
+  '.cm-md-table-add::after': { content: '""', position: 'absolute', inset: '-8px' },
+  '.cm-md-table-add:hover': { backgroundColor: 'var(--selection)', color: 'var(--text)' },
+  '.cm-md-table-add-col': { gridColumn: '2', gridRow: '1', width: '22px' },
+  '.cm-md-table-add-row': { gridColumn: '1', gridRow: '2', height: '22px' },
+  // Shown on hover with a mouse, and while a cell is being edited.
+  '@media (hover: hover) and (pointer: fine)': {
+    '.cm-md-table-widget:hover .cm-md-table-add': { opacity: '1' },
+  },
+  '.cm-md-table-widget.editing .cm-md-table-add': { opacity: '1' },
+  // Touch screens have no hover: the bars take no room until a cell is edited.
+  '@media (hover: none), (pointer: coarse)': {
+    '.cm-md-table-widget:not(.editing) .cm-md-table-add': { display: 'none' },
+  },
+  '.cm-md-table-tools': {
+    display: 'none',
+    alignItems: 'center',
+    gap: '2px',
+    marginTop: '2px',
+  },
+  '.cm-md-table-widget.editing .cm-md-table-tools': { display: 'flex' },
+  '.cm-md-table-tools-gap': { width: '8px' },
+  '.cm-md-table-tool': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '44px',
+    height: '44px',
+    padding: '0',
+    border: '0',
+    borderRadius: '8px',
+    background: 'none',
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+    transition: 'background-color 120ms ease, color 120ms ease',
+  },
+  '.cm-md-table-tool:hover:not(:disabled)': {
+    backgroundColor: 'var(--bg-muted)',
+    color: 'var(--text)',
+  },
+  '.cm-md-table-tool:disabled': { opacity: '0.4', cursor: 'default' },
 
   '.cm-md-image': {
     maxWidth: '100%',
@@ -671,5 +770,5 @@ const previewTheme = EditorView.theme({
 });
 
 export function livePreview() {
-  return [focusedField, trackFocus, tableField, previewPlugin, linkHandlers, previewTheme];
+  return [tableTextField, tableField, previewPlugin, linkHandlers, previewTheme];
 }

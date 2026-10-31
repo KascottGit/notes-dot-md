@@ -48,7 +48,9 @@ src/
   drive/notes.ts         list/read/create/save/rename/move/trash, folder bootstrap
   editor/setup.ts        CodeMirror configuration and keymaps
   editor/livePreview.ts  decoration plugin (rendering rules)
-  editor/widgets.ts      checkbox, bullet, rule, image and table widgets
+  editor/widgets.ts      checkbox, bullet, rule and image widgets
+  editor/tableEdit.ts    table cells, rows and columns as text changes (no DOM)
+  editor/tableWidget.ts  the editable table widget
   editor/markdown.ts     markdown helpers: links, inline content, tables (no DOM)
   editor/board.ts        task boards: parse columns/cards, move/add/rename/archive (no DOM)
   editor/cardRules.ts    card editor rules: no # / ## lines, tag and date chips
@@ -80,7 +82,7 @@ The UI must look and behave the same everywhere. Before adding any control, look
 | Need | Use |
 | --- | --- |
 | Rename something (note title, category name) | `InlineName`: edit in place; Enter or leaving saves, Escape cancels. Never a dialog or a "Rename" button. Non-editable names (General, All notes, read-only notes) use it with `readonly` so they line up. |
-| An icon action (pin, delete, back, sort...) | `IconButton` (44×44). Icons come only from `Icon.svelte`'s `ICONS`; add new icons there. No inline `<svg>` anywhere else. |
+| An icon action (pin, delete, back, sort...) | `IconButton` (44×44). Icons come only from `ICONS` in `ui/icons.ts` (drawn by `Icon.svelte`, or `iconSvg()` in editor widgets); add new icons there. No inline `<svg>` anywhere else. |
 | Ask for a new name | `NameDialog` (creating things only). |
 | Confirm a choice with consequences | `confirm()` only for bulk or hard-to-undo actions (e.g. moving all of a category's notes). |
 | Feedback after an action | `Toast`, with Undo for anything undoable. |

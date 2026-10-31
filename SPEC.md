@@ -39,7 +39,9 @@ src/
   drive/notes.ts         list/read/create/save/rename/move/trash, folder bootstrap
   editor/setup.ts        CodeMirror configuration and keymaps
   editor/livePreview.ts  decoration plugin (rendering rules)
-  editor/widgets.ts      checkbox, bullet, rule, image and table widgets
+  editor/widgets.ts      checkbox, bullet, rule and image widgets
+  editor/tableEdit.ts    table cells, rows and columns as text changes (no DOM)
+  editor/tableWidget.ts  the editable table widget
   editor/markdown.ts     markdown helpers: links and references, inline content, tables
   editor/commands.ts     format commands, shared by toolbar and shortcuts
   ui/                    Svelte components: NoteList, Toolbar, NoteHeader,
@@ -134,7 +136,7 @@ Rendering rules:
 | Quote | ` >  ` | Left border, muted text | Shown dimmed |
 | Fenced code | ```` ``` ```` | Monospace block, syntax highlighting | Fences dimmed |
 | Horizontal rule | `---` | Line widget | Shown dimmed |
-| Table | GFM table | A table: header row, column alignment from `:--` / `:-:` / `--:`, inline formatting in cells; scrolls sideways when wide. Tapping it puts the cursor in it | The whole table is monospace text while the cursor is in it |
+| Table | GFM table | Always a table: header row, column alignment from `:--` / `:-:` / `--:`, inline formatting in cells; scrolls sideways when wide. Edited cell by cell (see Tables below) | Monospace text only after "Edit as text", until the cursor leaves it |
 | Frontmatter | `---` YAML block at top | Small, muted, foldable | Always visible |
 
 Behavior:
@@ -145,6 +147,7 @@ Behavior:
 - **Alt+↑ / Alt+↓** move the current list item one line up or down, together with its children. Children are the lines right below the item that are indented further; a blank or unindented line ends them. Blank lines and plain text are passed one line at a time. Moving up from under another item's children jumps above that item; moving down onto an item with children jumps past them. Numbered lists are renumbered. Outside lists the keys move the selected lines. On phones the same moves are format bar buttons. (Added 2026-10-30. Touch-and-hold dragging of list markers was tried and dropped: Safari on iPhone starts selecting text instead.)
 - **Shorthand:** typing `[]` right after a list marker expands to ` [ ]  `, and a line starting `-[ ]` is normalized to ` - [ ]  `.
 - **Copy and cut** use CodeMirror's default behavior, which copies the document text. Do not add a custom HTML clipboard handler. Copying a rendered checklist must paste as `- [ ] item`.
+- **Tables** (like Obsidian, added 2026-10-31) stay tables while editing. Tapping or clicking a cell turns it into a text box with that cell's markdown, and every keystroke writes it back into the cell's place in the line (a `|` typed in a cell is saved as `\|`). Tab / Shift+Tab go to the next / previous cell (Tab in the last cell adds a row), Enter goes to the cell below (a new row from the bottom row), ↑ / ↓ go to the row above or below and out of the table at its edges, Escape goes back to the text after the table. A "+" bar to the right adds a column and one below adds a row (shown on hover with a mouse, and while a cell is being edited). While editing, a tool row adds a row below or a column to the right, deletes the row or column (never the header row or the only column), or shows the table as markdown text ("Edit as text") until the cursor leaves it. Each change rewrites only the table lines it is about.
 - **Paste** inserts plain text. One exception: an image copied from a web page (Copy Image; the clipboard holds HTML with only `<img>`) pastes as `![alt](url)`. Converting other pasted HTML to markdown is a later nice-to-have.
 - **No comment shortcut:** CodeMirror's Ctrl+/ (toggle comment, `<!-- -->`) is removed. On Nordic and German keyboards Ctrl+Shift+7 arrives as Ctrl+/, and must make a numbered list.
 - **Theme** follows `prefers-color-scheme`, with light and dark styles.
@@ -375,7 +378,7 @@ Build in this order. Each milestone ends with a working deployed app and its acc
 
 ## Out of scope and open questions
 
-Out of scope for v1: offline editing, installing as an app (PWA), real-time collaboration, uploading images and attachments (images are shown from URLs only), editing tables as a grid, footnotes, GitHub alerts (`> [!NOTE]`), rendering inline HTML, nested categories, a version history view (Drive keeps revisions), and sharing.
+Out of scope for v1: offline editing, installing as an app (PWA), real-time collaboration, uploading images and attachments (images are shown from URLs only), footnotes, GitHub alerts (`> [!NOTE]`), rendering inline HTML, nested categories, a version history view (Drive keeps revisions), and sharing.
 
 Open questions:
 
@@ -385,7 +388,7 @@ Open questions:
 
 To do (later):
 
-- [ ] **Better table editing.** Tables render as tables and turn into plain text while the cursor is in them. Ideas: edit cells in place, Tab to the next cell, buttons to add or remove rows and columns, and keeping the pipes aligned in the text.
+- [ ] **More table editing:** drag rows and columns to reorder them, set a column's alignment, sort by a column, and keep the pipes aligned in the text.
 - [ ] **Paste image data** (screenshots, photos, and images copied on iPhone, which often come without a URL): upload the image to Drive next to the note and insert `![alt](…)` pointing at it. Needs a way to show Drive images (they are not public URLs).
 - [ ] **Keep the header and format bar visible above the iPhone keyboard.** Goal: like Apple Notes, the header and bar stay at the top and the note area shrinks to fit above the keyboard, with the cursor line kept visible. Tried on 2026-10-29: (1) sizing the app to the `visualViewport` and following its `offsetTop` made the tapped line end up hidden; (2) adding a scroll-cursor-into-view step after each resize made the screen flicker until the editor was tapped again, likely a loop between Safari panning the page, the app scrolling it back and the editor scrolling. Needs testing on a real iPhone; ideas: only react to `resize` (not `scroll`), avoid `window.scrollTo`, debounce until the keyboard animation ends, or remember the keyboard height and shrink before Safari pans.
 

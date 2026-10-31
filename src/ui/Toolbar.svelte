@@ -19,7 +19,8 @@
     toggleStrikethrough,
   } from '../editor/commands';
   import { indentItem, moveItemDown, moveItemUp, outdentItem } from '../editor/lists';
-  import Icon, { type IconName } from './Icon.svelte';
+  import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
 
   type Level = 1 | 2 | 3 | 4 | 5 | 6;
 
