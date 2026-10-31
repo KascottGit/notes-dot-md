@@ -17,8 +17,6 @@
     index: number;
     body: string;
     readOnly: boolean;
-    /** In the last column. */
-    done: boolean;
     /** Being dragged: dimmed in place. */
     dragging: boolean;
     /** Start with the title field focused (a new card). */
@@ -39,7 +37,6 @@
     index,
     body,
     readOnly,
-    done,
     dragging,
     focusTitle,
     onBody,
@@ -68,7 +65,7 @@
   });
 </script>
 
-<article class="card" class:done class:dragging bind:this={el} data-card={index}>
+<article class="card" class:dragging bind:this={el} data-card={index}>
   <div
     class="title-row"
     class:editing
@@ -94,6 +91,7 @@
         value={card.title}
         label="Card title"
         readonly={readOnly}
+        wrap
         onCommit={onRename}
       />
     </div>
@@ -142,9 +140,10 @@
     opacity: 0.35;
   }
 
+  /* A long title wraps; the task count and delete stay level with its first line. */
   .title-row {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 2px;
     min-height: 44px;
     cursor: grab;
@@ -162,8 +161,7 @@
     flex: 1;
     min-width: 0;
     /* Lines the title up with the body text, which starts 3px in. */
-    padding-left: 3px;
-    padding-right: 4px;
+    padding: 7px 4px 7px 3px;
   }
 
   /* Until tapped, the title is part of the drag handle. */
@@ -172,14 +170,11 @@
     pointer-events: none;
   }
 
-  .done .title :global(.inline-name) {
-    color: var(--text-muted);
-  }
-
   .progress {
     display: inline-flex;
     flex: none;
     align-items: center;
+    height: 44px;
     gap: 4px;
     padding: 0 4px;
     color: var(--text-muted);

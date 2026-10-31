@@ -13,7 +13,6 @@
     archiveCard,
     boardTags,
     deleteColumn,
-    doneColumnIndex,
     hasTag,
     isReservedTitle,
     moveCard,
@@ -50,7 +49,6 @@
 
   const board = $derived(parseBoard(text));
   const columns = $derived(visibleColumns(board));
-  const doneIndex = $derived(doneColumnIndex(board));
 
   // ---------------------------------------------------------- Tag filter
 
@@ -594,7 +592,6 @@
                 index={i}
                 body={slice(card.body)}
                 {readOnly}
-                done={ci === doneIndex}
                 dragging={dragging?.kind === 'card' &&
                   dragging.ref.column === ci &&
                   dragging.ref.card === i}
