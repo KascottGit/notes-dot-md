@@ -142,6 +142,8 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
         if (remove) f.parents = f.parents.filter((p) => p !== remove);
         if (add) f.parents.push(add);
         touch(f);
+        // Like Drive, a modifiedTime in the request is kept as given.
+        if (patch.modifiedTime) f.modifiedTime = patch.modifiedTime;
         return json(200, meta(f));
       }
     }

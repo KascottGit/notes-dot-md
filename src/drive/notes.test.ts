@@ -8,6 +8,7 @@ import {
   FOLDER_MIME,
   folderContents,
   getNote,
+  isBoardNote,
   isPinned,
   listCategories,
   listNotes,
@@ -17,6 +18,7 @@ import {
   renameNote,
   renameFolder,
   saveNote,
+  setNoteType,
   setPinned,
   trashFolder,
   trashNote,
@@ -347,5 +349,23 @@ describe('pin and delete', () => {
     expect(back.folderId).toBe(defaultId);
     expect((await listNotes(drive, defaultId)).map((n) => n.id)).toEqual([note.id]);
     expect(await readNote(drive, note.id)).toBe('keep me');
+  });
+});
+
+describe('note type', () => {
+  it('marks boards on the file, at creation or later', async () => {
+    const { drive, files, defaultId } = await withFolders();
+    const board = await createNote(drive, defaultId, 'Trip', 'x', { type: 'board' });
+    expect(isBoardNote(board)).toBe(true);
+    expect(files.get(board.id)!.appProperties).toEqual({ ...APP_PROPERTIES, type: 'board' });
+
+    const note = await createNote(drive, defaultId, 'Plan');
+    expect(isBoardNote(note)).toBe(false);
+    const marked = await setNoteType(drive, note, true);
+    expect(isBoardNote(marked)).toBe(true);
+    expect(marked.modifiedTime).toBe(note.modifiedTime);
+    const back = await setNoteType(drive, note, false);
+    expect(isBoardNote(back)).toBe(false);
+    expect(files.get(note.id)!.appProperties).toEqual(APP_PROPERTIES);
   });
 });

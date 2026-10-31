@@ -1,6 +1,6 @@
 <!-- The note list: search, category filter, sort, and the notes themselves. -->
 <script lang="ts">
-  import { isPinned, type Category, type Note } from '../drive/notes';
+  import { isBoardNote, isPinned, type Category, type Note } from '../drive/notes';
   import {
     countByCategory,
     filterNotes,
@@ -102,8 +102,23 @@
           {/if}
           {note.title}
         </span>
+        <!-- Board or note: the same icons as the header's switch between board and text. -->
+        {#snippet kind()}
+          <span
+            class="kind"
+            role="img"
+            aria-label={isBoardNote(note) ? 'Board' : 'Note'}
+            title={isBoardNote(note) ? 'Board' : 'Note'}
+          >
+            <Icon name={isBoardNote(note) ? 'board' : 'text'} size={13} />
+          </span>
+        {/snippet}
         <span class="meta">
-          {when(note)}{#if selectedCategory === null}{` · ${categoryName(note.folderId)}`}{/if}
+          {#if selectedCategory === null}
+            {when(note)} · {@render kind()}{categoryName(note.folderId)}
+          {:else}
+            {@render kind()}{when(note)}
+          {/if}
         </span>
       </button>
       <!-- With a mouse, pin and delete show on hover (touch screens swipe instead). -->
@@ -415,6 +430,12 @@
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .kind {
+    display: inline-flex;
+    margin-right: 3px;
+    vertical-align: -2px;
   }
 
   .meta {

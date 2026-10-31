@@ -17,7 +17,9 @@
     readNote,
     renameFolder,
     renameNote,
+    setNoteType,
     setPinned,
+    isBoardNote,
     isPinned,
     trashFolder,
     trashNote,
@@ -242,6 +244,7 @@
     boardAsText = false;
     boardFile = isBoard(text);
     boardText = text;
+    void syncNoteType(note, boardFile);
     const port = {
       getText: () => editor?.getText() ?? text,
       setText: (t: string) => editor?.setText(t),
@@ -263,8 +266,25 @@
     syncBoard();
   }
 
+  /** The note (open as board or text) whose type is being written to Drive. */
+  let typeSyncing: string | null = null;
+
+  /** Keep the board mark on the file (an icon in the list) in step with the text. */
+  async function syncNoteType(note: Note, board: boolean) {
+    if (!note.canEdit || isBoardNote(note) === board || typeSyncing === note.id) return;
+    typeSyncing = note.id;
+    try {
+      replaceNote(await setNoteType(drive, note, board));
+    } catch {
+      // Only the list icon depends on it; the next open or save tries again.
+    } finally {
+      typeSyncing = null;
+    }
+  }
+
   function onSessionState(state: SessionState) {
     sessionState = state;
+    if (state.status === 'saved') void syncNoteType(state.note, boardFile);
     if (state.status === 'saved' && !redirecting) clearStash();
     // Keep the list in step with saves (modified time, name).
     notes = notes.map((n) => (n.id === state.note.id ? state.note : n));
@@ -280,7 +300,13 @@
     }
     try {
       const text = kind === 'board' ? NEW_BOARD_TEXT : '';
-      const note = await createNote(drive, selectedCategory ?? folders.defaultId, 'Untitled', text);
+      const note = await createNote(
+        drive,
+        selectedCategory ?? folders.defaultId,
+        'Untitled',
+        text,
+        kind === 'board' ? { type: 'board' } : {},
+      );
       notes = [...notes, note];
       show(note, text);
       await tick();

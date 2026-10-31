@@ -325,13 +325,15 @@ export async function createNote(
   folderId: string,
   title: string,
   content = '',
+  /** Extra app properties, e.g. `{ type: 'board' }`. */
+  properties: Record<string, string> = {},
 ): Promise<Note> {
   const name = uniqueFileName(title, await namesInFolder(drive, folderId));
   const metadata = {
     name,
     mimeType: NOTE_MIME,
     parents: [folderId],
-    appProperties: APP_PROPERTIES,
+    appProperties: { ...APP_PROPERTIES, ...properties },
   };
   const boundary = `mdnotes-${crypto.randomUUID()}`;
   const body = [
@@ -415,6 +417,31 @@ export async function setPinned(drive: DriveClient, note: Note, pinned: boolean)
     headers: { 'Content-Type': 'application/json' },
     // null removes the property.
     body: JSON.stringify({ appProperties: { pinned: pinned ? 'true' : null } }),
+  });
+  return toNote(file, note.folderId);
+}
+
+/**
+ * Is this note a board? Marked on the file (`appProperties.type`), so the
+ * list can show it without reading every note. The board marker on the
+ * note's first line is what counts; the app keeps this in step with it.
+ */
+export function isBoardNote(note: Note): boolean {
+  return note.appProperties['type'] === 'board';
+}
+
+/**
+ * Mark a note as a board or a plain note (`appProperties.type`). The app does
+ * this by itself, so the note keeps its modified time (and place in the list).
+ */
+export async function setNoteType(drive: DriveClient, note: Note, board: boolean): Promise<Note> {
+  const file = await drive.json<DriveFile>(`${FILES}/${note.id}?fields=${NOTE_FIELDS}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      appProperties: { type: board ? 'board' : null },
+      modifiedTime: note.modifiedTime,
+    }),
   });
   return toNote(file, note.folderId);
 }
