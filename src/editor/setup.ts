@@ -5,7 +5,14 @@
 import { defaultKeymap, history, historyKeymap, toggleComment } from '@codemirror/commands';
 import { deleteMarkupBackward } from '@codemirror/lang-markdown';
 import { codeFolding, syntaxHighlighting } from '@codemirror/language';
-import { Annotation, Compartment, EditorState, type StateCommand } from '@codemirror/state';
+import {
+  Annotation,
+  Compartment,
+  EditorState,
+  Prec,
+  type Extension,
+  type StateCommand,
+} from '@codemirror/state';
 import { drawSelection, EditorView, keymap, type KeyBinding } from '@codemirror/view';
 import {
   toggleBold,
@@ -45,12 +52,22 @@ export interface EditorOptions {
   /** Ctrl+S / Cmd+S. */
   onSave: () => void;
   onBlur: () => void;
+  onFocus?: () => void;
+  /** Any change to the text, typed or not. */
+  onDocChange?: () => void;
+  /** 'card': the small editor on a board card (no page padding, grows with its text). */
+  variant?: 'note' | 'card';
+  extensions?: Extension[];
 }
 
 export interface Editor {
   getText(): string;
   /** Replace the whole text without counting as a user edit. Undo still works. */
   setText(text: string): void;
+  /** Replace the whole text as a user edit (saved, undoable), changing only what differs. */
+  edit(text: string): void;
+  /** The first line, without reading the whole text. */
+  firstLine(): string;
   /** Start over with a new document and an empty undo history. */
   load(doc: string, readOnly: boolean): void;
   /** Run a format command on the current selection, keeping focus in the editor. */
@@ -109,6 +126,35 @@ const theme = EditorView.theme({
     { backgroundColor: 'var(--selection)' },
 });
 
+/** Board cards: sized by their text, inside a card box. */
+const cardTheme = Prec.high(
+  EditorView.theme({
+    '&': { height: 'auto', fontSize: '16px', backgroundColor: 'transparent' },
+    '.cm-scroller': { lineHeight: '1.55' },
+    '.cm-content': { maxWidth: 'none', margin: '0', padding: '0 12px 2px 0' },
+    '.cm-line': { padding: '0' },
+    '.cm-placeholder': { color: 'var(--text-muted)' },
+  }),
+);
+
+/** The smallest change that turns the document into `text`. */
+function minimalChange(doc: string, text: string) {
+  let from = 0;
+  const max = Math.min(doc.length, text.length);
+  while (from < max && doc.charCodeAt(from) === text.charCodeAt(from)) from++;
+  let endDoc = doc.length;
+  let endText = text.length;
+  while (
+    endDoc > from &&
+    endText > from &&
+    doc.charCodeAt(endDoc - 1) === text.charCodeAt(endText - 1)
+  ) {
+    endDoc--;
+    endText--;
+  }
+  return { from, to: endDoc, insert: text.slice(from, endText) };
+}
+
 export function createEditor(options: EditorOptions): Editor {
   const editable = new Compartment();
 
@@ -153,16 +199,21 @@ export function createEditor(options: EditorOptions): Editor {
         editable.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
         EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged && !update.transactions.some((tr) => tr.annotation(external))) {
-            options.onChange();
-          }
+          if (!update.docChanged) return;
+          if (!update.transactions.some((tr) => tr.annotation(external))) options.onChange();
+          options.onDocChange?.();
         }),
         EditorView.domEventHandlers({
           blur: () => {
             options.onBlur();
           },
+          focus: () => {
+            options.onFocus?.();
+          },
         }),
         theme,
+        options.variant === 'card' ? cardTheme : [],
+        options.extensions ?? [],
       ],
     });
 
@@ -174,12 +225,16 @@ export function createEditor(options: EditorOptions): Editor {
   return {
     getText: () => view.state.doc.toString(),
     setText(text) {
-      if (text === view.state.doc.toString()) return;
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: text },
-        annotations: external.of(true),
-      });
+      const doc = view.state.doc.toString();
+      if (text === doc) return;
+      view.dispatch({ changes: minimalChange(doc, text), annotations: external.of(true) });
     },
+    edit(text) {
+      const doc = view.state.doc.toString();
+      if (text === doc) return;
+      view.dispatch({ changes: minimalChange(doc, text), userEvent: 'input' });
+    },
+    firstLine: () => view.state.doc.line(1).text,
     load(doc, readOnly) {
       view.setState(makeState(doc, readOnly));
     },

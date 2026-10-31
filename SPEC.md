@@ -259,13 +259,13 @@ More details.
 ```
 
 - **Board marker:** a file whose first line is `<!-- notes.md:board -->` opens in board view by default, with a toggle to open it as text. The board's name is the note title (the filename), as for any note.
-- **Columns** = `# ` headings, in file order. Empty columns are allowed.
+- **Columns** = `# ` headings, in file order. Empty columns are allowed. A space must follow the hashes (as in `# Todo`), so `#tag` is never a column or card.
 - **Cards** = `## ` headings under a column. The card title is the heading text.
 - **Card body** = every line after the card heading up to the next `#` or `##` heading. Any markdown is allowed, with no indentation needed. Headings inside a card start at `###`.
 - **Metadata line (optional):** the first non-empty line of the body, if it holds only `#tag` labels and a due date `📅 YYYY-MM-DD`. Shown as chips on the card. The date picker in the app inserts the `📅` date, so nobody has to type the emoji.
 - **Done** = the card is in the board's last column (not counting `# Archive`). Cards have no checkbox of their own; task items inside the body are normal checkboxes. The card shows their progress, e.g. "1/2".
 - **Text outside cards** (between the marker and the first column, or between a column heading and its first card) is kept as it is and shown at the top of the board or column.
-- **New board** creates a file with Todo / Ongoing / Done columns.
+- **New board** (the board icon next to New note) creates a file with Todo / Ongoing / Done columns.
 - **Images** are URLs, as in notes, until uploads are added.
 - **Later still:** a "Tasks" view that collects cards and open tasks with due dates from all notes.
 
@@ -275,7 +275,7 @@ A board file opens in its own view, not the note editor, with the rules below. T
 
 **Cards**
 - Each card is a box with the title on top and the body below. The body is rendered as markdown with the same live preview as notes (its own small CodeMirror view on the card's lines), so checkboxes toggle and the reveal rule applies.
-- **Editing in place:** tapping or clicking the body puts the cursor there. Edits go straight back into the card's lines in the file. The format bar appears for the focused card.
+- **Editing in place:** tapping or clicking the body puts the cursor there. Edits go straight back into the card's lines in the file. The format bar sits under the header as for notes and acts on the card that has (or last had) the cursor. On boards it offers headings 3–6 and adds a due date button.
 - **Copy and paste** work as in the normal editor: copying gives the markdown text, and pasting inserts plain text.
 - **Title:** edited with `InlineName` (one line). Enter or leaving saves, Escape cancels. It writes only the text after `## `.
 - **Card actions:** delete (trash `IconButton`, moves the card's lines into a hidden `# Archive` column at the end of the file, with Undo), and new card (at the bottom of each column; its title field gets focus).
@@ -357,7 +357,7 @@ Build in this order. Each milestone ends with a working deployed app and its acc
 - [x] **M6 Organization:** category filter and management, move note, sort, title search. *Done when* folders in Drive match categories in the app and the sort choice survives a reload.
 - [ ] **M7 Export and GFM rendering:** export button; rendered tables and images, reference links, escapes and entities (copy stays native, no button). *Done when* the exported file opens unchanged in another editor, and tables and images render in the editor while their text stays plain markdown.
 - [ ] **M8 Polish:** responsive layout and dark mode pass, favicon. No PWA. *Done when* the app looks and works right in Safari on iPhone and in Chromium and Firefox on Linux, at every width.
-- [ ] **Later — M9 Task board:** board view for files starting with `<!-- notes.md:board -->`.
+- [x] **M9 Task board:** board view for files starting with `<!-- notes.md:board -->`. *Done when* cards can be edited, renamed, added, deleted (to Archive) and dragged between columns on desktop and phone, and every change shows up as the expected lines in the text view.
 - [ ] **Later — M10 Claude access:** route B, then route C.
 - [ ] **Later — M11 Sharing:** steps 1–3 of the sharing section.
 

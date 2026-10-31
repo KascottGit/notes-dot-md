@@ -26,12 +26,14 @@
     type Folders,
     type Note,
   } from '../drive/notes';
+  import { isBoard, NEW_BOARD_TEXT } from '../editor/board';
   import { createEditor, type Editor } from '../editor/setup';
   import { loadSort, saveSort, sortCategories, type SortOrder } from '../store/noteList';
   import { NoteSession, type ConflictChoice, type SessionState } from '../store/noteSession';
   import { clearStash, readStash, saveStash, type Stash } from '../store/stash';
   import { safeLocalStorage } from '../store/storage';
   import type { Account } from '../drive/account';
+  import Board from './Board.svelte';
   import ConflictDialog from './ConflictDialog.svelte';
   import IconButton from './IconButton.svelte';
   import NameDialog from './NameDialog.svelte';
@@ -70,6 +72,14 @@
   let editor: Editor | null = null;
   let session: NoteSession | null = null;
   let sessionState = $state<SessionState | null>(null);
+  let board = $state<Board>();
+  /** The open note's first line is the board marker. */
+  let boardFile = $state(false);
+  /** The user switched a board to its text. */
+  let boardAsText = $state(false);
+  const boardMode = $derived(boardFile && !boardAsText);
+  /** The board's text, kept in step with the (hidden) editor, which stays the source of truth. */
+  let boardText = $state('');
   /** Which pane shows on narrow screens. */
   let view = $state<'list' | 'editor'>('list');
   /** Slide between list and note on phones, but not on the first screen. */
@@ -222,12 +232,16 @@
         doc: text,
         readOnly: !note.canEdit,
         onChange: () => session?.edited(),
+        onDocChange: syncBoard,
         onSave: () => void session?.save(),
         onBlur: () => void session?.save(),
       });
     } else {
       editor?.load(text, !note.canEdit);
     }
+    boardAsText = false;
+    boardFile = isBoard(text);
+    boardText = text;
     const port = {
       getText: () => editor?.getText() ?? text,
       setText: (t: string) => editor?.setText(t),
@@ -237,6 +251,18 @@
     view = 'editor';
   }
 
+  /** After any change to the text: is it (still) a board, and what does the board show. */
+  function syncBoard() {
+    if (!editor) return;
+    boardFile = isBoard(editor.firstLine());
+    if (boardFile && !boardAsText) boardText = editor.getText();
+  }
+
+  function toggleBoard() {
+    boardAsText = !boardAsText;
+    syncBoard();
+  }
+
   function onSessionState(state: SessionState) {
     sessionState = state;
     if (state.status === 'saved' && !redirecting) clearStash();
@@ -244,7 +270,7 @@
     notes = notes.map((n) => (n.id === state.note.id ? state.note : n));
   }
 
-  async function newNote() {
+  async function newNote(kind: 'note' | 'board' = 'note') {
     if (!folders) return;
     openError = null;
     if (session && !(await session.flush())) {
@@ -253,9 +279,10 @@
       return;
     }
     try {
-      const note = await createNote(drive, selectedCategory ?? folders.defaultId, 'Untitled');
+      const text = kind === 'board' ? NEW_BOARD_TEXT : '';
+      const note = await createNote(drive, selectedCategory ?? folders.defaultId, 'Untitled', text);
       notes = [...notes, note];
-      show(note, '');
+      show(note, text);
       await tick();
       header?.focusTitle();
     } catch (err) {
@@ -491,7 +518,8 @@
       {loading}
       error={listError}
       onOpen={(note) => openNote(note)}
-      onNew={newNote}
+      onNew={() => newNote()}
+      onNewBoard={() => newNote('board')}
       onSelectCategory={(id) => (selectedCategory = id)}
       onSort={selectSort}
       onQuery={(q) => (query = q)}
@@ -517,9 +545,21 @@
         onExport={exportNote}
         onTogglePin={() => sessionState && void togglePin(sessionState.note)}
         onDelete={() => sessionState && void deleteNote(sessionState.note)}
+        boardView={boardFile ? (boardMode ? 'board' : 'text') : null}
+        onToggleBoard={toggleBoard}
+        wide={boardMode}
       />
       {#if !sessionState.readOnly}
-        <Toolbar run={(command) => editor?.run(command)} />
+        {#if boardMode}
+          <Toolbar
+            run={(command) => board?.run(command)}
+            headingLevels={[3, 4, 5, 6]}
+            onDueDate={() => board?.pickDueDate()}
+            wide
+          />
+        {:else}
+          <Toolbar run={(command) => editor?.run(command)} />
+        {/if}
       {/if}
     {/if}
     {#if openError}
@@ -528,7 +568,19 @@
     {#if !sessionState}
       <p class="empty">Select a note, or create a new one.</p>
     {/if}
-    <div class="editor" class:hidden={!sessionState} bind:this={editorEl}></div>
+    {#if sessionState && boardMode}
+      <Board
+        bind:this={board}
+        text={boardText}
+        readOnly={sessionState.readOnly}
+        onEdit={(text) => editor?.edit(text)}
+        onSave={() => void session?.save()}
+        onToast={(message, undo) => {
+          toast = { message, ...(undo ? { action: { label: 'Undo', run: undo } } : {}) };
+        }}
+      />
+    {/if}
+    <div class="editor" class:hidden={!sessionState || boardMode} bind:this={editorEl}></div>
   </section>
 </div>
 
