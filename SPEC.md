@@ -356,7 +356,7 @@ Build in this order. Each milestone ends with a working deployed app and its acc
 - [x] **M5 Format bar:** all buttons and shortcuts with toggle behavior, pinned above the keyboard on mobile. *Done when* each button applies and removes its format and the selection survives a tap.
 - [x] **M6 Organization:** category filter and management, move note, sort, title search. *Done when* folders in Drive match categories in the app and the sort choice survives a reload.
 - [ ] **M7 Export and GFM rendering:** export button; rendered tables and images, reference links, escapes and entities (copy stays native, no button). *Done when* the exported file opens unchanged in another editor, and tables and images render in the editor while their text stays plain markdown.
-- [ ] **M8 Polish:** responsive layout and dark mode pass, favicon. No PWA. *Done when* the app looks and works right in Safari on iPhone and in Chromium and Firefox on Linux, at every width.
+- [x] **M8 Polish:** responsive layout and dark mode pass, favicon. No PWA. *Done when* the app looks and works right in Safari on iPhone and in Chromium and Firefox on Linux, at every width.
 - [x] **M9 Task board:** board view for files starting with `<!-- notes.md:board -->`. *Done when* cards can be edited, renamed, added, deleted (to Archive) and dragged between columns on desktop and phone, and every change shows up as the expected lines in the text view.
 - [ ] **Later — M10 Claude access:** route B, then route C.
 - [ ] **Later — M11 Sharing:** steps 1–3 of the sharing section.
