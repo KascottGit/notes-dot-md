@@ -14,6 +14,7 @@ import {
   type TransactionSpec,
 } from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
+import { editCell, NEW_TABLE } from './tableEdit';
 
 /** Turn a function from state to changes into a command. */
 function command(build: (state: EditorState) => TransactionSpec | null): StateCommand {
@@ -380,3 +381,35 @@ export const toggleCodeBlock = command((state) => {
     ),
   };
 });
+
+// ------------------------------------------------------------------ tables
+
+/**
+ * Add an empty table (a header row and one row, two columns) on its own lines
+ * at the cursor, with a blank line before and after it so text around it
+ * stays text. The table widget then opens its first header cell for typing.
+ */
+export const insertTable: StateCommand = ({ state, dispatch }) => {
+  if (state.readOnly) return false;
+  const { doc } = state;
+  const line = doc.lineAt(state.selection.main.head);
+  const blank = (n: number) => n >= 1 && n <= doc.lines && doc.line(n).text.trim() === '';
+  const empty = line.text.trim() === '';
+  // On an empty line the table takes its place; otherwise it goes under the line.
+  const from = empty ? line.from : line.to;
+  const lead = empty ? (line.number === 1 || blank(line.number - 1) ? '' : '\n') : '\n\n';
+  const next = line.number + 1;
+  const tail = next > doc.lines ? '\n\n' : blank(next) ? '' : '\n';
+  const insert = lead + NEW_TABLE + tail;
+  const tableFrom = from + lead.length;
+  dispatch(
+    state.update({
+      changes: { from, to: line.to, insert },
+      selection: { anchor: tableFrom + insert.length - lead.length - tail.length },
+      annotations: editCell.of({ pos: tableFrom, row: 0, col: 0 }),
+      scrollIntoView: true,
+      userEvent: 'input.format',
+    }),
+  );
+  return true;
+};

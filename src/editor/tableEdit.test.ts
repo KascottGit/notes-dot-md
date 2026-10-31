@@ -3,12 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { markdownSupport } from './language';
 import {
   cellText,
+  columnAlign,
   deleteColumn,
   deleteRow,
   escapeCell,
   insertColumn,
   insertRow,
   setCell,
+  setColumnAlign,
   splitRow,
   tableLayoutAt,
 } from './tableEdit';
@@ -100,5 +102,23 @@ describe('table edits', () => {
 
   it('escapes pipes that are not escaped yet', () => {
     expect(escapeCell('a|b \\| c')).toBe('a\\|b \\| c');
+  });
+});
+
+describe('column alignment', () => {
+  it('reads it from the delimiter row', () => {
+    const { layout: t } = layout();
+    expect(columnAlign(t, 0)).toBe('left');
+    expect(columnAlign(t, 1)).toBe('right');
+    const plain = layout('| A | B |\n| :-: | --- |\n| 1 | 2 |').layout;
+    expect([columnAlign(plain, 0), columnAlign(plain, 1)]).toEqual(['center', null]);
+  });
+
+  it('sets it, changing only the delimiter row', () => {
+    const { layout: t } = layout();
+    expect(apply(TABLE, setColumnAlign(t, 0, 'center'))).toBe(
+      'Intro\n\n| A | B |\n| :---: | --: |\n| 1 | 2 |\n| 3 |\n\nEnd',
+    );
+    expect(apply(TABLE, setColumnAlign(t, 1, null))).toContain('| :-- | --- |');
   });
 });

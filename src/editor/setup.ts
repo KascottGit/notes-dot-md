@@ -19,6 +19,7 @@ import {
   toggleBulletList,
   toggleChecklist,
   toggleCodeBlock,
+  insertTable,
   toggleHeading,
   toggleInlineCode,
   toggleItalic,
@@ -100,6 +101,7 @@ export const formatKeymap: KeyBinding[] = [
   { key: 'Mod-Shift-9', run: toggleChecklist },
   { key: 'Mod-Shift-.', run: toggleQuote },
   { key: 'Mod-Alt-c', run: toggleCodeBlock },
+  { key: 'Mod-Alt-t', run: insertTable },
 ];
 
 const theme = EditorView.theme({

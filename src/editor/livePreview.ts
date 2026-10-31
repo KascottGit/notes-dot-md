@@ -7,10 +7,17 @@
  * edited. Task checkboxes always show as checkboxes.
  */
 import { foldedRanges, syntaxTree } from '@codemirror/language';
-import { StateField, type EditorState, type Range } from '@codemirror/state';
+import {
+  Prec,
+  StateField,
+  type EditorState,
+  type Range,
+  type TransactionSpec,
+} from '@codemirror/state';
 import {
   Decoration,
   EditorView,
+  keymap,
   ViewPlugin,
   type DecorationSet,
   type ViewUpdate,
@@ -26,7 +33,8 @@ import {
   ImageWidget,
   RuleWidget,
 } from './widgets';
-import { showTableText, TableWidget } from './tableWidget';
+import { tableLayoutAt, type TableLayout } from './tableEdit';
+import { openRequestedCell, showTableText, TableWidget } from './tableWidget';
 
 const hidden = Decoration.replace({});
 const dim = Decoration.mark({ class: 'cm-md-mark' });
@@ -471,6 +479,78 @@ const tableField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 });
 
+/** The table drawn as a table (not as text) whose lines hold `pos`, if any. */
+function drawnTableAt(state: EditorState, pos: number): TableLayout | null {
+  const layout = tableLayoutAt(state, pos);
+  if (!layout || pos < layout.from || pos > layout.to) return null;
+  const header = state.doc.sliceString(layout.from, layout.header.to);
+  // Like tableDecorations: tables after `> ` or a list marker stay text.
+  if (/^\s*(?:>|[-*+]\s|\d+[.)]\s)/.test(header)) return null;
+  const asText = state.field(tableTextField, false) ?? [];
+  if (asText.some((r) => r.from <= layout.to && r.to >= layout.from)) return null;
+  return layout;
+}
+
+/**
+ * In markdown a table runs on until a blank line, so text typed right under
+ * it would become a row. Typing at the table's edge goes before or after it
+ * instead, and typing on the line right under it keeps a blank line between.
+ */
+export function tableAwareInput(
+  state: EditorState,
+  from: number,
+  to: number,
+  text: string,
+): TransactionSpec | null {
+  if (from !== to || state.readOnly) return null;
+  const put = (at: number, insert: string, cursor: number): TransactionSpec => ({
+    changes: { from: at, insert },
+    selection: { anchor: cursor },
+    scrollIntoView: true,
+    userEvent: 'input.type',
+  });
+  const table = drawnTableAt(state, from);
+  if (table) {
+    return from <= table.from
+      ? put(table.from, `${text}\n\n`, table.from + text.length)
+      : put(table.to, `\n\n${text}`, table.to + 2 + text.length);
+  }
+  const line = state.doc.lineAt(from);
+  const above = line.number > 1 ? drawnTableAt(state, line.from - 1) : null;
+  if (above && above.to === line.from - 1 && line.text.trim() === '') {
+    return put(line.from, `\n${text}`, line.from + 1 + text.length);
+  }
+  return null;
+}
+
+const keepTablesApart = [
+  EditorView.inputHandler.of((view, from, to, text) => {
+    const spec = tableAwareInput(view.state, from, to, text);
+    if (spec) view.dispatch(spec);
+    return spec !== null;
+  }),
+  // Enter at the end of a table starts a paragraph below it, after a blank line.
+  Prec.high(
+    keymap.of([
+      {
+        key: 'Enter',
+        run: (view) => {
+          const { main } = view.state.selection;
+          const table = main.empty ? drawnTableAt(view.state, main.head) : null;
+          if (!table || main.head !== table.to || view.state.readOnly) return false;
+          view.dispatch({
+            changes: { from: table.to, insert: '\n\n' },
+            selection: { anchor: table.to + 2 },
+            scrollIntoView: true,
+            userEvent: 'input',
+          });
+          return true;
+        },
+      },
+    ]),
+  ),
+];
+
 function openLink(url: string) {
   if (isOpenable(url)) window.open(url, '_blank', 'noopener,noreferrer');
 }
@@ -635,6 +715,8 @@ const previewTheme = EditorView.theme({
     lineHeight: '1.5',
   },
   '.cm-md-table-widget th, .cm-md-table-widget td': {
+    // Room to type in a new, empty table.
+    minWidth: '4em',
     padding: '6px 12px',
     border: '1px solid var(--border)',
     textAlign: 'start',
@@ -700,6 +782,7 @@ const previewTheme = EditorView.theme({
   },
   '.cm-md-table-tools': {
     display: 'none',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: '2px',
     marginTop: '2px',
@@ -725,6 +808,7 @@ const previewTheme = EditorView.theme({
     color: 'var(--text)',
   },
   '.cm-md-table-tool:disabled': { opacity: '0.4', cursor: 'default' },
+  '.cm-md-table-tool.on': { color: 'var(--accent)' },
 
   '.cm-md-image': {
     maxWidth: '100%',
@@ -770,5 +854,13 @@ const previewTheme = EditorView.theme({
 });
 
 export function livePreview() {
-  return [tableTextField, tableField, previewPlugin, linkHandlers, previewTheme];
+  return [
+    tableTextField,
+    tableField,
+    keepTablesApart,
+    openRequestedCell,
+    previewPlugin,
+    linkHandlers,
+    previewTheme,
+  ];
 }

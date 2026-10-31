@@ -7,7 +7,13 @@
  * `|---|` delimiter row is not a numbered row.
  */
 import { syntaxTree } from '@codemirror/language';
-import type { ChangeSpec, EditorState } from '@codemirror/state';
+import { Annotation, type ChangeSpec, type EditorState } from '@codemirror/state';
+
+/**
+ * On a transaction that adds a table: open the cell at row, col of the table
+ * starting at `pos` for typing (tableWidget.ts does that).
+ */
+export const editCell = Annotation.define<{ pos: number; row: number; col: number }>();
 
 /** One cell: the text between two pipes (`from`–`to`), and that text trimmed. */
 export interface CellSpan {
@@ -176,3 +182,30 @@ export function deleteColumn(layout: TableLayout, col: number): ChangeSpec[] | n
     return { from: row.from, to: row.to, insert: rowLine(layout.indent, cells) };
   });
 }
+
+export type ColumnAlign = 'left' | 'center' | 'right' | null;
+
+/** A column's alignment, from its `:--` / `:-:` / `--:` cell in the delimiter row. */
+export function columnAlign(layout: TableLayout, col: number): ColumnAlign {
+  const cell = layout.delimiter.cells[col]?.text ?? '';
+  const left = cell.startsWith(':');
+  const right = cell.endsWith(':');
+  return left && right ? 'center' : right ? 'right' : left ? 'left' : null;
+}
+
+/** Set a column's alignment (null: the default). Only the delimiter row changes. */
+export function setColumnAlign(
+  layout: TableLayout,
+  col: number,
+  align: ColumnAlign,
+): ChangeSpec | null {
+  if (col < 0 || col >= layout.columns) return null;
+  const cells = texts(layout, layout.delimiter, '---');
+  cells[col] =
+    align === 'left' ? ':---' : align === 'center' ? ':---:' : align === 'right' ? '---:' : '---';
+  const row = layout.delimiter;
+  return { from: row.from, to: row.to, insert: rowLine(layout.indent, cells) };
+}
+
+/** A new empty table: a header row and one row, two columns. */
+export const NEW_TABLE = '|  |  |\n| --- | --- |\n|  |  |';

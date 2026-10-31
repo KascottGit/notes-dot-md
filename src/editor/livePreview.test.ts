@@ -2,7 +2,7 @@ import { EditorState } from '@codemirror/state';
 import type { Decoration } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { markdownSupport } from './language';
-import { buildDecorations, tableDecorations } from './livePreview';
+import { buildDecorations, tableAwareInput, tableDecorations } from './livePreview';
 
 interface Seen {
   from: number;
@@ -339,5 +339,40 @@ describe('tags', () => {
   it('leaves code, URLs and numbers alone', () => {
     const { all } = render('`#code` https://x.y/#top #12\n\n```\n#not\n```');
     expect(all.some((s) => s.kind === 'cm-md-tag')).toBe(false);
+  });
+});
+
+describe('typing next to a table', () => {
+  const doc = 'Intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nEnd';
+  const tableFrom = doc.indexOf('|');
+  const tableTo = doc.indexOf('\n\nEnd');
+
+  function type(text: string, at: number, typed = 'x') {
+    const state = EditorState.create({ doc: text, extensions: [markdownSupport()] });
+    const spec = tableAwareInput(state, at, at, typed);
+    if (!spec) return null;
+    const next = state.update(spec).state;
+    const d = next.doc.toString();
+    const head = next.selection.main.head;
+    return d.slice(0, head) + '|' + d.slice(head);
+  }
+
+  it('puts text typed at the end of a table below it, after a blank line', () => {
+    expect(type(doc, tableTo)).toBe(`${doc.slice(0, tableTo)}\n\nx|${doc.slice(tableTo)}`);
+  });
+
+  it('puts text typed at the start of a table above it', () => {
+    expect(type(doc, tableFrom)).toBe(`${doc.slice(0, tableFrom)}x|\n\n${doc.slice(tableFrom)}`);
+  });
+
+  it('keeps a blank line under the table when typing on it', () => {
+    expect(type(doc, tableTo + 1)).toBe(`${doc.slice(0, tableTo)}\n\nx|\nEnd`);
+    const atEnd = '| a |\n| - |\n| 1 |\n';
+    expect(type(atEnd, atEnd.length)).toBe(`${atEnd}\nx|`);
+  });
+
+  it('leaves other typing alone', () => {
+    expect(type(doc, doc.length)).toBeNull();
+    expect(type(doc, 2)).toBeNull();
   });
 });

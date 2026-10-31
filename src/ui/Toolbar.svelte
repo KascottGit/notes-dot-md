@@ -6,6 +6,7 @@
 <script lang="ts">
   import type { StateCommand } from '@codemirror/state';
   import {
+    insertTable,
     toggleBold,
     toggleBulletList,
     toggleChecklist,
@@ -72,6 +73,7 @@
     { id: 'task', label: 'Checklist', shortcut: `${mod}${shift}9`, command: toggleChecklist },
     { id: 'quote', label: 'Quote', shortcut: `${mod}${shift}.`, command: toggleQuote },
     { id: 'codeblock', label: 'Code block', shortcut: `${mod}${alt}C`, command: toggleCodeBlock },
+    { id: 'table', label: 'Table', shortcut: `${mod}${alt}T`, command: insertTable },
   ];
 
   // Same commands as Alt+↑/↓ and Tab/Shift+Tab. In a list they move or nest

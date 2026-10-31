@@ -41,6 +41,11 @@ export const ICONS = {
   outdent: '<path d="M11 6h9M11 12h9M11 18h9M7.5 9l-3 3 3 3"/>',
   indent: '<path d="M11 6h9M11 12h9M11 18h9M4.5 9l3 3-3 3"/>',
   // Table editing
+  table:
+    '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 10h17M3.5 15h17M12 4.5v15"/>',
+  alignLeft: '<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',
+  alignCenter: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',
+  alignRight: '<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>',
   rowAdd: '<path d="M4 5h16M4 10h16M12 14v6M9 17h6"/>',
   colAdd: '<path d="M5 4v16M10 4v16M14 12h6M17 9v6"/>',
   rowDelete: '<path d="M4 5h16M4 10h16M9.5 14.5l5 5M14.5 14.5l-5 5"/>',

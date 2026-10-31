@@ -11,17 +11,21 @@
  * or below (out of the table at the edges), Escape back to the text.
  */
 import { StateEffect, type ChangeSpec } from '@codemirror/state';
-import { EditorView, WidgetType } from '@codemirror/view';
+import { EditorView, ViewPlugin, WidgetType, type ViewUpdate } from '@codemirror/view';
 import { iconSvg, type IconName } from '../ui/icons';
 import { isOpenable, type Table } from './markdown';
 import {
   cellText,
+  columnAlign,
   deleteColumn,
+  editCell,
   deleteRow,
   insertColumn,
   insertRow,
   setCell,
+  setColumnAlign,
   tableLayoutAt,
+  type ColumnAlign,
   type TableLayout,
 } from './tableEdit';
 import { renderInline } from './widgets';
@@ -31,6 +35,8 @@ export const showTableText = StateEffect.define<{ from: number; to: number }>();
 
 /** The widget each table element was last drawn from (widgets get replaced on every edit). */
 const drawnFrom = new WeakMap<HTMLElement, TableWidget>();
+/** Updates each table's tool row to the cell being edited. */
+const refreshTools = new WeakMap<HTMLElement, () => void>();
 
 export class TableWidget extends WidgetType {
   /** Compared in `eq`, so an unchanged table keeps its DOM. */
@@ -144,6 +150,7 @@ function fill(wrap: HTMLElement, widget: TableWidget, view: EditorView) {
   });
   while (tbody.children.length > table.rows.length) tbody.lastElementChild!.remove();
   if (!editingCell(wrap)) wrap.classList.remove('editing');
+  refreshTools.get(wrap)?.();
 }
 
 /** The table's text layout, read fresh from the note (positions move with every edit). */
@@ -200,6 +207,7 @@ function edit(
   input.focus({ preventScroll: true });
   const at = caret === 'start' ? 0 : value.length;
   input.setSelectionRange(at, at);
+  refreshTools.get(wrap)?.();
 
   input.addEventListener('input', () => {
     grow(input);
@@ -222,7 +230,19 @@ function done(view: EditorView, wrap: HTMLElement, cell: HTMLTableCellElement) {
   if (!editingCell(wrap)) wrap.classList.remove('editing');
 }
 
+/** For measuring text without touching the page. */
+let measure: CanvasRenderingContext2D | null = null;
+
+/** Widen the text box (and so its column) to fit the text, up to about 20em; then wrap. */
 function grow(input: HTMLTextAreaElement) {
+  measure ??= document.createElement('canvas').getContext('2d');
+  if (measure) {
+    const style = getComputedStyle(input);
+    measure.font = style.font;
+    const width = Math.ceil(measure.measureText(input.value).width) + 2;
+    const max = parseFloat(style.fontSize) * 20;
+    input.style.minWidth = `${Math.min(width, max)}px`;
+  }
   input.style.height = 'auto';
   input.style.height = `${input.scrollHeight}px`;
 }
@@ -375,6 +395,23 @@ function tools(view: EditorView, wrap: HTMLElement): HTMLElement {
     const cell = editingCell(wrap);
     return cell ? position(cell) : null;
   };
+  // Markdown aligns whole columns. Pressing the current alignment goes back to the default.
+  const aligns = (
+    [
+      ['left', 'Align column left', 'alignLeft'],
+      ['center', 'Center column', 'alignCenter'],
+      ['right', 'Align column right', 'alignRight'],
+    ] as const
+  ).map(([align, label, icon]) => ({
+    align: align as ColumnAlign,
+    el: button('cm-md-table-tool', label, icon, () => {
+      const p = at();
+      const layout = layoutOf(view, wrap);
+      if (!p || !layout) return;
+      const next = columnAlign(layout, p.col) === align ? null : align;
+      change(view, wrap, (t) => setColumnAlign(t, p.col, next), p);
+    }),
+  }));
   const rowDelete = button('cm-md-table-tool', 'Delete row', 'rowDelete', () => {
     const p = at();
     if (!p || p.row === 0) return;
@@ -402,6 +439,8 @@ function tools(view: EditorView, wrap: HTMLElement): HTMLElement {
     rowDelete,
     colDelete,
     element('span', 'cm-md-table-tools-gap'),
+    ...aligns.map((a) => a.el),
+    element('span', 'cm-md-table-tools-gap'),
     button('cm-md-table-tool', 'Edit as text', 'text', () => {
       const layout = layoutOf(view, wrap);
       if (!layout) return;
@@ -413,12 +452,20 @@ function tools(view: EditorView, wrap: HTMLElement): HTMLElement {
       });
     }),
   );
-  // Deleting the header row or the only column is not possible.
+  // Deleting the header row or the only column is not possible; the current
+  // column's alignment shows as pressed.
   const refresh = () => {
     const p = at();
     rowDelete.disabled = !p || p.row === 0;
     colDelete.disabled = size(wrap).columns <= 1;
+    const layout = p ? layoutOf(view, wrap) : null;
+    const current = layout && p ? columnAlign(layout, p.col) : null;
+    for (const a of aligns) {
+      a.el.classList.toggle('on', a.align === current);
+      a.el.setAttribute('aria-pressed', String(a.align === current));
+    }
   };
+  refreshTools.set(wrap, refresh);
   wrap.addEventListener('focusin', refresh);
   return bar;
 }
@@ -474,3 +521,24 @@ function listen(wrap: HTMLElement, view: EditorView) {
     { passive: false },
   );
 }
+
+/** Opens a cell for typing when a transaction asks for it (a table from the format bar). */
+export const openRequestedCell = ViewPlugin.fromClass(
+  class {
+    constructor(readonly view: EditorView) {}
+
+    update(update: ViewUpdate) {
+      for (const tr of update.transactions) {
+        const request = tr.annotation(editCell);
+        if (!request) continue;
+        // After the format bar has given focus back to the editor.
+        queueMicrotask(() => {
+          const view = this.view;
+          for (const wrap of view.contentDOM.querySelectorAll<HTMLElement>('.cm-md-table-widget')) {
+            if (view.posAtDOM(wrap) === request.pos) go(view, wrap, request.row, request.col);
+          }
+        });
+      }
+    }
+  },
+);

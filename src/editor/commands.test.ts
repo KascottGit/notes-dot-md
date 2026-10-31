@@ -1,6 +1,7 @@
 import { EditorSelection, EditorState, type StateCommand } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 import {
+  insertTable,
   toggleBold,
   toggleBulletList,
   toggleChecklist,
@@ -14,6 +15,7 @@ import {
   toggleStrikethrough,
 } from './commands';
 import { markdownSupport } from './language';
+import { editCell } from './tableEdit';
 
 /**
  * Write documents with `|` for the cursor or `«…»` for a selection, e.g.
@@ -213,5 +215,35 @@ describe('code block', () => {
   it('removes the fences when inside a code block', () => {
     expect(apply(toggleCodeBlock, '```\nco|de\n```')).toBe('co|de');
     expect(apply(toggleCodeBlock, 'x\n```ts\na|\nb\n```\ny')).toBe('x\na|\nb\ny');
+  });
+});
+
+describe('insertTable', () => {
+  const T = '|  |  |\n| --- | --- |\n|  |  |';
+
+  it('takes the place of an empty line, with a blank line after it', () => {
+    expect(apply(insertTable, '|')).toBe(`${T}|\n\n`);
+    expect(apply(insertTable, 'a\n\n|\n\nb')).toBe(`a\n\n${T}|\n\nb`);
+  });
+
+  it('goes under a line of text, set apart by blank lines', () => {
+    expect(apply(insertTable, 'Some te|xt\nmore')).toBe(`Some text\n\n${T}|\n\nmore`);
+  });
+
+  it('asks the table to open its first cell', () => {
+    let state = stateOf('|');
+    let request: unknown = null;
+    insertTable({
+      state,
+      dispatch: (tr) => {
+        request = tr.annotation(editCell) ?? null;
+        state = tr.state;
+      },
+    });
+    expect(request).toEqual({ pos: 0, row: 0, col: 0 });
+  });
+
+  it('does nothing in a read-only note', () => {
+    expect(insertTable({ state: stateOf('|', true), dispatch: () => {} })).toBe(false);
   });
 });
