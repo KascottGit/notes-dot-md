@@ -231,41 +231,49 @@ The app must feel good in a phone browser and on a Linux desktop. It runs in the
 
 ## Later phase: task board (Trello replacement)
 
-A board is just another markdown note, shown as columns of cards. The same file still opens in the normal editor, and Claude or any other tool can edit it as text. This follows the same idea as the Obsidian Kanban plugin's format.
+A board is just another markdown note, shown as columns of cards. The same file still opens in the normal editor, and Claude or any other tool can edit it as text. Every card holds full markdown: text, subtasks, images, code, tables. (Format decided 2026-10-31.)
 
 File format:
 
 ```markdown
----
-type: board
----
+<!-- notes.md:board -->
 
-## Todo
+# Todo
 
-- [ ] Write internship report #school @2026-11-03
-    - [ ] Outline
-    - [ ] First draft
-- [ ] Email supervisor
+## Write internship report
+#school 📅 2026-11-03
 
-## Doing
+Description of the task.
 
-- [ ] Build Drive layer #notes-app
+- [ ] Outline
+- [ ] First draft
 
-## Done
+More details.
 
-- [x] Set up Google Cloud project
+## Email supervisor
+#school
+
+# Ongoing
+
+# Done
 ```
 
-- A file with `type: board` in its frontmatter opens in board view by default, with a toggle to open it as text.
-- **Columns** = ` ##  ` headings, in file order. **Cards** = top-level task items under a heading.
-- **Card details** = lines indented under the item: subtasks, notes, links. Shown when the card is opened.
-- **Metadata inline:** `#tag` for labels and `@YYYY-MM-DD` for due dates. Both render as chips.
-- **Drag and drop** moves the card's lines (item + indented children) to another section, then saves. Must work with touch. Use SortableJS or pointer events.
-- **Checking a card** sets `[x]`. Optional per board: moving a card to the last column checks it.
-- **New board** creates a file with Todo / Doing / Done columns.
-- **Later still:** a "Tasks" view that collects open tasks with due dates from all notes.
+- **Board marker:** a file whose first line is `<!-- notes.md:board -->` opens in board view by default, with a toggle to open it as text. The board's name is the note title (the filename), as for any note.
+- **Columns** = `# ` headings, in file order. Empty columns are allowed.
+- **Cards** = `## ` headings under a column. The card title is the heading text.
+- **Card body** = every line after the card heading up to the next `#` or `##` heading. Any markdown is allowed, with no indentation needed. Headings inside a card start at `###`.
+- **Metadata line (optional):** the first non-empty line of the body, if it holds only `#tag` labels and a due date `📅 YYYY-MM-DD`. Shown as chips on the card. The date picker in the app inserts the `📅` date, so nobody has to type the emoji.
+- **Done** = the card is in the board's last column. Cards have no checkbox of their own; task items inside the body are normal checkboxes. The card shows their progress, e.g. "1/2".
+- **Text outside cards** (between the marker and the first column, or between a column heading and its first card) is kept as it is and shown at the top of the board or column.
+- **Opening a card** shows its lines in the normal editor (live preview, format bar). Saving puts the edited text back in place, character for character, and saves the whole file with the usual conflict check.
+- **Drag and drop** moves the card's exact lines (heading + body) under another column or to another position, then saves. Nothing else in the file changes. Must work with touch. Use SortableJS or pointer events.
+- **New board** creates a file with Todo / Ongoing / Done columns.
+- **Images** are URLs, as in notes, until uploads are added.
+- **Later still:** a "Tasks" view that collects cards and open tasks with due dates from all notes.
 
-What v1 must already get right for this: GFM task lists, frontmatter rendering, and markdown helpers kept separate from the UI.
+The parser and the card move/replace helpers live in `editor/markdown.ts` (or a sibling module without DOM code) and are unit-tested with sample boards, including cards with code blocks: a `#` line inside a fenced code block is not a heading.
+
+What v1 must already get right for this: GFM task lists, heading rendering, and markdown helpers kept separate from the UI.
 
 ## Later phase: letting Claude write in the notes
 
@@ -322,7 +330,7 @@ Build in this order. Each milestone ends with a working deployed app and its acc
 - [x] **M6 Organization:** category filter and management, move note, sort, title search. *Done when* folders in Drive match categories in the app and the sort choice survives a reload.
 - [ ] **M7 Export and GFM rendering:** export button; rendered tables and images, reference links, escapes and entities (copy stays native, no button). *Done when* the exported file opens unchanged in another editor, and tables and images render in the editor while their text stays plain markdown.
 - [ ] **M8 Polish:** responsive layout and dark mode pass, favicon. No PWA. *Done when* the app looks and works right in Safari on iPhone and in Chromium and Firefox on Linux, at every width.
-- [ ] **Later — M9 Task board:** board view for `type: board` files.
+- [ ] **Later — M9 Task board:** board view for files starting with `<!-- notes.md:board -->`.
 - [ ] **Later — M10 Claude access:** route B, then route C.
 - [ ] **Later — M11 Sharing:** steps 1–3 of the sharing section.
 
@@ -333,7 +341,7 @@ Out of scope for v1: offline editing, installing as an app (PWA), real-time coll
 Open questions:
 
 - [x] Keep `drive.file`, or switch to the full `drive` scope so notes created by Claude or other tools show up? **Decided 2026-10-29: full `drive` scope.** The notes on `drive.file` limits in the later-phase sections no longer apply.
-- [ ] Due date syntax for board cards: `@2026-11-03` as proposed, or another format?
+- [x] Due date syntax for board cards? **Decided 2026-10-31: `📅 YYYY-MM-DD`** (see task board).
 - [ ] Use a custom domain instead of `<username>.github.io/notes-dot-md/`?
 
 To do (later):
