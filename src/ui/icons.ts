@@ -40,6 +40,9 @@ export const ICONS = {
   moveDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   outdent: '<path d="M11 6h9M11 12h9M11 18h9M7.5 9l-3 3 3 3"/>',
   indent: '<path d="M11 6h9M11 12h9M11 18h9M4.5 9l3 3-3 3"/>',
+  // History
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
   // Table editing
   table:
     '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 10h17M3.5 15h17M12 4.5v15"/>',

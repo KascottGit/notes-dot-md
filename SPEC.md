@@ -149,6 +149,7 @@ Behavior:
 - **Copy and cut** use CodeMirror's default behavior, which copies the document text. Do not add a custom HTML clipboard handler. Copying a rendered checklist must paste as `- [ ] item`.
 - **Tables** (like Obsidian, added 2026-10-31) stay tables while editing. Tapping or clicking a cell turns it into a text box with that cell's markdown, and every keystroke writes it back into the cell's place in the line (a `|` typed in a cell is saved as `\|`). Tab / Shift+Tab go to the next / previous cell (Tab in the last cell adds a row), Enter goes to the cell below (a new row from the bottom row), ↑ / ↓ go to the row above or below and out of the table at its edges, Escape goes back to the text after the table. A "+" bar to the right adds a column and one below adds a row (shown on hover with a mouse, and while a cell is being edited). While editing, a tool row adds a row below or a column to the right, deletes the row or column (never the header row or the only column), sets the column's alignment (left / center / right, written as `:--` / `:-:` / `--:`; pressing the current one goes back to the default, since markdown aligns whole columns, not single cells), or shows the table as markdown text ("Edit as text") until the cursor leaves it. A cell's column grows as you type, up to about 20em, then the text wraps. Each change rewrites only the table lines it is about.
 - **Text under a table stays text.** In markdown a table runs on until a blank line, so a line typed right under it would become a row. Typing at the table's start or end goes above or below it instead, typing on the line right under it first keeps a blank line, and Enter at the end of a table starts a new paragraph below a blank line.
+- **Tapping below the last line** starts a new line there, with the cursor on it, instead of putting the cursor at the end of the last line. After a list, quote or table a blank line goes in between, so the new line is plain text. An empty last line is used as it is.
 - **Paste** inserts plain text. One exception: an image copied from a web page (Copy Image; the clipboard holds HTML with only `<img>`) pastes as `![alt](url)`. Converting other pasted HTML to markdown is a later nice-to-have.
 - **No comment shortcut:** CodeMirror's Ctrl+/ (toggle comment, `<!-- -->`) is removed. On Nordic and German keyboards Ctrl+Shift+7 arrives as Ctrl+/, and must make a numbered list.
 - **Theme** follows `prefers-color-scheme`, with light and dark styles.
@@ -162,6 +163,7 @@ The format bar edits the markdown text through the same commands as the keyboard
 
 | Button | Type | Shortcut |
 | --- | --- | --- |
+| Undo / Redo | First in the bar, so they show without scrolling on phones. Same history as the keys | Ctrl+Z / Ctrl+Y (⌘Z / ⌘⇧Z) |
 | Bold | Wrap `**` | Ctrl+B |
 | Italic | Wrap `*` | Ctrl+I |
 | Strikethrough | Wrap `~~` | Ctrl+Shift+X |

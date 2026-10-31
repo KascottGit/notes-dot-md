@@ -2,6 +2,7 @@ import { EditorSelection, EditorState, type StateCommand } from '@codemirror/sta
 import { describe, expect, it } from 'vitest';
 import {
   insertTable,
+  newLineAtEnd,
   toggleBold,
   toggleBulletList,
   toggleChecklist,
@@ -245,5 +246,23 @@ describe('insertTable', () => {
 
   it('does nothing in a read-only note', () => {
     expect(insertTable({ state: stateOf('|', true), dispatch: () => {} })).toBe(false);
+  });
+});
+
+describe('newLineAtEnd', () => {
+  it('adds a line after text and puts the cursor on it', () => {
+    expect(apply(newLineAtEnd, '|Hello')).toBe('Hello\n|');
+  });
+
+  it('keeps a blank line after a list, quote or table', () => {
+    expect(apply(newLineAtEnd, '|- [ ] a')).toBe('- [ ] a\n\n|');
+    expect(apply(newLineAtEnd, '|> quote')).toBe('> quote\n\n|');
+    expect(apply(newLineAtEnd, '|| a |\n| - |\n| 1 |')).toBe('| a |\n| - |\n| 1 |\n\n|');
+  });
+
+  it('uses an empty last line, adding a blank one after a list', () => {
+    expect(apply(newLineAtEnd, '|Hello\n')).toBe('Hello\n|');
+    expect(apply(newLineAtEnd, '|- a\n')).toBe('- a\n\n|');
+    expect(apply(newLineAtEnd, '|- a\n\n')).toBe('- a\n\n|');
   });
 });

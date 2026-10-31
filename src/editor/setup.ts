@@ -13,13 +13,14 @@ import {
   type Extension,
   type StateCommand,
 } from '@codemirror/state';
-import { drawSelection, EditorView, keymap, type KeyBinding } from '@codemirror/view';
+import { drawSelection, EditorView, keymap, ViewPlugin, type KeyBinding } from '@codemirror/view';
 import {
   toggleBold,
   toggleBulletList,
   toggleChecklist,
   toggleCodeBlock,
   insertTable,
+  newLineAtEnd,
   toggleHeading,
   toggleInlineCode,
   toggleItalic,
@@ -128,6 +129,52 @@ const theme = EditorView.theme({
     { backgroundColor: 'var(--selection)' },
 });
 
+/**
+ * Tapping or clicking below the last line starts a new line there
+ * (`newLineAtEnd`) instead of putting the cursor at the end of the last one.
+ */
+const tapBelowEnd = ViewPlugin.define((view) => {
+  const below = (y: number) => {
+    const end = view.lineBlockAt(view.state.doc.length);
+    return y > end.bottom + view.documentTop + 4;
+  };
+  const act = () => {
+    view.focus();
+    newLineAtEnd(view);
+  };
+  const onMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0 || view.state.readOnly || !below(event.clientY)) return;
+    event.preventDefault();
+    act();
+  };
+  // Touch: a tap, not a scroll. Handled here so the browser doesn't place the caret first.
+  let start: { x: number; y: number } | null = null;
+  const onTouchStart = (event: TouchEvent) => {
+    const t = event.touches[0];
+    start = t && event.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null;
+  };
+  const onTouchEnd = (event: TouchEvent) => {
+    const t = event.changedTouches[0];
+    const from = start;
+    start = null;
+    if (!from || !t || view.state.readOnly) return;
+    if (Math.hypot(t.clientX - from.x, t.clientY - from.y) > 10 || !below(t.clientY)) return;
+    event.preventDefault();
+    act();
+  };
+  const dom = view.scrollDOM;
+  dom.addEventListener('mousedown', onMouseDown, true);
+  dom.addEventListener('touchstart', onTouchStart, { passive: true });
+  dom.addEventListener('touchend', onTouchEnd, { passive: false });
+  return {
+    destroy() {
+      dom.removeEventListener('mousedown', onMouseDown, true);
+      dom.removeEventListener('touchstart', onTouchStart);
+      dom.removeEventListener('touchend', onTouchEnd);
+    },
+  };
+});
+
 /** Board cards: sized by their text, inside a card box. */
 const cardTheme = Prec.high(
   EditorView.theme({
@@ -173,6 +220,7 @@ export function createEditor(options: EditorOptions): Editor {
         markdownSupport(),
         syntaxHighlighting(codeHighlight),
         livePreview(),
+        tapBelowEnd,
         pasteImages,
         codeFolding({ placeholderText: '…' }),
         EditorView.inputHandler.of((view, from, to, text) => {

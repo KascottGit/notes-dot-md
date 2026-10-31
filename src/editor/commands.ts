@@ -413,3 +413,42 @@ export const insertTable: StateCommand = ({ state, dispatch }) => {
   );
   return true;
 };
+
+// ------------------------------------------------------------------ the end of the note
+
+/** Blocks where a line typed right after them would join them. */
+const OPEN_BLOCKS = new Set(['ListItem', 'Blockquote', 'Table']);
+
+function joinsBlock(state: EditorState, pos: number): boolean {
+  for (let n: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1); n; n = n.parent) {
+    if (OPEN_BLOCKS.has(n.name)) return true;
+  }
+  return false;
+}
+
+/**
+ * A fresh line after the last one, with the cursor on it (tapping below the
+ * end of a note). After a list, quote or table a blank line goes in between,
+ * so the new line is plain text. An empty last line is used as it is.
+ */
+export const newLineAtEnd: StateCommand = ({ state, dispatch }) => {
+  if (state.readOnly) return false;
+  const { doc } = state;
+  const last = doc.line(doc.lines);
+  let insert = '';
+  if (last.text.trim() !== '') {
+    insert = joinsBlock(state, last.to) ? '\n\n' : '\n';
+  } else if (doc.lines > 1) {
+    const prev = doc.line(doc.lines - 1);
+    if (prev.text.trim() !== '' && joinsBlock(state, prev.to)) insert = '\n';
+  }
+  dispatch(
+    state.update({
+      changes: insert ? { from: doc.length, insert } : [],
+      selection: { anchor: doc.length + insert.length },
+      scrollIntoView: true,
+      userEvent: 'input',
+    }),
+  );
+  return true;
+};

@@ -4,6 +4,7 @@
   so the editor keeps focus and selection.
 -->
 <script lang="ts">
+  import { redo, undo } from '@codemirror/commands';
   import type { StateCommand } from '@codemirror/state';
   import {
     insertTable,
@@ -78,6 +79,12 @@
 
   // Same commands as Alt+↑/↓ and Tab/Shift+Tab. In a list they move or nest
   // the whole item with its sub-items.
+  // First in the bar, so they show without scrolling on phones. Same keys as historyKeymap.
+  const history: Button[] = [
+    { id: 'undo', label: 'Undo', shortcut: `${mod}Z`, command: undo },
+    { id: 'redo', label: 'Redo', shortcut: isMac ? `${mod}${shift}Z` : `${mod}Y`, command: redo },
+  ];
+
   const lines: Button[] = [
     { id: 'moveUp', label: 'Move up', shortcut: `${alt}↑`, command: moveItemUp },
     { id: 'moveDown', label: 'Move down', shortcut: `${alt}↓`, command: moveItemDown },
@@ -96,6 +103,8 @@
   );
 
   let menuOpen = $state(false);
+  /** Where the heading menu opens: under the H button. */
+  let menuLeft = $state(0);
   let menuButton = $state<HTMLButtonElement>();
   let root = $state<HTMLDivElement>();
 
@@ -127,6 +136,19 @@
 
 <div class="toolbar" class:wide role="toolbar" aria-label="Formatting" bind:this={root}>
   <div class="scroll">
+    {#each history as b (b.id)}
+      <button
+        class="tool"
+        aria-label={b.label}
+        title={`${b.label} (${b.shortcut})`}
+        onmousedown={keepFocus}
+        onpointerdown={keepFocus}
+        onclick={() => choose(b.command)}
+      >
+        <Icon name={b.id} />
+      </button>
+    {/each}
+    <span class="sep" aria-hidden="true"></span>
     <button
       bind:this={menuButton}
       class="tool text"
@@ -136,7 +158,12 @@
       title="Heading"
       onmousedown={keepFocus}
       onpointerdown={keepFocus}
-      onclick={() => (menuOpen = !menuOpen)}
+      onclick={() => {
+        if (menuButton && root) {
+          menuLeft = menuButton.getBoundingClientRect().left - root.getBoundingClientRect().left;
+        }
+        menuOpen = !menuOpen;
+      }}
     >
       H<span class="caret" aria-hidden="true">▾</span>
     </button>
@@ -171,7 +198,7 @@
     {/if}
   </div>
   {#if menuOpen}
-    <div class="menu" role="menu">
+    <div class="menu" role="menu" style:left={`${menuLeft}px`}>
       {#each headings as h (h.level)}
         <button
           role="menuitem"
@@ -237,6 +264,15 @@
     transition: background-color 120ms ease;
   }
 
+  /* With a mouse (no 44px touch targets needed) every button fits in the 760px column. */
+  @media (hover: hover) and (pointer: fine) {
+    .tool {
+      min-width: 40px;
+      height: 40px;
+      padding: 0 6px;
+    }
+  }
+
   .tool:hover {
     background: var(--bg-muted);
   }
@@ -267,7 +303,6 @@
   .menu {
     position: absolute;
     top: calc(100% + 4px);
-    left: calc(max(0px, (100% - 760px) / 2) + 8px);
     z-index: 20;
     display: flex;
     flex-direction: column;
