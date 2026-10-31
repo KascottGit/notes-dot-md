@@ -23,6 +23,11 @@
     onExport: () => void;
     onTogglePin: () => void;
     onDelete: () => void;
+    /** Board files: shown as a board, or as text. Null for other notes. */
+    boardView?: 'board' | 'text' | null;
+    onToggleBoard?: () => void;
+    /** Full width, lined up with a board instead of the note text column. */
+    wide?: boolean;
   }
 
   let {
@@ -36,6 +41,9 @@
     onExport,
     onTogglePin,
     onDelete,
+    boardView = null,
+    onToggleBoard,
+    wide = false,
   }: Props = $props();
 
   const pinned = $derived(isPinned(sessionState.note));
@@ -63,7 +71,7 @@
 </script>
 
 <!-- Joined to the format bar below it (no line between), except on read-only notes. -->
-<div class="header" class:joined={!sessionState.readOnly}>
+<div class="header" class:joined={!sessionState.readOnly} class:wide>
   <div class="inner">
     <span class="back"><IconButton icon="back" label="Back to notes" onclick={onBack} /></span>
     <div class="title">
@@ -107,6 +115,13 @@
       </div>
     </div>
     <span class="actions">
+      {#if boardView && onToggleBoard}
+        <IconButton
+          icon={boardView === 'board' ? 'text' : 'board'}
+          label={boardView === 'board' ? 'Open as text' : 'Open as board'}
+          onclick={onToggleBoard}
+        />
+      {/if}
       <IconButton icon="download" label="Export as .md" onclick={onExport} />
       {#if !sessionState.readOnly}
         <IconButton
@@ -145,6 +160,11 @@
     min-height: 56px;
     margin: 0 auto;
     padding: 6px 6px 0 21px;
+  }
+
+  .wide .inner {
+    max-width: none;
+    padding-left: 30px;
   }
 
   .back {

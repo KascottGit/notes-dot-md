@@ -21,11 +21,19 @@
   import { indentItem, moveItemDown, moveItemUp, outdentItem } from '../editor/lists';
   import Icon, { type IconName } from './Icon.svelte';
 
+  type Level = 1 | 2 | 3 | 4 | 5 | 6;
+
   interface Props {
     run: (command: StateCommand) => void;
+    /** Board cards offer 3–6 only, since `#` and `##` would split the card. */
+    headingLevels?: Level[];
+    /** Board cards: a due date button that opens the date picker. */
+    onDueDate?: () => void;
+    /** Full width, lined up with a board. */
+    wide?: boolean;
   }
 
-  let { run }: Props = $props();
+  let { run, headingLevels = [1, 2, 3], onDueDate, wide = false }: Props = $props();
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
   const mod = isMac ? '⌘' : 'Ctrl+';
@@ -74,12 +82,15 @@
     { id: 'indent', label: 'Indent', shortcut: 'Tab', command: indentItem },
   ];
 
-  const headings = ([1, 2, 3] as const).map((level) => ({
-    level,
-    label: `Heading ${level}`,
-    shortcut: `${mod}${alt}${level}`,
-    command: toggleHeading(level),
-  }));
+  const headings = $derived(
+    headingLevels.map((level) => ({
+      level,
+      label: `Heading ${level}`,
+      // Only levels 1–3 have shortcuts.
+      shortcut: level <= 3 ? `${mod}${alt}${level}` : '',
+      command: toggleHeading(level),
+    })),
+  );
 
   let menuOpen = $state(false);
   let menuButton = $state<HTMLButtonElement>();
@@ -111,7 +122,7 @@
 
 <svelte:window onpointerdown={onWindowPointerDown} onkeydown={onKeydown} />
 
-<div class="toolbar" role="toolbar" aria-label="Formatting" bind:this={root}>
+<div class="toolbar" class:wide role="toolbar" aria-label="Formatting" bind:this={root}>
   <div class="scroll">
     <button
       bind:this={menuButton}
@@ -142,6 +153,19 @@
         </button>
       {/each}
     {/each}
+    {#if onDueDate}
+      <span class="sep" aria-hidden="true"></span>
+      <button
+        class="tool"
+        aria-label="Due date"
+        title="Due date"
+        onmousedown={keepFocus}
+        onpointerdown={keepFocus}
+        onclick={onDueDate}
+      >
+        <Icon name="calendar" />
+      </button>
+    {/if}
   </div>
   {#if menuOpen}
     <div class="menu" role="menu">
@@ -149,13 +173,13 @@
         <button
           role="menuitem"
           class="item"
-          title={`${h.label} (${h.shortcut})`}
+          title={h.shortcut ? `${h.label} (${h.shortcut})` : h.label}
           onmousedown={keepFocus}
           onpointerdown={keepFocus}
           onclick={() => choose(h.command)}
         >
           <span class="h h{h.level}">{h.label}</span>
-          <span class="kbd">{h.shortcut}</span>
+          {#if h.shortcut}<span class="kbd">{h.shortcut}</span>{/if}
         </button>
       {/each}
     </div>
@@ -178,6 +202,15 @@
     padding: 2px 8px;
     overflow-x: auto;
     scrollbar-width: none;
+  }
+
+  .wide .scroll {
+    max-width: none;
+    padding-left: 16px;
+  }
+
+  .wide .menu {
+    left: 16px;
   }
 
   .scroll::-webkit-scrollbar {
@@ -277,6 +310,12 @@
 
   .h3 {
     font-size: 1rem;
+  }
+
+  .h4,
+  .h5,
+  .h6 {
+    font-size: 0.9375rem;
   }
 
   .kbd {

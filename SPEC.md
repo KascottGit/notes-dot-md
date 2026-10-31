@@ -231,41 +231,76 @@ The app must feel good in a phone browser and on a Linux desktop. It runs in the
 
 ## Later phase: task board (Trello replacement)
 
-A board is just another markdown note, shown as columns of cards. The same file still opens in the normal editor, and Claude or any other tool can edit it as text. This follows the same idea as the Obsidian Kanban plugin's format.
+A board is just another markdown note, shown as columns of cards. The same file still opens in the normal editor, and Claude or any other tool can edit it as text. Every card holds full markdown: text, subtasks, images, code, tables. (Format decided 2026-10-31.)
 
 File format:
 
 ```markdown
----
-type: board
----
+<!-- notes.md:board -->
 
-## Todo
+# Todo
 
-- [ ] Write internship report #school @2026-11-03
-    - [ ] Outline
-    - [ ] First draft
-- [ ] Email supervisor
+## Write internship report
+#school 📅 2026-11-03
 
-## Doing
+Description of the task.
 
-- [ ] Build Drive layer #notes-app
+- [ ] Outline
+- [ ] First draft
 
-## Done
+More details.
 
-- [x] Set up Google Cloud project
+## Email supervisor
+#school
+
+# Ongoing
+
+# Done
 ```
 
-- A file with `type: board` in its frontmatter opens in board view by default, with a toggle to open it as text.
-- **Columns** = ` ##  ` headings, in file order. **Cards** = top-level task items under a heading.
-- **Card details** = lines indented under the item: subtasks, notes, links. Shown when the card is opened.
-- **Metadata inline:** `#tag` for labels and `@YYYY-MM-DD` for due dates. Both render as chips.
-- **Drag and drop** moves the card's lines (item + indented children) to another section, then saves. Must work with touch. Use SortableJS or pointer events.
-- **Checking a card** sets `[x]`. Optional per board: moving a card to the last column checks it.
-- **New board** creates a file with Todo / Doing / Done columns.
-- **Later still:** a "Tasks" view that collects open tasks with due dates from all notes.
+- **Board marker:** a file whose first line is `<!-- notes.md:board -->` opens in board view by default, with a toggle to open it as text. The board's name is the note title (the filename), as for any note.
+- **Columns** = `# ` headings, in file order. Empty columns are allowed. A space must follow the hashes (as in `# Todo`), so `#tag` is never a column or card.
+- **Cards** = `## ` headings under a column. The card title is the heading text.
+- **Card body** = every line after the card heading up to the next `#` or `##` heading. Any markdown is allowed, with no indentation needed. Headings inside a card start at `###`.
+- **Metadata line (optional):** the first non-empty line of the body, if it holds only `#tag` labels and a due date `📅 YYYY-MM-DD`. Shown as chips on the card. The date picker in the app inserts the `📅` date, so nobody has to type the emoji.
+- **Done** = the card is in the board's last column (not counting `# Archive`). Cards have no checkbox of their own; task items inside the body are normal checkboxes. The card shows their progress, e.g. "1/2".
+- **Text outside cards** (between the marker and the first column, or between a column heading and its first card) is kept as it is and shown at the top of the board or column.
+- **New board** (the board icon next to New note) creates a file with Todo / Ongoing / Done columns.
+- **Images** are URLs, as in notes, until uploads are added.
+- **Later still:** a "Tasks" view that collects cards and open tasks with due dates from all notes.
 
-What v1 must already get right for this: GFM task lists, frontmatter rendering, and markdown helpers kept separate from the UI.
+### Board view
+
+A board file opens in its own view, not the note editor, with the rules below. The file is still one markdown string: every edit, drag or rename changes only the lines it touches and saves the whole file with the usual conflict check. The "open as text" toggle shows the same file in the normal editor, where any edit is allowed.
+
+**Cards**
+- Each card is a box with the title on top and the body below. The body is rendered as markdown with the same live preview as notes (its own small CodeMirror view on the card's lines), so checkboxes toggle and the reveal rule applies.
+- **Editing in place:** tapping or clicking the body puts the cursor there. Edits go straight back into the card's lines in the file. The format bar sits under the header as for notes and acts on the card that has (or last had) the cursor. On boards it offers headings 3–6 and adds a due date button.
+- **Copy and paste** work as in the normal editor: copying gives the markdown text, and pasting inserts plain text.
+- **Title:** edited with `InlineName` (one line). Enter or leaving saves, Escape cancels. It writes only the text after `## `.
+- **Card actions:** delete (trash `IconButton`, moves the card's lines into a hidden `# Archive` column at the end of the file, with Undo), and new card (at the bottom of each column; its title field gets focus).
+
+**No headings that split a card.** A `#` or `##` line inside a card body would start a new column or card, so the card editor never creates one:
+- Typing `# ` or `## ` at the start of a line turns into `### `. Pasted text has its headings moved down two levels (`#` → `###`, `##` → `####`, capped at `######`). Lines inside fenced code blocks are left alone, because they are not headings.
+- The heading buttons in the card's format bar offer levels 3–6 only.
+- A newline typed or pasted into the title field ends the edit instead of entering the title.
+- This is the one place where the app changes text as it is entered. Rendering still never changes the text (golden rule 1).
+- Agents follow the same rule; the format README in the notes folder says so.
+
+**Drag and drop**
+- A card is dragged by its title row (on touch, press and hold for about 300ms, so scrolling still works). The body is for editing, not dragging.
+- Dropping moves the card's exact lines (heading + body) to the new place, then saves. Nothing else in the file changes.
+- While dragging, the board scrolls when the card nears an edge.
+- Columns can be dragged by their heading on desktop to reorder them. This moves the column's lines.
+
+**Layout**
+- **Desktop (≥ 900px):** like Trello. Columns side by side, about 280px wide, and the board scrolls sideways. Each column scrolls on its own when it is taller than the screen. Cards show their full body.
+- **Phone (< 900px):** vertical. Columns are stacked top to bottom as sections, each with its heading and then its cards, full width. The whole page scrolls as one list.
+- Colors, fonts, motion and touch targets follow the same tokens and rules as the rest of the app.
+
+The parser and the card move/replace helpers live in `editor/markdown.ts` (or a sibling module without DOM code) and are unit-tested with sample boards, including cards with code blocks: a `#` line inside a fenced code block is not a heading.
+
+What v1 must already get right for this: GFM task lists, heading rendering, and markdown helpers kept separate from the UI.
 
 ## Later phase: letting Claude write in the notes
 
@@ -322,7 +357,7 @@ Build in this order. Each milestone ends with a working deployed app and its acc
 - [x] **M6 Organization:** category filter and management, move note, sort, title search. *Done when* folders in Drive match categories in the app and the sort choice survives a reload.
 - [ ] **M7 Export and GFM rendering:** export button; rendered tables and images, reference links, escapes and entities (copy stays native, no button). *Done when* the exported file opens unchanged in another editor, and tables and images render in the editor while their text stays plain markdown.
 - [x] **M8 Polish:** responsive layout and dark mode pass, favicon. No PWA. *Done when* the app looks and works right in Safari on iPhone and in Chromium and Firefox on Linux, at every width.
-- [ ] **Later — M9 Task board:** board view for `type: board` files.
+- [x] **M9 Task board:** board view for files starting with `<!-- notes.md:board -->`. *Done when* cards can be edited, renamed, added, deleted (to Archive) and dragged between columns on desktop and phone, and every change shows up as the expected lines in the text view.
 - [ ] **Later — M10 Claude access:** route B, then route C.
 - [ ] **Later — M11 Sharing:** steps 1–3 of the sharing section.
 
@@ -333,7 +368,7 @@ Out of scope for v1: offline editing, installing as an app (PWA), real-time coll
 Open questions:
 
 - [x] Keep `drive.file`, or switch to the full `drive` scope so notes created by Claude or other tools show up? **Decided 2026-10-29: full `drive` scope.** The notes on `drive.file` limits in the later-phase sections no longer apply.
-- [ ] Due date syntax for board cards: `@2026-11-03` as proposed, or another format?
+- [x] Due date syntax for board cards? **Decided 2026-10-31: `📅 YYYY-MM-DD`** (see task board).
 - [ ] Use a custom domain instead of `<username>.github.io/notes-dot-md/`?
 
 To do (later):

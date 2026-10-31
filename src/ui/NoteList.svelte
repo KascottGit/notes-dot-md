@@ -28,6 +28,7 @@
     error: string | null;
     onOpen: (note: Note) => void;
     onNew: () => void;
+    onNewBoard: () => void;
     onSelectCategory: (id: string | null) => void;
     onSort: (sort: SortOrder) => void;
     onQuery: (query: string) => void;
@@ -51,6 +52,7 @@
     error,
     onOpen,
     onNew,
+    onNewBoard,
     onSelectCategory,
     onSort,
     onQuery,
@@ -133,6 +135,7 @@
       value={query}
       oninput={(e) => onQuery(e.currentTarget.value)}
     />
+    <IconButton icon="board" label="New board" disabled={loading} onclick={onNewBoard} />
     <button class="new" onclick={onNew} disabled={loading}>New note</button>
   </div>
 

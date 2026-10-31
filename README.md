@@ -95,7 +95,8 @@ npm test          # vitest
 - [x] **M6** Categories, sorting and search
 - [ ] **M7** Export, tables and images
 - [x] **M8** Dark mode and polish
-- [ ] Later: task board, Claude access, sharing
+- [x] **M9** Task board
+- [ ] Later: Claude access, sharing
 
 ## Project docs
 

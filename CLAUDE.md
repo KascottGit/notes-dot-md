@@ -50,6 +50,8 @@ src/
   editor/livePreview.ts  decoration plugin (rendering rules)
   editor/widgets.ts      checkbox, bullet, rule, image and table widgets
   editor/markdown.ts     markdown helpers: links, inline content, tables (no DOM)
+  editor/board.ts        task boards: parse columns/cards, move/add/rename/archive (no DOM)
+  editor/cardRules.ts    card editor rules: no # / ## lines, tag and date chips
   editor/commands.ts     format commands, shared by toolbar and shortcuts
   ui/                    Svelte components
   store/                 app state
