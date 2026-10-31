@@ -263,13 +263,40 @@ More details.
 - **Cards** = `## ` headings under a column. The card title is the heading text.
 - **Card body** = every line after the card heading up to the next `#` or `##` heading. Any markdown is allowed, with no indentation needed. Headings inside a card start at `###`.
 - **Metadata line (optional):** the first non-empty line of the body, if it holds only `#tag` labels and a due date `📅 YYYY-MM-DD`. Shown as chips on the card. The date picker in the app inserts the `📅` date, so nobody has to type the emoji.
-- **Done** = the card is in the board's last column. Cards have no checkbox of their own; task items inside the body are normal checkboxes. The card shows their progress, e.g. "1/2".
+- **Done** = the card is in the board's last column (not counting `# Archive`). Cards have no checkbox of their own; task items inside the body are normal checkboxes. The card shows their progress, e.g. "1/2".
 - **Text outside cards** (between the marker and the first column, or between a column heading and its first card) is kept as it is and shown at the top of the board or column.
-- **Opening a card** shows its lines in the normal editor (live preview, format bar). Saving puts the edited text back in place, character for character, and saves the whole file with the usual conflict check.
-- **Drag and drop** moves the card's exact lines (heading + body) under another column or to another position, then saves. Nothing else in the file changes. Must work with touch. Use SortableJS or pointer events.
 - **New board** creates a file with Todo / Ongoing / Done columns.
 - **Images** are URLs, as in notes, until uploads are added.
 - **Later still:** a "Tasks" view that collects cards and open tasks with due dates from all notes.
+
+### Board view
+
+A board file opens in its own view, not the note editor, with the rules below. The file is still one markdown string: every edit, drag or rename changes only the lines it touches and saves the whole file with the usual conflict check. The "open as text" toggle shows the same file in the normal editor, where any edit is allowed.
+
+**Cards**
+- Each card is a box with the title on top and the body below. The body is rendered as markdown with the same live preview as notes (its own small CodeMirror view on the card's lines), so checkboxes toggle and the reveal rule applies.
+- **Editing in place:** tapping or clicking the body puts the cursor there. Edits go straight back into the card's lines in the file. The format bar appears for the focused card.
+- **Copy and paste** work as in the normal editor: copying gives the markdown text, and pasting inserts plain text.
+- **Title:** edited with `InlineName` (one line). Enter or leaving saves, Escape cancels. It writes only the text after `## `.
+- **Card actions:** delete (trash `IconButton`, moves the card's lines into a hidden `# Archive` column at the end of the file, with Undo), and new card (at the bottom of each column; its title field gets focus).
+
+**No headings that split a card.** A `#` or `##` line inside a card body would start a new column or card, so the card editor never creates one:
+- Typing `# ` or `## ` at the start of a line turns into `### `. Pasted text has its headings moved down two levels (`#` → `###`, `##` → `####`, capped at `######`). Lines inside fenced code blocks are left alone, because they are not headings.
+- The heading buttons in the card's format bar offer levels 3–6 only.
+- A newline typed or pasted into the title field ends the edit instead of entering the title.
+- This is the one place where the app changes text as it is entered. Rendering still never changes the text (golden rule 1).
+- Agents follow the same rule; the format README in the notes folder says so.
+
+**Drag and drop**
+- A card is dragged by its title row (on touch, press and hold for about 300ms, so scrolling still works). The body is for editing, not dragging.
+- Dropping moves the card's exact lines (heading + body) to the new place, then saves. Nothing else in the file changes.
+- While dragging, the board scrolls when the card nears an edge.
+- Columns can be dragged by their heading on desktop to reorder them. This moves the column's lines.
+
+**Layout**
+- **Desktop (≥ 900px):** like Trello. Columns side by side, about 280px wide, and the board scrolls sideways. Each column scrolls on its own when it is taller than the screen. Cards show their full body.
+- **Phone (< 900px):** vertical. Columns are stacked top to bottom as sections, each with its heading and then its cards, full width. The whole page scrolls as one list.
+- Colors, fonts, motion and touch targets follow the same tokens and rules as the rest of the app.
 
 The parser and the card move/replace helpers live in `editor/markdown.ts` (or a sibling module without DOM code) and are unit-tested with sample boards, including cards with code blocks: a `#` line inside a fenced code block is not a heading.
 
