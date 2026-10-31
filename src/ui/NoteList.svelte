@@ -135,7 +135,7 @@
       value={query}
       oninput={(e) => onQuery(e.currentTarget.value)}
     />
-    <IconButton icon="board" label="New board" disabled={loading} onclick={onNewBoard} />
+    <button class="new" onclick={onNewBoard} disabled={loading}>New board</button>
     <button class="new" onclick={onNew} disabled={loading}>New note</button>
   </div>
 

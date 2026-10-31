@@ -7,6 +7,7 @@
  * touch the lines they are about, so the rest of the file stays exactly as it
  * was. No DOM or Svelte code, so the board view, tests and tools can share it.
  */
+import { TAG_WORD } from './tags';
 
 export const BOARD_MARKER = '<!-- notes.md:board -->';
 export const ARCHIVE_TITLE = 'Archive';
@@ -220,7 +221,6 @@ export function doneColumnIndex(board: Board): number {
 
 // ---------------------------------------------------------------- Metadata
 
-const TAG = /^#[^\s#]+$/u;
 const DUE = /^\u{1F4C5}️?$/u;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -231,7 +231,7 @@ function metaTokens(line: string): CardMeta | null {
   const meta: CardMeta = { tags: [], due: null };
   for (let i = 0; i < words.length; i++) {
     const word = words[i]!;
-    if (TAG.test(word)) {
+    if (TAG_WORD.test(word)) {
       meta.tags.push(word.slice(1));
     } else if (DUE.test(word) && DATE.test(words[i + 1] ?? '')) {
       meta.due = words[++i]!;

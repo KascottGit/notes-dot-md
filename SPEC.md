@@ -127,6 +127,7 @@ Rendering rules:
 | Image | `![alt](url)` or `![alt][label]` | The image (http/https only, at most 24em tall). No usable source or a failed load shows the alt text in a dashed box | Source shown dimmed, image after it |
 | Escape | `\*` | The character, without the backslash | Shown dimmed |
 | Entity | `&amp;`, `&#169;` | The character | Shown as typed |
+| Tag | `#school`, `#work/notes` (after a space or at a line start; letters, digits, `_ - /`, not only digits) | Accent-colored label, in notes and on board cards. Not in code, URLs or HTML | Always the same |
 | Bullet list | ` -  ` or ` *  ` | Bullet dot widget | Shown dimmed |
 | Numbered list | ` 1.  ` | Number kept, styled | Always visible |
 | Task | ` - [ ]  ` / ` - [x]  ` | Clickable checkbox; checked items dimmed and struck | Never: always a checkbox |
@@ -262,10 +263,10 @@ More details.
 - **Columns** = `# ` headings, in file order. Empty columns are allowed. A space must follow the hashes (as in `# Todo`), so `#tag` is never a column or card.
 - **Cards** = `## ` headings under a column. The card title is the heading text.
 - **Card body** = every line after the card heading up to the next `#` or `##` heading. Any markdown is allowed, with no indentation needed. Headings inside a card start at `###`.
-- **Metadata line (optional):** the first non-empty line of the body, if it holds only `#tag` labels and a due date `📅 YYYY-MM-DD`. Shown as chips on the card. The date picker in the app inserts the `📅` date, so nobody has to type the emoji.
+- **Metadata line (optional):** the first non-empty line of the body, if it holds only `#tag` labels and a due date `📅 YYYY-MM-DD`. Tags get the accent tag style (as everywhere); the due date shows as a gray chip. The date picker in the app inserts the `📅` date, so nobody has to type the emoji.
 - **Done** = the card is in the board's last column (not counting `# Archive`). Cards have no checkbox of their own; task items inside the body are normal checkboxes. The card shows their progress, e.g. "1/2".
 - **Text outside cards** (between the marker and the first column, or between a column heading and its first card) is kept as it is and shown at the top of the board or column.
-- **New board** (the board icon next to New note) creates a file with Todo / Ongoing / Done columns.
+- **New board** (a button like New note, next to it) creates a file with Todo / Ongoing / Done columns.
 - **Images** are URLs, as in notes, until uploads are added.
 - **Later still:** a "Tasks" view that collects cards and open tasks with due dates from all notes.
 

@@ -17,6 +17,7 @@ import {
 } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 import { autolinkHref, isOpenable, linkParts, linkReferences, parseTable } from './markdown';
+import { findTags } from './tags';
 import {
   BulletWidget,
   CheckboxWidget,
@@ -38,6 +39,23 @@ const mark = (cls: string) => {
 const bullet = Decoration.replace({ widget: new BulletWidget() });
 const rule = Decoration.replace({ widget: new RuleWidget() });
 const checkbox = (checked: boolean) => Decoration.replace({ widget: new CheckboxWidget(checked) });
+const tag = Decoration.mark({ class: 'cm-md-tag' });
+
+/** Where a `#word` is not a tag: code, URLs, link definitions and HTML. */
+const NO_TAGS = new Set([
+  'InlineCode',
+  'FencedCode',
+  'CodeBlock',
+  'Frontmatter',
+  'URL',
+  'Autolink',
+  'LinkReference',
+  'LinkLabel',
+  'HTMLBlock',
+  'HTMLTag',
+  'CommentBlock',
+  'Comment',
+]);
 
 export interface PreviewDecorations {
   decorations: DecorationSet;
@@ -302,6 +320,21 @@ export function buildDecorations(
     );
   }
 
+  // `#tags`, in the accent color.
+  const tree = syntaxTree(state);
+  for (let pos = from; pos <= to;) {
+    const line = doc.lineAt(pos);
+    for (const t of findTags(line.text)) {
+      const at = line.from + t.from;
+      let excluded = false;
+      for (let n: SyntaxNode | null = tree.resolveInner(at, 1); n; n = n.parent) {
+        if (NO_TAGS.has(n.name)) excluded = true;
+      }
+      if (!excluded) decos.push(tag.range(at, line.from + t.to));
+    }
+    pos = line.to + 1;
+  }
+
   for (const [start, classes] of lineClasses) {
     decos.push(Decoration.line({ class: [...classes].join(' ') }).range(start));
   }
@@ -534,6 +567,15 @@ const previewTheme = EditorView.theme({
     border: 'solid var(--on-accent)',
     borderWidth: '0 2px 2px 0',
     transform: 'rotate(45deg)',
+  },
+  '.cm-md-tag': {
+    padding: '0 0.35em',
+    borderRadius: '6px',
+    backgroundColor: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+    color: 'var(--accent)',
+    fontFamily: 'var(--font-ui)',
+    fontSize: '0.85em',
+    fontWeight: '500',
   },
   '.cm-md-done': { color: 'var(--text-muted)', textDecoration: 'line-through' },
 

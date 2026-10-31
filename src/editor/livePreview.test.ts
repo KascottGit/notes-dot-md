@@ -328,3 +328,16 @@ describe('tables', () => {
     expect(tables(0, false, '> | a | b |\n> | - | - |')).toEqual([]);
   });
 });
+
+describe('tags', () => {
+  it('styles #tags in text and headings', () => {
+    const { all } = render('Plan #school today\n\n## Work #todo');
+    expect(has(all, 5, 12, 'cm-md-tag')).toBe(true);
+    expect(all.filter((s) => s.kind === 'cm-md-tag')).toHaveLength(2);
+  });
+
+  it('leaves code, URLs and numbers alone', () => {
+    const { all } = render('`#code` https://x.y/#top #12\n\n```\n#not\n```');
+    expect(all.some((s) => s.kind === 'cm-md-tag')).toBe(false);
+  });
+});

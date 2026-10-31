@@ -2,8 +2,9 @@
  * Extra rules for the small editors on board cards (SPEC "Board view").
  * - No `# ` or `## ` lines: those would split the card into a new column or
  *   card. Typed ones become `### `, pasted ones move down two levels.
- * - The metadata line (tags and due date) is drawn as chips. The text stays
- *   as it is; chips are marks only.
+ * - The due date on the metadata line is drawn as a chip. Tags get the
+ *   accent style everywhere, in notes too (livePreview.ts). The text stays as
+ *   it is; chips are marks only.
  */
 import { EditorState, RangeSetBuilder, StateField, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, placeholder, type DecorationSet } from '@codemirror/view';
@@ -19,7 +20,7 @@ export const noBoardHeadings = EditorState.transactionFilter.of((tr) => {
 });
 
 const chip = Decoration.mark({ class: 'cm-board-chip' });
-const CHIP = /#[^\s#]+|\u{1F4C5}️?\s+\d{4}-\d{2}-\d{2}/gu;
+const CHIP = /\u{1F4C5}️?\s+\d{4}-\d{2}-\d{2}/gu;
 
 function chips(state: EditorState): DecorationSet {
   const text = state.doc.toString();
