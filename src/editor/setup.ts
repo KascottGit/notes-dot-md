@@ -131,7 +131,8 @@ const cardTheme = Prec.high(
   EditorView.theme({
     '&': { height: 'auto', fontSize: '16px', backgroundColor: 'transparent' },
     '.cm-scroller': { lineHeight: '1.55' },
-    '.cm-content': { maxWidth: 'none', margin: '0', padding: '0 12px 2px 0' },
+    // A little room on the left, or the cursor at the start of a line is cut off.
+    '.cm-content': { maxWidth: 'none', margin: '0', padding: '0 12px 2px 3px' },
     '.cm-line': { padding: '0' },
     '.cm-placeholder': { color: 'var(--text-muted)' },
   }),

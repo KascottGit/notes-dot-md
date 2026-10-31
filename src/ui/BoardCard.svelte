@@ -128,8 +128,7 @@
 
 <style>
   .card {
-    position: relative;
-    padding: 0 0 10px 12px;
+    padding: 0 0 10px 9px;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--bg);
@@ -159,6 +158,8 @@
   .title {
     flex: 1;
     min-width: 0;
+    /* Lines the title up with the body text, which starts 3px in. */
+    padding-left: 3px;
     padding-right: 4px;
   }
 
@@ -197,22 +198,23 @@
   }
 
   /*
-   * With a mouse, delete shows on hover, over the end of the title row so the
-   * title keeps the room. Touch screens always show it.
+   * With a mouse, delete shows on hover: it opens up at the end of the row, so
+   * the task count moves aside instead of being covered. Touch screens always
+   * show it.
    */
   @media (hover: hover) and (pointer: fine) {
     .delete {
-      position: absolute;
-      top: 0;
-      right: 0;
-      border-radius: 10px;
-      background: var(--bg);
+      width: 0;
+      overflow: hidden;
       opacity: 0;
-      transition: opacity 120ms ease;
+      transition:
+        width 120ms ease,
+        opacity 120ms ease;
     }
 
     .card:hover .delete,
     .delete:focus-within {
+      width: 44px;
       opacity: 1;
     }
 
@@ -222,6 +224,11 @@
 
     .progress {
       padding-right: 12px;
+      transition: padding-right 120ms ease;
+    }
+
+    .card:hover .progress {
+      padding-right: 2px;
     }
   }
 </style>
