@@ -193,6 +193,8 @@
   span.inline-name {
     display: block;
     overflow: hidden;
+    /* The same height as the input (inputs use normal, not the page's line height). */
+    line-height: normal;
     white-space: nowrap;
   }
 

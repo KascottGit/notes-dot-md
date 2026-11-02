@@ -28,6 +28,8 @@
     onToggleBoard?: () => void;
     /** Full width, lined up with a board instead of the note text column. */
     wide?: boolean;
+    /** The note's text is still loading (or failed to): show it, but nothing can be changed yet. */
+    opening?: 'loading' | 'failed' | null;
   }
 
   let {
@@ -44,7 +46,11 @@
     boardView = null,
     onToggleBoard,
     wide = false,
+    opening = null,
   }: Props = $props();
+
+  const loading = $derived(opening !== null);
+  const locked = $derived(sessionState.readOnly || loading);
 
   const pinned = $derived(isPinned(sessionState.note));
   const categoryName = $derived(
@@ -54,14 +60,18 @@
   let renaming = $state(false);
 
   const label = $derived(
-    sessionState.readOnly
-      ? 'Read-only'
-      : {
-          saved: 'Saved',
-          saving: 'Saving…',
-          unsaved: 'Unsaved changes',
-          error: "Couldn't save",
-        }[sessionState.status],
+    opening === 'loading'
+      ? 'Opening…'
+      : opening === 'failed'
+        ? "Couldn't open"
+        : sessionState.readOnly
+          ? 'Read-only'
+          : {
+              saved: 'Saved',
+              saving: 'Saving…',
+              unsaved: 'Unsaved changes',
+              error: "Couldn't save",
+            }[sessionState.status],
   );
 
   /** Put the cursor in the title with all of it selected (for new notes). */
@@ -80,19 +90,19 @@
         bind:busy={renaming}
         value={sessionState.note.title}
         label="Note title"
-        readonly={sessionState.readOnly}
+        readonly={locked}
         onCommit={onRename}
         {onDone}
       />
       <div class="meta">
         <!-- Sized to the current name; the transparent select on top takes the taps. -->
-        <label class="category" title={sessionState.readOnly ? categoryName : 'Move to category'}>
+        <label class="category" title={locked ? categoryName : 'Move to category'}>
           <span class="current">{categoryName}</span>
           {#if !sessionState.readOnly}<Icon name="chevronDown" size={14} />{/if}
           <select
             aria-label="Category"
             value={sessionState.note.folderId}
-            disabled={sessionState.readOnly}
+            disabled={locked}
             onchange={(e) => {
               const picked = e.currentTarget.value;
               // Show the real category until the move has gone through.
@@ -106,7 +116,11 @@
           </select>
         </label>
         <!-- Under the title, so the title keeps the width of the row. -->
-        <div class="status" class:error={sessionState.status === 'error'} role="status">
+        <div
+          class="status"
+          class:error={sessionState.status === 'error' || opening === 'failed'}
+          role="status"
+        >
           <span>{renaming ? 'Renaming…' : label}</span>
           {#if sessionState.status === 'error'}
             <button class="retry" onclick={onRetry}>Retry</button>
@@ -114,7 +128,7 @@
         </div>
       </div>
     </div>
-    <span class="actions">
+    <span class="actions" class:loading inert={loading}>
       {#if boardView && onToggleBoard}
         <IconButton
           icon={boardView === 'board' ? 'text' : 'board'}
@@ -268,6 +282,11 @@
   .actions {
     display: inline-flex;
     flex: none;
+    transition: opacity 120ms;
+  }
+
+  .actions.loading {
+    opacity: 0.4;
   }
 
   .detail {

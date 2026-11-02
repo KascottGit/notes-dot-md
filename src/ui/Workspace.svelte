@@ -74,6 +74,18 @@
   let editor: Editor | null = null;
   let session: NoteSession | null = null;
   let sessionState = $state<SessionState | null>(null);
+  /** A note that was tapped and is still loading: its screen shows right away. */
+  let opening = $state<Note | null>(null);
+  /** Counts opens, so a slow load that was overtaken by another is dropped. */
+  let openSeq = 0;
+  /** The note header shows the loading note (title, category) until its text arrives. */
+  const headerState = $derived<SessionState | null>(
+    opening
+      ? { note: opening, status: 'saved', error: null, conflict: false, readOnly: !opening.canEdit }
+      : sessionState,
+  );
+  /** Fade the text in once it has loaded (not on the very first open). */
+  let fadeIn = $state(false);
   let board = $state<Board>();
   /** The open note's first line is the board marker. */
   let boardFile = $state(false);
@@ -203,30 +215,72 @@
     return session?.hasUnsavedWork() ?? false;
   }
 
+  /** Stop showing a note that is still loading (its result is dropped). */
+  function cancelOpening() {
+    openSeq++;
+    opening = null;
+  }
+
+  /**
+   * Open a note: its screen (title, category) shows at once, and the text
+   * follows when Drive has sent it.
+   */
   async function openNote(note: Note, focus = false) {
     if (session && note.id === session.state.note.id) {
+      // Back to the note that is already open, from a slow load or the list.
+      if (opening) openError = null;
+      cancelOpening();
       view = 'editor';
       return;
     }
+    if (opening?.id === note.id) {
+      view = 'editor';
+      return;
+    }
+    const seq = ++openSeq;
     openError = null;
-    if (session && !(await session.flush())) {
-      openError =
-        "This note has changes that couldn't be saved yet. Resolve that before switching.";
-      view = 'editor';
-      return;
+    // Fresh metadata, so the conflict check starts from the real current version.
+    // Fetched while the current note saves, so the two waits overlap.
+    const loaded = Promise.all([getNote(drive, note.id), readNote(drive, note.id)]);
+    loaded.catch(() => {}); // Handled below; may be dropped if the switch is refused.
+    if (session && session.hasUnsavedWork()) {
+      if (!(await session.flush())) {
+        if (seq !== openSeq) return;
+        openError =
+          "This note has changes that couldn't be saved yet. Resolve that before switching.";
+        view = 'editor';
+        return;
+      }
+      if (seq !== openSeq) return;
     }
+    opening = note;
+    view = 'editor';
     try {
-      // Fresh metadata, so the conflict check starts from the real current version.
-      const [fresh, text] = await Promise.all([getNote(drive, note.id), readNote(drive, note.id)]);
-      const current = { ...fresh, folderId: note.folderId };
-      show(current, text);
-      if (focus) editor?.focus();
+      const [fresh, text] = await loaded;
+      if (seq !== openSeq) return;
+      // Went back to the list while it loaded (phones): fill it in, but stay there.
+      // (The cast: TypeScript can't see that the Back button changed `view` during the await.)
+      const stay = (view as 'list' | 'editor') === 'list';
+      show({ ...fresh, folderId: note.folderId }, text, true);
+      if (stay) view = 'list';
+      else if (focus) editor?.focus();
     } catch (err) {
+      if (seq !== openSeq) return;
       openError = `Couldn't open "${note.title}": ${message(err)}`;
     }
   }
 
-  function show(note: Note, text: string) {
+  /** Try a note that failed to load again. */
+  function retryOpen() {
+    const note = opening;
+    if (!note) return;
+    cancelOpening();
+    void openNote(note);
+  }
+
+  function show(note: Note, text: string, fade = false) {
+    cancelOpening();
+    fadeIn = fade;
     session?.dispose();
     if (!editor && editorEl) {
       editor = createEditor({
@@ -377,6 +431,11 @@
 
   /** Move a note to the Drive trash, with Undo. */
   async function deleteNote(note: Note) {
+    if (opening?.id === note.id) {
+      cancelOpening();
+      openError = null;
+      if (!session) view = 'list';
+    }
     const isOpen = session?.state.note.id === note.id;
     if (isOpen && session) {
       // Save first, so Undo brings back the latest text. Don't wait forever
@@ -538,7 +597,7 @@
       {categories}
       defaultId={folders?.defaultId ?? null}
       {selectedCategory}
-      selectedNoteId={sessionState?.note.id ?? null}
+      selectedNoteId={opening?.id ?? sessionState?.note.id ?? null}
       {sort}
       {query}
       {loading}
@@ -558,10 +617,11 @@
   </aside>
 
   <section class="main">
-    {#if sessionState}
+    {#if headerState}
       <NoteHeader
         bind:this={header}
-        {sessionState}
+        sessionState={headerState}
+        opening={opening ? (openError ? 'failed' : 'loading') : null}
         {categories}
         onBack={() => (view = 'list')}
         onRetry={() => void session?.retry()}
@@ -572,10 +632,20 @@
         onTogglePin={() => sessionState && void togglePin(sessionState.note)}
         onDelete={() => sessionState && void deleteNote(sessionState.note)}
         boardView={boardFile ? (boardMode ? 'board' : 'text') : null}
-        onToggleBoard={toggleBoard}
-        wide={boardMode}
+        onToggleBoard={opening ? undefined : toggleBoard}
+        wide={opening ? isBoardNote(opening) : boardMode}
       />
-      {#if !sessionState.readOnly}
+      {#if opening}
+        <!-- Shown already, so nothing jumps when the text arrives. -->
+        {#if !headerState.readOnly}
+          <Toolbar
+            run={() => {}}
+            disabled
+            wide={isBoardNote(opening)}
+            headingLevels={isBoardNote(opening) ? [3, 4, 5, 6] : [1, 2, 3]}
+          />
+        {/if}
+      {:else if !headerState.readOnly}
         {#if boardMode}
           <Toolbar
             run={(command) => board?.run(command)}
@@ -589,12 +659,27 @@
       {/if}
     {/if}
     {#if openError}
-      <p class="open-error" role="alert">{openError}</p>
+      <p class="open-error" role="alert">
+        {openError}
+        {#if opening}<button class="retry" onclick={retryOpen}>Retry</button>{/if}
+      </p>
     {/if}
-    {#if !sessionState}
+    {#if opening && !openError}
+      <!-- Placeholder lines while the text loads; they show only if it takes a moment. -->
+      <div
+        class="placeholder"
+        class:wide={isBoardNote(opening)}
+        aria-busy="true"
+        aria-label="Loading note"
+      >
+        {#each [92, 78, 85, 40, 0, 88, 70] as width, i (i)}
+          <span class="line" style:width={`${width}%`}></span>
+        {/each}
+      </div>
+    {:else if !headerState}
       <p class="empty">Select a note, or create a new one.</p>
     {/if}
-    {#if sessionState && boardMode}
+    {#if sessionState && !opening && boardMode}
       <Board
         bind:this={board}
         text={boardText}
@@ -606,7 +691,12 @@
         }}
       />
     {/if}
-    <div class="editor" class:hidden={!sessionState || boardMode} bind:this={editorEl}></div>
+    <div
+      class="editor"
+      class:hidden={!sessionState || opening || boardMode}
+      class:fade={fadeIn}
+      bind:this={editorEl}
+    ></div>
   </section>
 </div>
 
@@ -703,6 +793,60 @@
 
   .hidden {
     display: none;
+  }
+
+  .fade {
+    animation: fade-in 180ms ease-out;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* Lined up with the note text column. */
+  .placeholder {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 22px 22px;
+    /* Only after a moment, so quick loads don't flash. */
+    animation: fade-in 220ms ease-out 250ms backwards;
+  }
+
+  /* Boards: lined up with the board header. */
+  .placeholder.wide {
+    max-width: none;
+    padding-left: 30px;
+  }
+
+  .placeholder .line {
+    height: 12px;
+    border-radius: 6px;
+    background: var(--bg-muted);
+  }
+
+  /* The same as the Retry button after "Couldn't save" in the note header. */
+  .open-error {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .open-error .retry {
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-muted);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
   }
 
   .empty {

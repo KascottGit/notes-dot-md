@@ -34,9 +34,17 @@
     onDueDate?: () => void;
     /** Full width, lined up with a board. */
     wide?: boolean;
+    /** Shown but not usable yet (the note is still loading). */
+    disabled?: boolean;
   }
 
-  let { run, headingLevels = [1, 2, 3], onDueDate, wide = false }: Props = $props();
+  let {
+    run,
+    headingLevels = [1, 2, 3],
+    onDueDate,
+    wide = false,
+    disabled = false,
+  }: Props = $props();
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
   const mod = isMac ? '⌘' : 'Ctrl+';
@@ -135,7 +143,7 @@
 <svelte:window onpointerdown={onWindowPointerDown} onkeydown={onKeydown} />
 
 <div class="toolbar" class:wide role="toolbar" aria-label="Formatting" bind:this={root}>
-  <div class="scroll">
+  <div class="scroll" class:disabled inert={disabled}>
     {#each history as b (b.id)}
       <button
         class="tool"
@@ -232,6 +240,7 @@
     padding: 2px 8px;
     overflow-x: auto;
     scrollbar-width: none;
+    transition: opacity 120ms;
   }
 
   .wide .scroll {
@@ -241,6 +250,10 @@
 
   .wide .menu {
     left: 16px;
+  }
+
+  .scroll.disabled {
+    opacity: 0.4;
   }
 
   .scroll::-webkit-scrollbar {
