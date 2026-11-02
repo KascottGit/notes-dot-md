@@ -23,6 +23,7 @@
   import { indentItem, moveItemDown, moveItemUp, outdentItem } from '../editor/lists';
   import Icon from './Icon.svelte';
   import type { IconName } from './icons';
+  import Menu from './Menu.svelte';
 
   type Level = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -102,6 +103,7 @@
 
   const headings = $derived(
     headingLevels.map((level) => ({
+      id: String(level),
       level,
       label: `Heading ${level}`,
       // Only levels 1–3 have shortcuts.
@@ -125,22 +127,7 @@
     menuOpen = false;
     run(command);
   }
-
-  function onWindowPointerDown(event: PointerEvent) {
-    if (!menuOpen) return;
-    const target = event.target as Node;
-    if (!root?.contains(target)) menuOpen = false;
-  }
-
-  function onKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && menuOpen) {
-      menuOpen = false;
-      menuButton?.focus();
-    }
-  }
 </script>
-
-<svelte:window onpointerdown={onWindowPointerDown} onkeydown={onKeydown} />
 
 <div class="toolbar" class:wide role="toolbar" aria-label="Formatting" bind:this={root}>
   <div class="scroll" class:disabled inert={disabled}>
@@ -206,21 +193,20 @@
     {/if}
   </div>
   {#if menuOpen}
-    <div class="menu" role="menu" style:left={`${menuLeft}px`}>
-      {#each headings as h (h.level)}
-        <button
-          role="menuitem"
-          class="item"
-          title={h.shortcut ? `${h.label} (${h.shortcut})` : h.label}
-          onmousedown={keepFocus}
-          onpointerdown={keepFocus}
-          onclick={() => choose(h.command)}
-        >
-          <span class="h h{h.level}">{h.label}</span>
-          {#if h.shortcut}<span class="kbd">{h.shortcut}</span>{/if}
-        </button>
-      {/each}
-    </div>
+    <Menu
+      items={headings}
+      label="Heading"
+      anchor={menuButton}
+      keepFocus
+      left={menuLeft}
+      onSelect={(h) => choose(h.command)}
+      onClose={() => (menuOpen = false)}
+    >
+      {#snippet item(h)}
+        <span class="h h{h.level}">{h.label}</span>
+        {#if h.shortcut}<span class="kbd">{h.shortcut}</span>{/if}
+      {/snippet}
+    </Menu>
   {/if}
 </div>
 
@@ -246,10 +232,6 @@
   .wide .scroll {
     max-width: none;
     padding-left: 16px;
-  }
-
-  .wide .menu {
-    left: 16px;
   }
 
   .scroll.disabled {
@@ -310,41 +292,6 @@
     height: 24px;
     margin: 0 2px;
     background: var(--border);
-  }
-
-  /* Opens below the H button, over the note. */
-  .menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    z-index: 20;
-    display: flex;
-    flex-direction: column;
-    min-width: 200px;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg);
-    box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
-  }
-
-  .item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-height: 44px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 6px;
-    background: none;
-    color: var(--text);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .item:hover {
-    background: var(--bg-muted);
   }
 
   .h {

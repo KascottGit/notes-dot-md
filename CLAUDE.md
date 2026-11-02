@@ -84,6 +84,7 @@ The UI must look and behave the same everywhere. Before adding any control, look
 | Rename something (note title, category name) | `InlineName`: edit in place; Enter or leaving saves, Escape cancels. Never a dialog or a "Rename" button. With `wrap`, long names wrap instead of being cut off (board card titles). Non-editable names (General, All notes, read-only notes) use it with `readonly` so they line up. |
 | An icon action (pin, delete, back, sort...) | `IconButton` (44×44). Icons come only from `ICONS` in `ui/icons.ts` (drawn by `Icon.svelte`, or `iconSvg()` in editor widgets); add new icons there. No inline `<svg>` anywhere else. |
 | Ask for a new name | `NameDialog` (creating things only). |
+| A short list of choices under a button (heading levels, New note or board) | `Menu`: opens under its button, closes on a tap outside or Escape. |
 | Confirm a choice with consequences | `confirm()` only for bulk or hard-to-undo actions (e.g. moving all of a category's notes). |
 | Feedback after an action | `Toast`, with Undo for anything undoable. |
 | Pick one filter from a row (categories, board tags) | `Chip` inside a `ChipRow` (wraps on desktop, scrolls sideways on phones). |

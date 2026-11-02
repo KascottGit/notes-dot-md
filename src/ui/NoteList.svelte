@@ -14,6 +14,7 @@
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
   import InlineName from './InlineName.svelte';
+  import Menu from './Menu.svelte';
   import SwipeItem from './SwipeItem.svelte';
 
   interface Props {
@@ -73,6 +74,14 @@
 
   const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
   const timeFormat = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+
+  /** What the New button can make. */
+  const NEW_ITEMS = [
+    { id: 'note', label: 'Note', icon: 'text' },
+    { id: 'board', label: 'Board', icon: 'board' },
+  ] as const;
+  let newOpen = $state(false);
+  let newButton = $state<HTMLButtonElement>();
 
   function when(note: Note): string {
     const iso = sort === 'created' ? note.createdTime : note.modifiedTime;
@@ -152,8 +161,31 @@
       value={query}
       oninput={(e) => onQuery(e.currentTarget.value)}
     />
-    <button class="new" onclick={onNewBoard} disabled={loading}>New board</button>
-    <button class="new" onclick={onNew} disabled={loading}>New note</button>
+    <div class="new-wrap">
+      <button
+        bind:this={newButton}
+        class="new"
+        aria-haspopup="menu"
+        aria-expanded={newOpen}
+        disabled={loading}
+        onclick={() => (newOpen = !newOpen)}
+      >
+        New <Icon name="chevronDown" size={16} />
+      </button>
+      {#if newOpen}
+        <Menu
+          items={[...NEW_ITEMS]}
+          label="New"
+          anchor={newButton}
+          onSelect={(item) => (item.id === 'board' ? onNewBoard() : onNew())}
+          onClose={() => (newOpen = false)}
+        >
+          {#snippet item(it)}
+            <span class="new-item"><Icon name={it.icon} />{it.label}</span>
+          {/snippet}
+        </Menu>
+      {/if}
+    </div>
   </div>
 
   <ChipRow label="Categories">
@@ -278,10 +310,17 @@
     font-size: 16px;
   }
 
-  .new {
+  .new-wrap {
+    position: relative;
     flex: none;
+  }
+
+  .new {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
     min-height: 44px;
-    padding: 0 14px;
+    padding: 0 10px 0 14px;
     border: 0;
     border-radius: 8px;
     background: var(--accent);
@@ -289,6 +328,12 @@
     font: inherit;
     font-weight: 600;
     cursor: pointer;
+  }
+
+  .new-item {
+    display: inline-flex;
+    gap: 10px;
+    align-items: center;
   }
 
   .bar {
