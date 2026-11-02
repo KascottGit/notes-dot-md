@@ -33,19 +33,11 @@
     headingLevels?: Level[];
     /** Board cards: a due date button that opens the date picker. */
     onDueDate?: () => void;
-    /** Full width, lined up with a board. */
-    wide?: boolean;
     /** Shown but not usable yet (the note is still loading). */
     disabled?: boolean;
   }
 
-  let {
-    run,
-    headingLevels = [1, 2, 3],
-    onDueDate,
-    wide = false,
-    disabled = false,
-  }: Props = $props();
+  let { run, headingLevels = [1, 2, 3], onDueDate, disabled = false }: Props = $props();
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
   const mod = isMac ? '⌘' : 'Ctrl+';
@@ -129,7 +121,7 @@
   }
 </script>
 
-<div class="toolbar" class:wide role="toolbar" aria-label="Formatting" bind:this={root}>
+<div class="toolbar" role="toolbar" aria-label="Formatting" bind:this={root}>
   <div class="scroll" class:disabled inert={disabled}>
     {#each history as b (b.id)}
       <button
@@ -221,17 +213,14 @@
   .scroll {
     display: flex;
     align-items: center;
-    max-width: 760px;
+    /* As wide as its buttons, centered; scrolls sideways when the screen is narrower. */
+    width: fit-content;
+    max-width: 100%;
     margin: 0 auto;
     padding: 2px 8px;
     overflow-x: auto;
     scrollbar-width: none;
     transition: opacity 120ms;
-  }
-
-  .wide .scroll {
-    max-width: none;
-    padding-left: 16px;
   }
 
   .scroll.disabled {

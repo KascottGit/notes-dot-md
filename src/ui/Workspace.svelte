@@ -928,7 +928,6 @@
         onDelete={() => sessionState && void deleteNote(sessionState.note)}
         boardView={boardFile ? (boardMode ? 'board' : 'text') : null}
         onToggleBoard={opening ? undefined : toggleBoard}
-        wide={opening ? isBoardNote(opening) : boardMode}
       />
       {#if opening}
         <!-- Shown already, so nothing jumps when the text arrives. -->
@@ -936,7 +935,6 @@
           <Toolbar
             run={() => {}}
             disabled
-            wide={isBoardNote(opening)}
             headingLevels={isBoardNote(opening) ? [3, 4, 5, 6] : [1, 2, 3]}
           />
         {/if}
@@ -946,7 +944,6 @@
             run={(command) => board?.run(command)}
             headingLevels={[3, 4, 5, 6]}
             onDueDate={() => board?.pickDueDate()}
-            wide
           />
         {:else}
           <Toolbar run={(command) => editor?.run(command)} />

@@ -244,7 +244,7 @@ The app must feel good in a phone browser and on a Linux desktop. It runs in the
 
 - **Viewport:** `<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">`.
 - **No zoom:** pinch and double-tap zoom are turned off (owner decision, 2026-10-29): `touch-action: pan-x pan-y`, plus cancelling Safari's gesture events, since iPhone Safari ignores `user-scalable=no`. Text inputs and the editor still use a font size of at least 16px so focusing them never zooms.
-- **Layout:** two panes (list + editor) at ≥ 900px wide, one pane below that. The note header (title, category · status, actions) and the format bar form one block above the note, lined up with the note text column (760px max). On phones the note slides in from the right and the list from the left.
+- **Layout:** two panes (list + editor) at ≥ 900px wide, one pane below that. The note header (title, category · status, actions) and the format bar form one block above the note. The header spans the whole width; the format bar is as wide as its buttons and centered, the same for notes and boards (changed 2026-11-02). On phones the note slides in from the right and the list from the left.
 - **Motion:** short and quiet: 120ms color fades on hover, 180–220ms slides. With `prefers-reduced-motion`, all of it is instant.
 - **Icons:** `favicon.svg`, a 32px PNG fallback and a 180px `apple-touch-icon.png` (Safari bookmarks and favorites).
 - **Touch targets** of at least 44 × 44px for toolbar buttons and checkboxes.

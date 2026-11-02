@@ -26,8 +26,6 @@
     /** Board files: shown as a board, or as text. Null for other notes. */
     boardView?: 'board' | 'text' | null;
     onToggleBoard?: () => void;
-    /** Full width, lined up with a board instead of the note text column. */
-    wide?: boolean;
     /** Wider screens: the note list is shown (false: hidden). */
     sidebarOpen?: boolean;
     /** Wider screens: show or hide the note list. */
@@ -49,7 +47,6 @@
     onDelete,
     boardView = null,
     onToggleBoard,
-    wide = false,
     sidebarOpen = true,
     onToggleSidebar,
     opening = null,
@@ -87,7 +84,7 @@
 </script>
 
 <!-- Joined to the format bar below it (no line between), except on read-only notes. -->
-<div class="header" class:joined={!sessionState.readOnly} class:wide>
+<div class="header" class:joined={!sessionState.readOnly}>
   <div class="inner">
     <span class="back"><IconButton icon="back" label="Back to notes" onclick={onBack} /></span>
     {#if onToggleSidebar}
@@ -185,15 +182,9 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    max-width: 760px;
     min-height: 56px;
-    margin: 0 auto;
-    padding: 6px 6px 0 21px;
-  }
-
-  .wide .inner {
-    max-width: none;
-    padding-left: 30px;
+    /* Across the whole width (the format bar below stays centered on the text). */
+    padding: 6px 6px 0 30px;
   }
 
   .back {
