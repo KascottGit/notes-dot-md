@@ -7,7 +7,7 @@ How to work in this repo. **What to build is in `SPEC.md`: read the relevant sec
 1. **The document is always plain markdown.** The live-preview editor only *decorates* text (CodeMirror decorations). Never transform, normalize or re-serialize the document text to render it. Copy, export and Drive all see the exact same string.
 2. **No backend.** Everything runs in the browser. Do not add a server, database or serverless function without asking.
 3. **Never lose user text.** On any save or auth failure, keep the text in the editor and show an error state. Never overwrite a newer Drive version silently (see "Saving and conflict handling" in SPEC.md).
-4. **Never hard-delete.** Deleting a note, category, card image or other file moves it to the Drive trash (`trashed: true`). The one exception (owner decision, 2026-11-03): in Recently deleted, a note that is already in the trash can be deleted for good, after a `confirm()`.
+4. **Never hard-delete.** Deleting a note, category, card image or other file moves it to the Drive trash (`trashed: true`). The app never deletes a file for good, not even from the trash (owner decision, 2026-11-03): that is done in Drive.
 5. **Access tokens stay in memory.** Never write tokens to `localStorage`, `sessionStorage`, cookies or logs.
 6. **Notes are identified by Drive file id**, never by path or title.
 
