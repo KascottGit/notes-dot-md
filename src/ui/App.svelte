@@ -5,6 +5,7 @@
   import { getAccount, type Account } from '../drive/account';
   import { clearFolderCache } from '../drive/notes';
   import { safeLocalStorage } from '../store/storage';
+  import { clearListCache } from '../store/listCache';
   import { fitKeyboard } from './keyboardFit';
   import SessionBanner from './SessionBanner.svelte';
   import SignIn from './SignIn.svelte';
@@ -65,6 +66,7 @@
     }
     auth.signOut();
     clearFolderCache(safeLocalStorage());
+    clearListCache();
     account = null;
   }
 </script>

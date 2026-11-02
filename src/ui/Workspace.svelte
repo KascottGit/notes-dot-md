@@ -59,6 +59,7 @@
   } from '../store/noteSession';
   import { clearStash, readStash, saveStash, type Stash } from '../store/stash';
   import { safeLocalStorage } from '../store/storage';
+  import { loadListCache, saveListCache } from '../store/listCache';
   import {
     firstStartInTab,
     hashForNote,
@@ -244,7 +245,17 @@
   let stopStashOnRedirect: (() => void) | null = null;
 
   onMount(() => {
-    void loadList().then(reopenOnStart);
+    // The list as last seen on this device shows at once; Drive refreshes it.
+    const cached = loadListCache(auth.state.loginHint);
+    if (cached) {
+      folders = cached.folders;
+      categories = cached.categories;
+      notes = cached.notes;
+      tagColors = cached.tagColors;
+      loading = false;
+    }
+    const loaded = loadList(cached !== null);
+    void (cached ? reopenOnStart() : loaded.then(reopenOnStart));
     stopStashOnRedirect = auth.onBeforeRedirect(() => {
       redirecting = true;
       stashOpenNote();
@@ -266,19 +277,39 @@
     editor?.destroy();
   });
 
-  async function loadList() {
-    loading = true;
+  /** Load the list from Drive. `background`: a saved list already shows; keep it on errors. */
+  async function loadList(background = false) {
+    if (!background) loading = true;
     listError = null;
     try {
       folders = await ensureFolders(drive, safeLocalStorage());
       void loadColors(folders.rootId);
       await refreshList();
     } catch (err) {
-      listError = `Couldn't load your notes: ${message(err)}`;
+      if (background) toast = { message: `Couldn't refresh your notes: ${message(err)}` };
+      else listError = `Couldn't load your notes: ${message(err)}`;
     } finally {
       loading = false;
     }
   }
+
+  /** Keep the saved list (for the next start) in step with what shows. Metadata only. */
+  $effect(() => {
+    const account = auth.state.loginHint;
+    if (loading || listError || !folders || !account) return;
+    saveListCache({
+      account,
+      folders: $state.snapshot(folders),
+      categories: $state.snapshot(categories),
+      notes: $state.snapshot(notes),
+      tagColors: $state.snapshot(tagColors),
+    });
+  });
+
+  /** Notes created in this session, kept when a list fetched before they existed arrives. */
+  // Not shown anywhere, so a plain (non-reactive) Set.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const createdHere = new Set<string>();
 
   /** `Notes/.attachments/`, found or created the first time a card image is added. */
   let imagesFolderId: Promise<string> | null = null;
@@ -412,7 +443,9 @@
     categories = sortCategories(found, folders.defaultId);
     // The open note's metadata comes from its session, which is newer.
     const open = session?.state.note;
-    notes = loaded.map((n) => (open && n.id === open.id ? open : n));
+    const fresh = loaded.map((n) => (open && n.id === open.id ? open : n));
+    const kept = notes.filter((n) => createdHere.has(n.id) && !loaded.some((l) => l.id === n.id));
+    notes = [...fresh, ...kept];
     if (selectedCategory && !found.some((c) => c.id === selectedCategory)) {
       selectedCategory = null;
     }
@@ -739,6 +772,7 @@
         isBoard(text) ? { type: 'board' } : {},
       );
       notes = [...notes, note];
+      createdHere.add(note.id);
       const title = creating?.title ?? 'Untitled';
       creating = null;
       openError = null;
