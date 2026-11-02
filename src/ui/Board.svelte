@@ -23,6 +23,7 @@
     renameColumn,
     joinAttachments,
     replaceBody,
+    restoreCard,
     setAttachments,
     setDueDate,
     splitAttachments,
@@ -35,6 +36,7 @@
   import type { Editor } from '../editor/setup';
   import { drive } from '../drive/client';
   import { setTrashed } from '../drive/notes';
+  import ArchiveDialog from './ArchiveDialog.svelte';
   import AttachmentsDialog from './AttachmentsDialog.svelte';
   import BoardCard from './BoardCard.svelte';
   import CardBody from './CardBody.svelte';
@@ -312,8 +314,50 @@
     onSave();
     onToast('Card moved to Archive', () => {
       if (text === after) onEdit(before);
-      else onToast('The board changed since. The card is in the Archive column (open as text).');
+      else
+        onToast('The board changed since. The card is in the Archive (button after the columns).');
     });
+  }
+
+  // ---------------------------------------------------------- Archive
+
+  let archiveOpen = $state(false);
+  /** Feedback inside the Archive dialog (a toast outside it can't be tapped while it's open). */
+  let archiveToast = $state<{ message: string; undo?: () => void } | null>(null);
+  const archived = $derived(board.columns.find((c) => c.archive)?.cards ?? []);
+  /** Where restored cards go: the first column the board shows. */
+  const restoreTarget = $derived(columns[0]?.column.title ?? null);
+
+  /** The first line of a card's text, for the Archive list. */
+  function excerpt(card: (typeof archived)[number]): string {
+    const body = splitAttachments(slice(card.body)).text;
+    return (
+      body
+        .split('\n')
+        .find((line) => line.trim())
+        ?.trim() ?? ''
+    );
+  }
+
+  function restore(index: number) {
+    const before = text;
+    const after = restoreCard(text, index);
+    if (after === before) return;
+    onEdit(after);
+    onSave();
+    archiveToast = {
+      message: `Restored to ${restoreTarget}`,
+      undo: () => {
+        if (text === after) {
+          onEdit(before);
+          onSave();
+        } else {
+          archiveToast = {
+            message: 'The board changed since. Delete the card again to archive it.',
+          };
+        }
+      },
+    };
   }
 
   // ---------------------------------------------------------- Drag and drop
@@ -726,14 +770,28 @@
         {/if}
       </section>
     {/each}
-    {#if !readOnly}
-      <button class="add-column" onclick={() => void newColumn()}>
-        <Icon name="plus" size={18} />
-        Add column
-      </button>
-    {:else if columns.length === 0}
-      <p class="empty">No columns yet.</p>
-    {/if}
+    <div class="board-end">
+      {#if !readOnly}
+        <button class="add-column" onclick={() => void newColumn()}>
+          <Icon name="plus" size={18} />
+          Add column
+        </button>
+      {:else if columns.length === 0}
+        <p class="empty">No columns yet.</p>
+      {/if}
+      {#if archived.length > 0}
+        <button
+          class="add-column"
+          onclick={() => {
+            archiveToast = null;
+            archiveOpen = true;
+          }}
+        >
+          <Icon name="archive" size={18} />
+          Archive ({archived.length})
+        </button>
+      {/if}
+    </div>
   </div>
 
   {#if indicator}
@@ -754,6 +812,27 @@
     onchange={onDatePicked}
   />
 </div>
+
+<ArchiveDialog
+  open={archiveOpen}
+  cards={archived.map((card) => ({ title: card.title, excerpt: excerpt(card) }))}
+  target={restoreTarget}
+  {readOnly}
+  onRestore={restore}
+  onClose={() => {
+    archiveOpen = false;
+    archiveToast = null;
+  }}
+>
+  {#if archiveToast}
+    <Toast
+      message={archiveToast.message}
+      actionLabel={archiveToast.undo ? 'Undo' : undefined}
+      onAction={archiveToast.undo}
+      onClose={() => (archiveToast = null)}
+    />
+  {/if}
+</ArchiveDialog>
 
 <AttachmentsDialog
   open={imagesCard !== null}
@@ -866,6 +945,14 @@
   .filter {
     flex: none;
     padding: 10px 8px 0;
+  }
+
+  /* Add column and the Archive button, after the last column. */
+  .board-end {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .add-column {

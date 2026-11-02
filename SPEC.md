@@ -251,6 +251,7 @@ A board file opens in its own view, not the note editor, with the rules below. T
 - **Copy and paste** work as in the normal editor: copying gives the markdown text, and pasting inserts plain text.
 - **Title:** edited with `InlineName` (one line). Enter or leaving saves, Escape cancels. It writes only the text after `## `.
 - **Card actions:** delete (trash `IconButton`, moves the card's lines into a hidden `# Archive` column at the end of the file, with Undo), and new card (at the bottom of each column; its title field gets focus).
+- **Archive** (added 2026-11-03): when the Archive column has cards, an "Archive (n)" button after "Add column" opens a dialog listing them (title and first line, oldest first). Each has a restore `IconButton` that moves the card's lines to the end of the board's first column, with an Undo toast inside the dialog.
 
 **No headings that split a card.** A `#` or `##` line inside a card body would start a new column or card, so the card editor never creates one:
 - Typing `# ` or `## ` at the start of a line turns into `### `. Pasted text has its headings moved down two levels (`#` → `###`, `##` → `####`, capped at `######`). Lines inside fenced code blocks are left alone, because they are not headings.
@@ -358,7 +359,6 @@ Open questions:
 Open work, roughly in priority order. When an item is done, describe it in the section it belongs to and remove it here.
 
 - [ ] **Due soon view** (added 2026-11-02): a view that collects dated cards (and open tasks with dates) from all boards, soonest first, with overdue ones on top.
-- [ ] **Archive view on boards** (added 2026-11-02): an "Archive (n)" button on a board shows its archived cards, each with a Restore action that moves the card's lines back to a column; no need to open the text view.
 - [ ] **Recently deleted** (added 2026-11-02): a view of the notes in the Drive trash that came from the `Notes/` folders, with Restore, so a note can come back after its Undo toast is gone.
 - [ ] **Merge edits** (added 2026-11-02; also step 3 of sharing): when a save finds a newer version, merge the edits three ways (the text as loaded, mine and theirs, for example with `diff-match-patch`) and save the result when the changes don't overlap. The conflict dialog only shows when they do.
 - [ ] **Image captions** (added 2026-11-02): a short caption under each image on a card's image board, stored as the image's alt text (`![caption](…)`).

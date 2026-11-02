@@ -606,6 +606,22 @@ export function archiveCard(text: string, ref: CardRef): string {
   return moveCard(next, ref, { column: archive, card: board.columns[archive]!.cards.length });
 }
 
+/**
+ * Take a card (by its position in the Archive column) back out, to the end of
+ * the first column the board shows. Unchanged when there is no such column.
+ */
+export function restoreCard(text: string, card: number): string {
+  const board = parseBoard(text);
+  const archive = board.columns.findIndex((c) => c.archive);
+  const target = visibleColumns(board)[0];
+  if (archive === -1 || !target || !board.columns[archive]!.cards[card]) return text;
+  return moveCard(
+    text,
+    { column: archive, card },
+    { column: target.index, card: target.column.cards.length },
+  );
+}
+
 // ---------------------------------------------------------------- Columns
 
 /** A column title that would hide the column, or none at all. */

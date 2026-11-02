@@ -25,6 +25,7 @@ import {
   parseMeta,
   renameCard,
   renameColumn,
+  restoreCard,
   replaceBody,
   setDueDate,
   visibleColumns,
@@ -448,5 +449,26 @@ describe('due dates', () => {
 
   it("writes today's date in local time", () => {
     expect(localDate(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05');
+  });
+});
+
+describe('restoreCard', () => {
+  const board =
+    '<!-- notes.md:board -->\n\n# Todo\n\n## A\n\n# Done\n\n# Archive\n\n## Old\n\nBody\n\n## Older\n';
+
+  it('moves an archived card to the end of the first column', () => {
+    const next = restoreCard(board, 0);
+    const parsed = parseBoard(next);
+    expect(parsed.columns[0]!.cards.map((c) => c.title)).toEqual(['A', 'Old']);
+    expect(parsed.columns[2]!.cards.map((c) => c.title)).toEqual(['Older']);
+    expect(next).toContain('## Old\n\nBody\n');
+  });
+
+  it('leaves the text alone without an archive or a column to go to', () => {
+    expect(restoreCard('<!-- notes.md:board -->\n\n# Todo\n', 0)).toBe(
+      '<!-- notes.md:board -->\n\n# Todo\n',
+    );
+    const onlyArchive = '<!-- notes.md:board -->\n\n# Archive\n\n## Old\n';
+    expect(restoreCard(onlyArchive, 0)).toBe(onlyArchive);
   });
 });
