@@ -5,6 +5,7 @@ import {
   attachmentsFolder,
   createFolder,
   createNote,
+  deleteForever,
   ensureFolders,
   FOLDER_MIME,
   folderContents,
@@ -444,5 +445,16 @@ describe('recently deleted', () => {
     await setTrashed(drive, a.id, false);
     expect((await listTrashedNotes(drive, [defaultId])).map((t) => t.note.title)).toEqual(['B']);
     expect((await listNotes(drive, defaultId)).map((n) => n.title).sort()).toEqual(['A', 'Kept']);
+  });
+});
+
+describe('deleting for good', () => {
+  it('removes a trashed note from Drive', async () => {
+    const { drive, defaultId, files } = await withFolders();
+    const note = await createNote(drive, defaultId, 'Gone');
+    await trashNote(drive, note.id);
+    await deleteForever(drive, note.id);
+    expect(files.has(note.id)).toBe(false);
+    expect(await listTrashedNotes(drive, [defaultId])).toEqual([]);
   });
 });

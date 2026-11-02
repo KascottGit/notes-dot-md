@@ -660,6 +660,14 @@ export async function trashNote(drive: DriveClient, id: string): Promise<void> {
   await setTrashed(drive, id, true);
 }
 
+/**
+ * Delete a file for good, skipping the trash. Only for notes already in the
+ * trash, from the Recently deleted view, after the user confirmed (golden rule 4).
+ */
+export async function deleteForever(drive: DriveClient, id: string): Promise<void> {
+  await drive.request(`${FILES}/${id}`, { method: 'DELETE' });
+}
+
 /** Move any file (e.g. a card image) to the Drive trash, or take it back out. */
 export async function setTrashed(drive: DriveClient, id: string, trashed: boolean): Promise<void> {
   await drive.request(`${FILES}/${id}?fields=id`, {

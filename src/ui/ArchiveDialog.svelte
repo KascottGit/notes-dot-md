@@ -5,6 +5,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import IconButton from './IconButton.svelte';
+  import SwipeItem from './SwipeItem.svelte';
 
   interface Props {
     open: boolean;
@@ -13,12 +14,14 @@
     target: string | null;
     readOnly: boolean;
     onRestore: (index: number) => void;
+    /** Remove an archived card from the board for good (with Undo). */
+    onDelete: (index: number) => void;
     onClose: () => void;
     /** Shown inside the dialog, e.g. the toast with Undo. */
     children?: Snippet;
   }
 
-  let { open, cards, target, readOnly, onRestore, onClose, children }: Props = $props();
+  let { open, cards, target, readOnly, onRestore, onDelete, onClose, children }: Props = $props();
 
   let dialog = $state<HTMLDialogElement>();
 
@@ -40,18 +43,33 @@
     <ul>
       {#each cards as card, i (i)}
         <li>
-          <div class="text">
-            <span class="title" title={card.title}>{card.title}</span>
-            {#if card.excerpt}<span class="excerpt">{card.excerpt}</span>{/if}
-          </div>
-          {#if !readOnly && target}
-            <IconButton
-              icon="restore"
-              label={`Restore ${card.title} to ${target}`}
-              title={`Restore to ${target}`}
-              onclick={() => onRestore(i)}
-            />
-          {/if}
+          <!-- Touch: swipe left for Delete, as in the note list. Mouse: trash on hover. -->
+          <SwipeItem disabled={readOnly} onDelete={() => onDelete(i)}>
+            <div class="row reveal-host">
+              <div class="text">
+                <span class="title" title={card.title}>{card.title}</span>
+                {#if card.excerpt}<span class="excerpt">{card.excerpt}</span>{/if}
+              </div>
+              {#if !readOnly && target}
+                <IconButton
+                  icon="restore"
+                  label={`Restore ${card.title} to ${target}`}
+                  title={`Restore to ${target}`}
+                  onclick={() => onRestore(i)}
+                />
+              {/if}
+              {#if !readOnly}
+                <span class="reveal mouse-only">
+                  <IconButton
+                    icon="trash"
+                    label={`Delete ${card.title} for good`}
+                    title="Delete for good"
+                    onclick={() => onDelete(i)}
+                  />
+                </span>
+              {/if}
+            </div>
+          </SwipeItem>
         </li>
       {/each}
     </ul>
@@ -104,11 +122,14 @@
   }
 
   li {
+    border-top: 1px solid var(--border);
+  }
+
+  .row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     min-height: 52px;
-    border-top: 1px solid var(--border);
   }
 
   li:first-child {

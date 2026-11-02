@@ -24,6 +24,7 @@
     joinAttachments,
     replaceBody,
     restoreCard,
+    deleteArchivedCard,
     setAttachments,
     setDueDate,
     splitAttachments,
@@ -337,6 +338,33 @@
         .find((line) => line.trim())
         ?.trim() ?? ''
     );
+  }
+
+  /**
+   * Remove an archived card from the board for good, with Undo. Its images
+   * go to the Drive trash (never deleted outright), and come back on Undo.
+   */
+  function deleteArchived(index: number) {
+    const card = archived[index];
+    const before = text;
+    const after = deleteArchivedCard(text, index);
+    if (!card || after === before) return;
+    const images = card.attachments.map((a) => a.id);
+    onEdit(after);
+    onSave();
+    for (const id of images) void setTrashed(drive, id, true).catch(() => {});
+    archiveToast = {
+      message: `"${card.title}" deleted`,
+      undo: () => {
+        if (text !== after) {
+          archiveToast = { message: "The board changed since, so the card can't come back." };
+          return;
+        }
+        onEdit(before);
+        onSave();
+        for (const id of images) void setTrashed(drive, id, false).catch(() => {});
+      },
+    };
   }
 
   function restore(index: number) {
@@ -819,6 +847,7 @@
   target={restoreTarget}
   {readOnly}
   onRestore={restore}
+  onDelete={deleteArchived}
   onClose={() => {
     archiveOpen = false;
     archiveToast = null;

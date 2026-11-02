@@ -138,6 +138,11 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
         if (url.searchParams.get('alt') === 'media') return new Response(f.data ?? f.content);
         return json(200, meta(f));
       }
+      if (method === 'DELETE') {
+        // Permanent, as in Drive (only allowed from the app's Recently deleted view).
+        files.delete(f.id);
+        return new Response(null, { status: 204 });
+      }
       if (method === 'PATCH') {
         const patch = JSON.parse(body || '{}') as Partial<FakeFile> & {
           appProperties?: Record<string, string | null>;

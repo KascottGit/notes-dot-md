@@ -15,6 +15,7 @@
     DEFAULT_FOLDER_NAME,
     moveNote,
     attachmentsFolder,
+    deleteForever,
     listTrashedNotes,
     readNote,
     searchNoteText,
@@ -404,6 +405,21 @@
     } catch (err) {
       deleted = [item, ...deleted];
       deletedToast = `Couldn't restore "${item.note.title}": ${message(err)}`;
+    }
+  }
+
+  /** Delete a note in the trash for good, after asking: it can't be undone. */
+  async function deleteDeletedForever(id: string) {
+    const item = deleted.find((d) => d.note.id === id);
+    if (!item) return;
+    if (!confirm(`Delete "${item.note.title}" for good? This can't be undone.`)) return;
+    deleted = deleted.filter((d) => d.note.id !== id);
+    try {
+      await deleteForever(drive, id);
+      deletedToast = `"${item.note.title}" deleted for good`;
+    } catch (err) {
+      deleted = [item, ...deleted];
+      deletedToast = `Couldn't delete "${item.note.title}": ${message(err)}`;
     }
   }
 
@@ -1331,6 +1347,7 @@
     board: isBoardNote(d.note),
   }))}
   onRestore={(id) => void restoreDeleted(id)}
+  onDelete={(id) => void deleteDeletedForever(id)}
   onClose={() => (deletedOpen = false)}
 >
   {#if deletedToast}

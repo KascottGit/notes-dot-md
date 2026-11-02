@@ -622,6 +622,16 @@ export function restoreCard(text: string, card: number): string {
   );
 }
 
+/**
+ * Remove an archived card (by its position in the Archive column) from the
+ * board for good: its lines leave the file. Unchanged if there is no such card.
+ */
+export function deleteArchivedCard(text: string, card: number): string {
+  const archive = parseBoard(text).columns.find((c) => c.archive);
+  const found = archive?.cards[card];
+  return found ? removeSpan(text, found.block).text : text;
+}
+
 // ---------------------------------------------------------------- Columns
 
 /** A column title that would hide the column, or none at all. */

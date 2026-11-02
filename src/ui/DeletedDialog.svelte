@@ -5,6 +5,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import IconButton from './IconButton.svelte';
+  import SwipeItem from './SwipeItem.svelte';
 
   interface Props {
     open: boolean;
@@ -12,12 +13,14 @@
     error: string | null;
     items: { id: string; title: string; category: string; when: string; board: boolean }[];
     onRestore: (id: string) => void;
+    /** Delete a trashed note for good (the app asks to confirm first). */
+    onDelete: (id: string) => void;
     onClose: () => void;
     /** Shown inside the dialog, e.g. a toast. */
     children?: Snippet;
   }
 
-  let { open, loading, error, items, onRestore, onClose, children }: Props = $props();
+  let { open, loading, error, items, onRestore, onDelete, onClose, children }: Props = $props();
 
   let dialog = $state<HTMLDialogElement>();
 
@@ -44,18 +47,31 @@
     <ul>
       {#each items as item (item.id)}
         <li>
-          <div class="text">
-            <span class="title" title={item.title}>{item.title}</span>
-            <span class="meta"
-              >{item.board ? 'Board' : 'Note'} · {item.category} · deleted {item.when}</span
-            >
-          </div>
-          <IconButton
-            icon="restore"
-            label={`Restore ${item.title}`}
-            title="Restore"
-            onclick={() => onRestore(item.id)}
-          />
+          <!-- Touch: swipe left for Delete, as in the note list. Mouse: trash on hover. -->
+          <SwipeItem onDelete={() => onDelete(item.id)}>
+            <div class="row reveal-host">
+              <div class="text">
+                <span class="title" title={item.title}>{item.title}</span>
+                <span class="meta">
+                  {item.board ? 'Board' : 'Note'} · {item.category} · deleted {item.when}
+                </span>
+              </div>
+              <IconButton
+                icon="restore"
+                label={`Restore ${item.title}`}
+                title="Restore"
+                onclick={() => onRestore(item.id)}
+              />
+              <span class="reveal mouse-only">
+                <IconButton
+                  icon="trash"
+                  label={`Delete ${item.title} for good`}
+                  title="Delete for good"
+                  onclick={() => onDelete(item.id)}
+                />
+              </span>
+            </div>
+          </SwipeItem>
         </li>
       {/each}
     </ul>
@@ -119,11 +135,14 @@
   }
 
   li {
+    border-top: 1px solid var(--border);
+  }
+
+  .row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     min-height: 52px;
-    border-top: 1px solid var(--border);
   }
 
   /* Long titles get the room and an ellipsis. */

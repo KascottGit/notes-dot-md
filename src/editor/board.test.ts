@@ -4,6 +4,7 @@ import {
   addColumn,
   archiveCard,
   boardTags,
+  deleteArchivedCard,
   deleteColumn,
   joinAttachments,
   setAttachments,
@@ -470,5 +471,16 @@ describe('restoreCard', () => {
     );
     const onlyArchive = '<!-- notes.md:board -->\n\n# Archive\n\n## Old\n';
     expect(restoreCard(onlyArchive, 0)).toBe(onlyArchive);
+  });
+});
+
+describe('deleteArchivedCard', () => {
+  it("removes an archived card's lines and nothing else", () => {
+    const board =
+      '<!-- notes.md:board -->\n\n# Todo\n\n## A\n\n# Archive\n\n## Old\n\nBody\n\n## Older\n';
+    expect(deleteArchivedCard(board, 0)).toBe(
+      '<!-- notes.md:board -->\n\n# Todo\n\n## A\n\n# Archive\n\n## Older\n',
+    );
+    expect(deleteArchivedCard(board, 5)).toBe(board);
   });
 });
