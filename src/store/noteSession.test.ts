@@ -357,6 +357,13 @@ describe('app properties on save', () => {
     expect(uploads.at(-1)!.url.searchParams.get('uploadType')).toBe('media');
   });
 
+  it('stores the tags the note uses', async () => {
+    const { session, edit, files, note } = await setup('');
+    edit('Plan #school and #work, more #work');
+    await session.save();
+    expect(files.get(note.id)!.appProperties?.['tags']).toBe('work school');
+  });
+
   it('marks boards and gives them no preview', async () => {
     const { session, edit, files, note } = await setup('');
     edit('Plain text');

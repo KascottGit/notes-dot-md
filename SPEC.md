@@ -207,6 +207,16 @@ Categories are Drive folders, so the structure the app shows is the same one the
 - **Pinned notes:** `appProperties.pinned = "true"`, shown in a Pinned section above all other notes. Toggle with the pin button in the note header, the pin button that shows when hovering a note in the list (mouse only), or on touch screens by swiping a note left to right and releasing (like Apple Notes).
 - **Delete a note:** the trash button in the note header, the trash button that shows when hovering a note in the list (mouse only), or on touch screens: swipe a note right to left to open a Delete button, then tap it. The swipe alone never deletes (changed 2026-10-30 to avoid accidents); the open button closes on a tap elsewhere or a swipe back. The note moves to the Drive trash, with an Undo toast that takes it back out.
 
+## Tags
+
+Tags are `#words` in the text (see the rendering rules), in notes and on board cards alike. They work across all notes and boards (decided 2026-11-02).
+
+- **Which tags exist:** when the app saves a note or board, it stores the tags the text uses on the file as `appProperties.tags` (space separated, without `#`, most used first, cut to fit Drive's 124 bytes per property), in the same request as the text. Opening a note corrects it, like the preview line. So the app knows every tag from the note list, without reading every note. Tags in code are not counted.
+- **Autocomplete:** typing `#` and at least one letter in a note or a card body suggests tags used anywhere, most used (in the most notes) first, each with its color. Enter or a tap inserts the tag and a space. Not in code, and not in card titles (they are plain text fields).
+- **Colors:** a tag keeps the accent style until a color is picked for it. Colors come from a fixed set of theme colors with light and dark values (red, orange, yellow, green, teal, blue, purple, pink, gray). A tag has the same color everywhere: in notes, on cards, in the board's tag chips and in the suggestions. Tags are matched without regard to case.
+- **Where colors are stored:** one settings file, `Notes/.notes-md.json` (`{ "tagColors": { "school": "green" } }`, tag names in lower case), so they sync between devices. The markdown never changes. The app reads it on start and, when a color changes, reads it again and merges before writing, so a change made on another device isn't lost.
+- **Tags list:** a tag icon button at the top of the note list opens a dialog with every tag, how many notes use it, and its color. Tapping a tag shows the color swatches (plus "No color"); picking one applies at once everywhere.
+
 ## Export and copy
 
 Both hand over the raw markdown text, unchanged.

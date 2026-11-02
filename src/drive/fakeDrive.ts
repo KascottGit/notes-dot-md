@@ -182,6 +182,8 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
   const drive = createDriveClient({ getToken: async () => 'token', invalidate: () => {} }, fetchFn);
   return {
     drive,
+    /** The fake's fetch, e.g. to stand in for `window.fetch` in a visual check. */
+    fetch: fetchFn,
     files,
     calls,
     add,

@@ -2,7 +2,7 @@
  * What the note list shows: filtering by category and title, sorting, counts.
  * Pure functions, no UI.
  */
-import { isPinned, type Category, type Note } from '../drive/notes';
+import { isPinned, noteTags, type Category, type Note } from '../drive/notes';
 import { safeLocalStorage, type StorageLike } from './storage';
 
 export type SortOrder = 'modified' | 'created' | 'title';
@@ -79,6 +79,31 @@ export function splitPinned(notes: Note[]): { pinned: Note[]; others: Note[] } {
     pinned: notes.filter((n) => isPinned(n)),
     others: notes.filter((n) => !isPinned(n)),
   };
+}
+
+/**
+ * Every tag in use, with how many notes use it, most used first. `notes` give
+ * their stored tags; `live` adds tag lists not saved yet (the open note).
+ */
+export function allTags(
+  notes: readonly Note[],
+  live: readonly (readonly string[])[] = [],
+): { tag: string; count: number }[] {
+  const counts = new Map<string, { tag: string; count: number }>();
+  const add = (tags: readonly string[]) => {
+    const seen = new Set<string>();
+    for (const tag of tags) {
+      const key = tag.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const entry = counts.get(key);
+      if (entry) entry.count++;
+      else counts.set(key, { tag, count: 1 });
+    }
+  };
+  for (const note of notes) add(noteTags(note));
+  for (const tags of live) add(tags);
+  return [...counts.values()].sort((a, b) => b.count - a.count || collator.compare(a.tag, b.tag));
 }
 
 /** Number of notes per category folder id. */

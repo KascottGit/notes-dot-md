@@ -55,8 +55,9 @@ src/
   editor/board.ts        task boards: parse columns/cards, move/add/rename/archive (no DOM)
   editor/cardRules.ts    card editor rules: no # / ## lines, tag and date chips
   editor/commands.ts     format commands, shared by toolbar and shortcuts
+  editor/tagComplete.ts  tag autocomplete (suggests tags used anywhere)
   ui/                    Svelte components
-  store/                 app state
+  store/                 app state (store/tagColors.ts: tag colors and the settings file)
 ```
 
 `editor/commands.ts` and any markdown helpers must stay free of Svelte and DOM code so they can be unit-tested and reused by the future board view.

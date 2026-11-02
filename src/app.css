@@ -22,6 +22,16 @@
   --code-function: #2f5bd3;
   --code-type: #a1366b;
   --code-property: #2a6f8f;
+  /* Tag colors (picked per tag in the Tags list): the text color, also tinted as the background. */
+  --tag-red: #cf3036;
+  --tag-orange: #c05a00;
+  --tag-yellow: #9a7400;
+  --tag-green: #2b8040;
+  --tag-teal: #0d7a7e;
+  --tag-blue: #2f5bd3;
+  --tag-purple: #7a45cc;
+  --tag-pink: #c23d7c;
+  --tag-gray: #63636e;
 
   /* Note text: a gentle serif. */
   --font-body: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
@@ -56,6 +66,15 @@
     --code-function: #8fb0ff;
     --code-type: #f48fb1;
     --code-property: #80cbc4;
+    --tag-red: #ff7b7b;
+    --tag-orange: #ffa25a;
+    --tag-yellow: #e6c255;
+    --tag-green: #6fcf86;
+    --tag-teal: #5cc9c9;
+    --tag-blue: #7c9cff;
+    --tag-purple: #b994f7;
+    --tag-pink: #f28dbd;
+    --tag-gray: #a3a3ae;
   }
 }
 

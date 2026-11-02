@@ -1,6 +1,6 @@
 <!-- The signed-in app: note list and editor. -->
 <script lang="ts">
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onDestroy, onMount, setContext, tick } from 'svelte';
   import { auth } from '../auth/google';
   import { drive } from '../drive/client';
   import { sanitizeCategoryName } from '../drive/names';
@@ -29,9 +29,19 @@
     type Folders,
     type Note,
   } from '../drive/notes';
-  import { isBoard, NEW_BOARD_TEXT } from '../editor/board';
+  import { documentTags, isBoard, NEW_BOARD_TEXT } from '../editor/board';
+  import type { TagSuggestion } from '../editor/tagComplete';
+  import {
+    loadTagColors,
+    saveTagColor,
+    tagColorCss,
+    type TagColor,
+    type TagColors,
+  } from '../store/tagColors';
+  import TagsDialog from './TagsDialog.svelte';
   import { createEditor, type Editor } from '../editor/setup';
   import {
+    allTags,
     loadSort,
     matchesText,
     saveSort,
@@ -236,11 +246,67 @@
     listError = null;
     try {
       folders = await ensureFolders(drive, safeLocalStorage());
+      void loadColors(folders.rootId);
       await refreshList();
     } catch (err) {
       listError = `Couldn't load your notes: ${message(err)}`;
     } finally {
       loading = false;
+    }
+  }
+
+  /** Picked tag colors, from the settings file in Drive. */
+  let tagColors = $state<TagColors>({});
+  let tagsOpen = $state(false);
+
+  async function loadColors(rootId: string) {
+    try {
+      tagColors = await loadTagColors(drive, rootId);
+    } catch {
+      // Tags keep the accent color; the next start tries again.
+    }
+  }
+
+  /** One style sheet gives every colored tag its color, wherever it shows. */
+  $effect(() => {
+    const css = tagColorCss(tagColors);
+    let sheet = document.getElementById('mdnotes-tag-colors');
+    if (!sheet) {
+      sheet = document.createElement('style');
+      sheet.id = 'mdnotes-tag-colors';
+      document.head.append(sheet);
+    }
+    sheet.textContent = css;
+  });
+
+  /**
+   * Every tag in use, with how many notes use it: the tags stored on each
+   * file, but for the open note (or board) its current text.
+   */
+  function tagsInUse(): TagSuggestion[] {
+    const open = sessionState?.note.id;
+    const live = editor && sessionState ? [documentTags(editor.getText())] : [];
+    return allTags(
+      notes.filter((n) => n.id !== open),
+      live,
+    );
+  }
+  // Board cards have their own small editors; they get the tags from here.
+  setContext('tags', tagsInUse);
+
+  /** Pick a tag's color (null: back to the accent color), everywhere at once. */
+  async function pickTagColor(tag: string, color: TagColor | null) {
+    if (!folders) return;
+    const before = tagColors;
+    const next = { ...tagColors };
+    if (color) next[tag.toLowerCase()] = color;
+    else delete next[tag.toLowerCase()];
+    tagColors = next;
+    try {
+      tagColors = await saveTagColor(drive, folders.rootId, tag, color);
+    } catch (err) {
+      tagColors = before;
+      toast = { message: `Couldn't save the color for #${tag}: ${message(err)}` };
     }
   }
 
@@ -460,6 +526,7 @@
         onDocChange: syncBoard,
         onSave: () => void session?.save(),
         onBlur: () => void session?.save(),
+        tags: tagsInUse,
       });
     } else {
       editor?.load(text, !note.canEdit);
@@ -758,6 +825,12 @@
         <IconButton icon="expire" label="Expire token (dev)" onclick={onExpireToken} />
       {/if}
       <IconButton
+        icon="tag"
+        label="Tags"
+        title="Tags and their colors"
+        onclick={() => (tagsOpen = true)}
+      />
+      <IconButton
         icon="logout"
         label="Sign out"
         title={account ? `Sign out (${account.emailAddress})` : 'Sign out'}
@@ -883,6 +956,14 @@
     onClose={() => (toast = null)}
   />
 {/if}
+
+<TagsDialog
+  open={tagsOpen}
+  tags={tagsOpen ? tagsInUse() : []}
+  colors={tagColors}
+  onPick={pickTagColor}
+  onClose={() => (tagsOpen = false)}
+/>
 
 <NameDialog
   open={creatingCategory}

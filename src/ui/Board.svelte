@@ -495,6 +495,7 @@
           {@const active = tagFilter?.toLowerCase() === t.tag.toLowerCase()}
           <Chip
             label={`#${t.tag}`}
+            tag={t.tag}
             count={t.count}
             {active}
             title={active ? 'Show all cards' : `Only cards with #${t.tag}`}

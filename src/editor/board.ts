@@ -213,6 +213,29 @@ export function parseBoard(text: string): Board {
   return { intro, columns };
 }
 
+/**
+ * The tags a whole note or board uses, without `#`, each once (any case),
+ * most used first. Not in fenced or inline code.
+ */
+export function documentTags(text: string): string[] {
+  const lines = splitLines(text);
+  const inCode = codeLines(lines);
+  const counts = new Map<string, { tag: string; count: number; first: number }>();
+  lines.forEach((line, i) => {
+    if (inCode[i]) return;
+    const plain = line.text.replace(/`[^`]*`/g, (code) => ' '.repeat(code.length));
+    for (const t of findTags(plain)) {
+      const tag = plain.slice(t.from + 1, t.to);
+      const entry = counts.get(tag.toLowerCase());
+      if (entry) entry.count++;
+      else counts.set(tag.toLowerCase(), { tag, count: 1, first: counts.size });
+    }
+  });
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count || a.first - b.first)
+    .map((e) => e.tag);
+}
+
 /** Tags in some lines, each once (case-insensitive), without the `#`. */
 function uniqueTags(lines: readonly string[]): string[] {
   const seen = new Map<string, string>();

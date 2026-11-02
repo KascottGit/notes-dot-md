@@ -14,6 +14,8 @@
     title?: string | undefined;
     ariaLabel?: string | undefined;
     disabled?: boolean;
+    /** A tag chip: the tag (without `#`), so its picked color applies. */
+    tag?: string | undefined;
     onclick: () => void;
   }
 
@@ -25,6 +27,7 @@
     title,
     ariaLabel,
     disabled = false,
+    tag,
     onclick,
   }: Props = $props();
 </script>
@@ -33,6 +36,8 @@
   class="chip"
   class:active
   class:add={variant === 'add'}
+  class:tag={tag !== undefined}
+  data-tag={tag?.toLowerCase()}
   aria-pressed={variant === 'add' ? undefined : active}
   aria-label={ariaLabel}
   title={title ?? label}
@@ -96,6 +101,21 @@
   .chip.active .count {
     color: inherit;
     opacity: 0.8;
+  }
+
+  /* A tag with a picked color: tinted with it, and filled with it when chosen. */
+  .chip.tag {
+    background: color-mix(in srgb, var(--tag-color, transparent) 16%, var(--bg-muted));
+    color: var(--tag-color, var(--text));
+  }
+
+  .chip.tag:hover {
+    background: color-mix(in srgb, var(--tag-color, var(--accent)) 26%, var(--bg-muted));
+  }
+
+  .chip.tag.active {
+    background: var(--tag-color, var(--accent));
+    color: var(--on-accent);
   }
 
   .chip.add {

@@ -41,6 +41,7 @@ import {
 } from './lists';
 import { livePreview } from './livePreview';
 import { pasteImages } from './paste';
+import { tagCompletion, type TagSuggestion } from './tagComplete';
 
 /** Marks changes made by the app (e.g. loading a newer version), not by typing. */
 const external = Annotation.define<boolean>();
@@ -60,6 +61,8 @@ export interface EditorOptions {
   /** 'card': the small editor on a board card (no page padding, grows with its text). */
   variant?: 'note' | 'card';
   extensions?: Extension[];
+  /** Every tag in use, for tag autocomplete; none without it. */
+  tags?: () => readonly TagSuggestion[];
 }
 
 export interface Editor {
@@ -267,6 +270,7 @@ export function createEditor(options: EditorOptions): Editor {
         theme,
         options.variant === 'card' ? cardTheme : [],
         options.extensions ?? [],
+        options.tags ? tagCompletion(options.tags) : [],
       ],
     });
 

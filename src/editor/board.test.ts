@@ -5,6 +5,7 @@ import {
   archiveCard,
   boardTags,
   deleteColumn,
+  documentTags,
   hasTag,
   bodyForFile,
   countTasks,
@@ -363,5 +364,25 @@ describe('columns', () => {
     const card = board.columns[1]!.cards[0]!;
     expect(card.title).toBe('Ideas');
     expect(next.slice(card.body.from, card.body.to)).toBe('Some notes');
+  });
+});
+
+describe('documentTags', () => {
+  it('lists each tag once, most used first, not in code', () => {
+    const text = [
+      'Plan for #school and #Work',
+      '`#notatag` and ```',
+      '```',
+      '#ignored in code',
+      '```',
+      'More #work and #school, #work again. Not a#tag or #123.',
+    ].join('\n');
+    expect(documentTags(text)).toEqual(['Work', 'school']);
+  });
+
+  it('finds tags on board cards', () => {
+    expect(
+      documentTags('<!-- notes.md:board -->\n\n# Todo\n\n## Report #uni\n\n#uni #urgent\n'),
+    ).toEqual(['uni', 'urgent']);
   });
 });

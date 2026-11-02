@@ -47,10 +47,20 @@ const mark = (cls: string) => {
 const bullet = Decoration.replace({ widget: new BulletWidget() });
 const rule = Decoration.replace({ widget: new RuleWidget() });
 const checkbox = (checked: boolean) => Decoration.replace({ widget: new CheckboxWidget(checked) });
-const tag = Decoration.mark({ class: 'cm-md-tag' });
+/** A tag, named on the element (lower case) so a picked color applies (store/tagColors.ts). */
+const tagMarks = new Map<string, Decoration>();
+function tagMark(name: string): Decoration {
+  const key = name.toLowerCase();
+  let mark = tagMarks.get(key);
+  if (!mark) {
+    mark = Decoration.mark({ class: 'cm-md-tag', attributes: { 'data-tag': key } });
+    tagMarks.set(key, mark);
+  }
+  return mark;
+}
 
 /** Where a `#word` is not a tag: code, URLs, link definitions and HTML. */
-const NO_TAGS = new Set([
+export const NO_TAGS = new Set([
   'InlineCode',
   'FencedCode',
   'CodeBlock',
@@ -338,7 +348,10 @@ export function buildDecorations(
       for (let n: SyntaxNode | null = tree.resolveInner(at, 1); n; n = n.parent) {
         if (NO_TAGS.has(n.name)) excluded = true;
       }
-      if (!excluded) decos.push(tag.range(at, line.from + t.to));
+      if (!excluded) {
+        const name = line.text.slice(t.from + 1, t.to);
+        decos.push(tagMark(name).range(at, line.from + t.to));
+      }
     }
     pos = line.to + 1;
   }
@@ -659,8 +672,9 @@ const previewTheme = EditorView.theme({
   '.cm-md-tag': {
     padding: '0 0.35em',
     borderRadius: '6px',
-    backgroundColor: 'color-mix(in srgb, var(--accent) 14%, transparent)',
-    color: 'var(--accent)',
+    // The tag's picked color, else the accent color.
+    backgroundColor: 'color-mix(in srgb, var(--tag-color, var(--accent)) 14%, transparent)',
+    color: 'var(--tag-color, var(--accent))',
     fontFamily: 'var(--font-ui)',
     fontSize: '0.85em',
     fontWeight: '500',

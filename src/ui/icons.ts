@@ -14,6 +14,8 @@ export const ICONS = {
   expire: '<path d="M7 4h10M7 20h10M8 4c0 5 8 5 8 8s-8 3-8 8M16 4c0 5-8 5-8 8s8 3 8 8"/>',
   chevronDown: '<path d="M7 10l5 5 5-5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  tag: '<path d="M3.5 11.5V4.5a1 1 0 0 1 1-1h7l9 9-8 8z"/><circle cx="8" cy="8" r="1.3"/>',
   // Boards: open as board / open as text, due date
   board: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M14.5 4.5v15"/>',
   text: '<path d="M5 6h14M5 10h14M5 14h14M5 18h9"/>',

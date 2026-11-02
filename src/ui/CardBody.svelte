@@ -5,10 +5,11 @@
   (a drag, a newer version from Drive) replaces what is shown.
 -->
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { getContext, onDestroy, onMount } from 'svelte';
   import { bodyForFile } from '../editor/board';
   import { cardRules } from '../editor/cardRules';
   import { createEditor, type Editor } from '../editor/setup';
+  import type { TagSuggestion } from '../editor/tagComplete';
 
   interface Props {
     text: string;
@@ -22,6 +23,9 @@
   }
 
   let { text, readOnly, hint = '', onChange, onFocus, onDestroyed, onSave }: Props = $props();
+
+  /** Every tag in use, for autocomplete (from the workspace). */
+  const tags = getContext<(() => TagSuggestion[]) | undefined>('tags');
 
   let el = $state<HTMLDivElement>();
   let editor: Editor | null = null;
@@ -37,6 +41,7 @@
       readOnly,
       variant: 'card',
       extensions: [cardRules(readOnly ? '' : hint)],
+      ...(tags ? { tags } : {}),
       onChange: () => {
         const current = ed.getText();
         sent = bodyForFile(current);

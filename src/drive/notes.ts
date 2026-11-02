@@ -367,7 +367,12 @@ export async function createNote(
 }
 
 /** A multipart upload: metadata and content in one request. */
-function multipart(method: string, metadata: object, content: string): RequestInit {
+function multipart(
+  method: string,
+  metadata: object,
+  content: string,
+  type = NOTE_MIME,
+): RequestInit {
   const boundary = `mdnotes-${crypto.randomUUID()}`;
   const body = [
     `--${boundary}`,
@@ -375,7 +380,7 @@ function multipart(method: string, metadata: object, content: string): RequestIn
     '',
     JSON.stringify(metadata),
     `--${boundary}`,
-    `Content-Type: ${NOTE_MIME}; charset=UTF-8`,
+    `Content-Type: ${type}; charset=UTF-8`,
     '',
     content,
     `--${boundary}--`,
@@ -478,6 +483,26 @@ export function isBoardNote(note: Note): boolean {
 /** Drive allows 124 bytes per app property, key and value together. */
 export const PREVIEW_MAX_BYTES = 124 - 'preview'.length;
 
+/** Drive allows 124 bytes per app property, key and value together. */
+export const TAGS_MAX_BYTES = 124 - 'tags'.length;
+
+/** The tags a note uses (without `#`), stored on the file when the app saves it. */
+export function noteTags(note: Note): string[] {
+  return (note.appProperties['tags'] ?? '').split(' ').filter(Boolean);
+}
+
+/** Tags as stored on a file: space separated, as many whole tags as fit. */
+export function tagsProperty(tags: readonly string[], maxBytes = TAGS_MAX_BYTES): string {
+  const encoder = new TextEncoder();
+  let out = '';
+  for (const tag of tags) {
+    const next = out ? `${out} ${tag}` : tag;
+    if (encoder.encode(next).length > maxBytes) break;
+    out = next;
+  }
+  return out;
+}
+
 /** The first words of the note, stored on the file when the app saves it. '' if none. */
 export function notePreview(note: Note): string {
   return note.appProperties['preview'] ?? '';
@@ -499,6 +524,61 @@ export async function setNoteProperties(
     body: JSON.stringify({ appProperties: properties, modifiedTime: note.modifiedTime }),
   });
   return toNote(file, note.folderId);
+}
+
+/** The app's settings file in `Notes/` (tag colors). Not a note: notes live in categories. */
+export const SETTINGS_FILE = '.notes-md.json';
+
+/** The settings file's id and text, or null id and '' when there is none yet. */
+export async function readSettings(
+  drive: DriveClient,
+  rootId: string,
+): Promise<{ id: string | null; text: string }> {
+  const q = [
+    `name = ${quoteQuery(SETTINGS_FILE)}`,
+    `${quoteQuery(rootId)} in parents`,
+    'trashed = false',
+  ].join(' and ');
+  const params = new URLSearchParams({
+    q,
+    fields: 'files(id)',
+    orderBy: 'createdTime',
+    pageSize: '1',
+    spaces: 'drive',
+  });
+  const { files } = await drive.json<FileList>(`${FILES}?${params}`);
+  const id = files[0]?.id ?? null;
+  if (!id) return { id: null, text: '' };
+  const res = await drive.request(`${FILES}/${id}?alt=media`);
+  return { id, text: await res.text() };
+}
+
+/** Write the settings file, creating it the first time. Returns its id. */
+export async function writeSettings(
+  drive: DriveClient,
+  rootId: string,
+  id: string | null,
+  text: string,
+): Promise<string> {
+  if (id) {
+    await drive.request(`${UPLOAD}/${id}?uploadType=media&fields=id`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+      body: text,
+    });
+    return id;
+  }
+  const metadata = {
+    name: SETTINGS_FILE,
+    mimeType: 'application/json',
+    parents: [rootId],
+    appProperties: APP_PROPERTIES,
+  };
+  const file = await drive.json<DriveFile>(
+    `${UPLOAD}?uploadType=multipart&fields=id`,
+    multipart('POST', metadata, text, 'application/json'),
+  );
+  return file.id;
 }
 
 /** Take a note back out of the Drive trash (the Undo after deleting). */
