@@ -483,26 +483,6 @@ export function isBoardNote(note: Note): boolean {
 /** Drive allows 124 bytes per app property, key and value together. */
 export const PREVIEW_MAX_BYTES = 124 - 'preview'.length;
 
-/** Drive allows 124 bytes per app property, key and value together. */
-export const TAGS_MAX_BYTES = 124 - 'tags'.length;
-
-/** The tags a note uses (without `#`), stored on the file when the app saves it. */
-export function noteTags(note: Note): string[] {
-  return (note.appProperties['tags'] ?? '').split(' ').filter(Boolean);
-}
-
-/** Tags as stored on a file: space separated, as many whole tags as fit. */
-export function tagsProperty(tags: readonly string[], maxBytes = TAGS_MAX_BYTES): string {
-  const encoder = new TextEncoder();
-  let out = '';
-  for (const tag of tags) {
-    const next = out ? `${out} ${tag}` : tag;
-    if (encoder.encode(next).length > maxBytes) break;
-    out = next;
-  }
-  return out;
-}
-
 /** The first words of the note, stored on the file when the app saves it. '' if none. */
 export function notePreview(note: Note): string {
   return note.appProperties['preview'] ?? '';

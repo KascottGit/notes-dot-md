@@ -209,13 +209,14 @@ Categories are Drive folders, so the structure the app shows is the same one the
 
 ## Tags
 
-Tags are `#words` in the text (see the rendering rules), in notes and on board cards alike. They work across all notes and boards (decided 2026-11-02).
+Tags are `#words` in the text (see the rendering rules), in notes and on board cards alike. (Decided 2026-11-02, revised the same day.)
 
-- **Which tags exist:** when the app saves a note or board, it stores the tags the text uses on the file as `appProperties.tags` (space separated, without `#`, most used first, cut to fit Drive's 124 bytes per property), in the same request as the text. Opening a note corrects it, like the preview line. So the app knows every tag from the note list, without reading every note. Tags in code are not counted.
-- **Autocomplete:** typing `#` and at least one letter in a note or a card body suggests tags used anywhere, most used (in the most notes) first, each with its color. Enter or a tap inserts the tag and a space. Not in code, and not in card titles (they are plain text fields).
-- **Colors:** a tag keeps the accent style until a color is picked for it. Colors come from a fixed set of theme colors with light and dark values (red, orange, yellow, green, teal, blue, purple, pink, gray). A tag has the same color everywhere: in notes, on cards, in the board's tag chips and in the suggestions. Tags are matched without regard to case.
-- **Where colors are stored:** one settings file, `Notes/.notes-md.json` (`{ "tagColors": { "school": "green" } }`, tag names in lower case), so they sync between devices. The markdown never changes. The app reads it on start and, when a color changes, reads it again and merges before writing, so a change made on another device isn't lost.
-- **Tags list:** a tag icon button at the top of the note list opens a dialog with every tag, how many notes use it, and its color. Tapping a tag shows the color swatches (plus "No color"); picking one applies at once everywhere.
+- **Saved tags:** the tags you add in the Tags list, each with a color. They are the app's shared tag list across all notes and boards. Other tags in the text still work and show in the accent style.
+- **Autocomplete:** typing `#` and at least one letter in a note or a card body suggests the saved tags first, then the other tags already in this document (for a card: the whole board), each with its color. Enter or a tap inserts the tag and a space. Not in code, and not in card titles (they are plain text fields).
+- **Colors:** a fixed set of theme colors with light and dark values (red, orange, yellow, green, teal, blue, purple, pink, gray). A saved tag has the same color everywhere: in notes, on cards, in the board's tag chips and in the suggestions. Tags are matched without regard to case; saved tags are kept in lower case.
+- **Where they are stored:** one settings file, `Notes/.notes-md.json` (`{ "tagColors": { "school": "green" } }`), so they sync between devices. The markdown never changes. The app reads it on start and, on every change, reads it again and merges before writing, so a change made on another device isn't lost.
+- **Tags list:** a tag icon button at the top of the note list opens a dialog with the saved tags only (no usage counts), A–Z. The plus button adds one (`NameDialog`; `#` optional; same characters as a tag; no duplicates); it gets the first color no saved tag has yet, and its swatches open. Tapping a tag shows the swatches; a pick applies at once. The trash button removes a saved tag (the text in notes stays as it is), with an Undo toast, shown inside the dialog while it is open.
+- An earlier version stored each note's tags on its file (`appProperties.tags`); saving or opening a note removes that.
 
 ## Export and copy
 

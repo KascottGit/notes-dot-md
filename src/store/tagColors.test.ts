@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { fakeDrive } from '../drive/fakeDrive';
 import { ensureFolders, readSettings, SETTINGS_FILE } from '../drive/notes';
 import {
+  checkTagName,
   loadTagColors,
+  nextTagColor,
   parseTagColors,
+  savedTags,
   saveTagColor,
   setTagColorIn,
   tagColorCss,
@@ -54,5 +57,25 @@ describe('in Drive', () => {
     });
     expect([...files.values()].filter((f) => f.name === SETTINGS_FILE)).toHaveLength(1);
     expect((await readSettings(drive, rootId)).id).toBe(settings.id);
+  });
+});
+
+describe('saved tags', () => {
+  it('lists them A–Z', () => {
+    expect(savedTags({ work: 'blue', home: 'red' })).toEqual(['home', 'work']);
+  });
+
+  it('gives a new tag the first unused color', () => {
+    expect(nextTagColor({})).toBe('red');
+    expect(nextTagColor({ a: 'red', b: 'orange' })).toBe('yellow');
+  });
+
+  it('checks a new tag name', () => {
+    expect(checkTagName(' #School ', {})).toEqual({ tag: 'school' });
+    expect(checkTagName('work/notes', {})).toEqual({ tag: 'work/notes' });
+    expect(checkTagName('', {})).toHaveProperty('error');
+    expect(checkTagName('two words', {})).toHaveProperty('error');
+    expect(checkTagName('123', {})).toHaveProperty('error');
+    expect(checkTagName('home', { home: 'red' })).toEqual({ error: '#home is already saved.' });
   });
 });

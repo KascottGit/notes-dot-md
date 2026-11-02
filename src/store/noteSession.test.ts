@@ -357,11 +357,14 @@ describe('app properties on save', () => {
     expect(uploads.at(-1)!.url.searchParams.get('uploadType')).toBe('media');
   });
 
-  it('stores the tags the note uses', async () => {
+  it('removes the tag list an earlier version stored', async () => {
     const { session, edit, files, note } = await setup('');
-    edit('Plan #school and #work, more #work');
+    const appProperties = { ...note.appProperties, tags: 'school' };
+    files.get(note.id)!.appProperties = appProperties;
+    session.updateNote({ ...note, appProperties });
+    edit('Plan #school');
     await session.save();
-    expect(files.get(note.id)!.appProperties?.['tags']).toBe('work school');
+    expect(files.get(note.id)!.appProperties).not.toHaveProperty('tags');
   });
 
   it('marks boards and gives them no preview', async () => {

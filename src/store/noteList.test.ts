@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Note } from '../drive/notes';
 import {
-  allTags,
   countByCategory,
   filterNotes,
   loadSort,
@@ -151,20 +150,5 @@ describe('splitPinned', () => {
     const { pinned: top, others } = splitPinned(list);
     expect(titles(top)).toEqual(['Café list', 'Week 9 plan']);
     expect(titles(others)).toEqual(['Week 10 plan']);
-  });
-});
-
-describe('allTags', () => {
-  it('counts the notes using each tag, any case, most used first', () => {
-    const withTags = (title: string, tags: string) => ({
-      ...note(title, 'inbox', '2026-01-01', '2026-01-01'),
-      appProperties: { tags },
-    });
-    const list = [withTags('A', 'school work'), withTags('B', 'School'), withTags('C', '')];
-    expect(allTags(list, [['work', 'home', 'WORK']])).toEqual([
-      { tag: 'school', count: 2 },
-      { tag: 'work', count: 2 },
-      { tag: 'home', count: 1 },
-    ]);
   });
 });

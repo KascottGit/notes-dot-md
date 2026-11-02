@@ -14,26 +14,24 @@ import {
   PREVIEW_MAX_BYTES,
   readNote,
   saveNote,
-  tagsProperty,
   type Note,
   type PropertyChanges,
 } from '../drive/notes';
-import { documentTags, isBoard } from '../editor/board';
+import { isBoard } from '../editor/board';
 import { previewText } from '../editor/markdown';
 
 /**
  * App properties that follow from a note's text and differ from what the file
- * has: the board type, the preview line for the list (none for boards), and
- * the tags it uses.
+ * has: the board type and the preview line for the list (none for boards).
+ * A `tags` list from an earlier version is removed.
  */
 export function propertyChanges(note: Note, text: string): PropertyChanges {
   const board = isBoard(text);
   const preview = board ? '' : previewText(text, note.title, PREVIEW_MAX_BYTES);
-  const tags = tagsProperty(documentTags(text));
   const wanted: PropertyChanges = {
     type: board ? 'board' : null,
     preview: preview || null,
-    tags: tags || null,
+    tags: null,
   };
   const changes: PropertyChanges = {};
   for (const [key, value] of Object.entries(wanted)) {

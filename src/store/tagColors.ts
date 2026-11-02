@@ -6,6 +6,7 @@
  */
 import type { DriveClient } from '../drive/client';
 import { readSettings, writeSettings } from '../drive/notes';
+import { TAG_WORD } from '../editor/tags';
 
 export const TAG_COLORS = [
   'red',
@@ -103,4 +104,29 @@ export async function saveTagColor(
   const next = setTagColorIn(text, tag, color);
   await writeSettings(drive, rootId, id, next);
   return parseTagColors(next);
+}
+
+/** The saved tags (the ones with a color), A–Z. */
+export function savedTags(colors: TagColors): string[] {
+  return Object.keys(colors).sort((a, b) => a.localeCompare(b));
+}
+
+/** A color for a newly saved tag: the first one no saved tag has yet. */
+export function nextTagColor(colors: TagColors): TagColor {
+  const used = new Set(Object.values(colors));
+  return (
+    TAG_COLORS.find((c) => !used.has(c)) ??
+    TAG_COLORS[Object.keys(colors).length % TAG_COLORS.length]!
+  );
+}
+
+/** Check a tag typed into the Tags list (with or without `#`). */
+export function checkTagName(raw: string, colors: TagColors): { tag: string } | { error: string } {
+  const tag = raw.trim().replace(/^#/, '').toLowerCase();
+  if (!tag) return { error: 'Type a tag.' };
+  if (!TAG_WORD.test(`#${tag}`)) {
+    return { error: 'Use letters, digits, - _ and /, without spaces (not only digits).' };
+  }
+  if (tag in colors) return { error: `#${tag} is already saved.` };
+  return { tag };
 }

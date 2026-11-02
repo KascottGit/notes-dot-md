@@ -6,8 +6,8 @@ import { markdownSupport } from './language';
 import { tagSource } from './tagComplete';
 
 const tags = [
-  { tag: 'school', count: 3 },
-  { tag: 'work', count: 1 },
+  { tag: 'school', saved: true },
+  { tag: 'work', saved: false },
 ];
 
 /** Suggestions with the cursor at `|` in the text. */

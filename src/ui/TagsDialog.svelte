@@ -1,74 +1,88 @@
 <!--
-  The Tags list (SPEC "Tags"): every tag in use, how many notes use it, and
-  its color. Tapping a tag shows the color swatches; a pick applies at once.
+  The Tags list (SPEC "Tags"): the saved tags, each with its color. Saved
+  tags are suggested while typing everywhere. Tapping a tag shows the color
+  swatches; a pick applies at once. Add and remove are here too.
 -->
 <script lang="ts">
-  import type { TagSuggestion } from '../editor/tagComplete';
-  import { TAG_COLOR_LABELS, TAG_COLORS, type TagColor, type TagColors } from '../store/tagColors';
+  import {
+    savedTags,
+    TAG_COLOR_LABELS,
+    TAG_COLORS,
+    type TagColor,
+    type TagColors,
+  } from '../store/tagColors';
+  import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
 
   interface Props {
     open: boolean;
-    tags: TagSuggestion[];
     colors: TagColors;
-    onPick: (tag: string, color: TagColor | null) => void;
+    /** The tag whose swatches show, or null. */
+    expanded?: string | null;
+    onPick: (tag: string, color: TagColor) => void;
+    onAdd: () => void;
+    onRemove: (tag: string) => void;
     onClose: () => void;
+    /** Shown inside the dialog, e.g. the toast with Undo. */
+    children?: Snippet;
   }
 
-  let { open, tags, colors, onPick, onClose }: Props = $props();
+  let {
+    open,
+    colors,
+    expanded = $bindable(null),
+    onPick,
+    onAdd,
+    onRemove,
+    onClose,
+    children,
+  }: Props = $props();
 
   let dialog = $state<HTMLDialogElement>();
-  /** The tag whose swatches show (lower case), or null. */
-  let expanded = $state<string | null>(null);
+  const tags = $derived(savedTags(colors));
 
   $effect(() => {
     if (!dialog) return;
-    if (open && !dialog.open) {
-      expanded = null;
-      dialog.showModal();
-    }
+    if (open && !dialog.open) dialog.showModal();
     if (!open && dialog.open) dialog.close();
   });
-
-  const plural = (n: number) => `${n} ${n === 1 ? 'note' : 'notes'}`;
 </script>
 
 <dialog bind:this={dialog} onclose={onClose} aria-labelledby="tags-dialog-title">
   <div class="head">
     <h2 id="tags-dialog-title">Tags</h2>
+    <IconButton icon="plus" label="Add tag" onclick={onAdd} />
     <IconButton icon="close" label="Close" onclick={onClose} />
   </div>
   {#if tags.length === 0}
-    <p class="empty">No tags yet. Type # and a word in a note or on a card to add one.</p>
+    <p class="empty">
+      No saved tags yet. Add one to give it a color and have it suggested in every note and board.
+    </p>
   {:else}
     <ul>
-      {#each tags as t (t.tag.toLowerCase())}
-        {@const key = t.tag.toLowerCase()}
-        {@const color = colors[key] ?? null}
+      {#each tags as tag (tag)}
+        {@const color = colors[tag]}
         <li>
-          <button
-            class="row"
-            aria-expanded={expanded === key}
-            title={`#${t.tag}`}
-            onclick={() => (expanded = expanded === key ? null : key)}
-          >
-            <span class="name"><span class="tag" data-tag={key}>#{t.tag}</span></span>
-            <span class="count">{plural(t.count)}</span>
-            <Icon name="chevronDown" size={16} />
-          </button>
-          {#if expanded === key}
-            <div class="swatches" role="group" aria-label={`Color for #${t.tag}`}>
-              <button
-                class="swatch none"
-                class:current={color === null}
-                aria-pressed={color === null}
-                aria-label="No color"
-                title="No color"
-                onclick={() => onPick(t.tag, null)}
-              >
-                <span class="dot"></span>
-              </button>
+          <div class="line">
+            <button
+              class="row"
+              aria-expanded={expanded === tag}
+              title={`#${tag}: choose a color`}
+              onclick={() => (expanded = expanded === tag ? null : tag)}
+            >
+              <span class="name"><span class="tag" data-tag={tag}>#{tag}</span></span>
+              <Icon name="chevronDown" size={16} />
+            </button>
+            <IconButton
+              icon="trash"
+              label={`Remove #${tag}`}
+              title="Remove from saved tags"
+              onclick={() => onRemove(tag)}
+            />
+          </div>
+          {#if expanded === tag}
+            <div class="swatches" role="group" aria-label={`Color for #${tag}`}>
               {#each TAG_COLORS as c (c)}
                 <button
                   class="swatch"
@@ -76,7 +90,7 @@
                   aria-pressed={color === c}
                   aria-label={TAG_COLOR_LABELS[c]}
                   title={TAG_COLOR_LABELS[c]}
-                  onclick={() => onPick(t.tag, c)}
+                  onclick={() => onPick(tag, c)}
                 >
                   <span class="dot" style:background={`var(--tag-${c})`}></span>
                 </button>
@@ -87,6 +101,7 @@
       {/each}
     </ul>
   {/if}
+  {@render children?.()}
 </dialog>
 
 <style>
@@ -113,10 +128,10 @@
   .head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
   }
 
   h2 {
+    flex: 1;
     margin: 0;
     font-size: 1.125rem;
   }
@@ -134,11 +149,17 @@
     list-style: none;
   }
 
-  .row {
+  .line {
     display: flex;
     align-items: center;
+  }
+
+  .row {
+    display: flex;
+    flex: 1;
+    align-items: center;
     gap: 10px;
-    width: 100%;
+    min-width: 0;
     min-height: 44px;
     padding: 0 12px;
     border: 0;
@@ -178,12 +199,6 @@
     font-weight: 500;
   }
 
-  .count {
-    flex: none;
-    font-size: 0.8125rem;
-    font-variant-numeric: tabular-nums;
-  }
-
   .swatches {
     display: flex;
     flex-wrap: wrap;
@@ -213,11 +228,6 @@
 
   .swatch:hover .dot {
     transform: scale(1.1);
-  }
-
-  /* "No color": an empty ring. */
-  .none .dot {
-    border: 2px dashed var(--text-muted);
   }
 
   /* The current color: a ring around it. */

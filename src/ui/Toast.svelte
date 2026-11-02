@@ -11,6 +11,16 @@
 
   let { message, actionLabel, onAction, onClose, duration = 6000 }: Props = $props();
 
+  /**
+   * Shown in the browser's top layer where it can be, so it is also above an
+   * open dialog (e.g. Undo after removing a tag in the Tags list).
+   */
+  const topLayer = typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElement.prototype;
+  let el = $state<HTMLDivElement>();
+  $effect(() => {
+    if (topLayer && el && !el.matches(':popover-open')) el.showPopover();
+  });
+
   $effect(() => {
     void message; // Restart the timer when the message changes.
     const timer = setTimeout(onClose, duration);
@@ -18,7 +28,13 @@
   });
 </script>
 
-<div class="toast" role="status" aria-live="polite">
+<div
+  bind:this={el}
+  class="toast"
+  popover={topLayer ? 'manual' : undefined}
+  role="status"
+  aria-live="polite"
+>
   <span>{message}</span>
   {#if actionLabel && onAction}
     <button
@@ -33,8 +49,13 @@
 <style>
   .toast {
     position: fixed;
+    /* Undo the browser's popover defaults (centered, bordered). */
+    inset: auto;
     bottom: calc(16px + env(safe-area-inset-bottom));
     left: 50%;
+    margin: 0;
+    border: 0;
+    overflow: visible;
     z-index: 30;
     display: flex;
     align-items: center;

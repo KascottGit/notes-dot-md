@@ -32,7 +32,10 @@
   import { documentTags, isBoard, NEW_BOARD_TEXT } from '../editor/board';
   import type { TagSuggestion } from '../editor/tagComplete';
   import {
+    checkTagName,
     loadTagColors,
+    nextTagColor,
+    savedTags,
     saveTagColor,
     tagColorCss,
     type TagColor,
@@ -41,7 +44,6 @@
   import TagsDialog from './TagsDialog.svelte';
   import { createEditor, type Editor } from '../editor/setup';
   import {
-    allTags,
     loadSort,
     matchesText,
     saveSort,
@@ -279,22 +281,46 @@
     sheet.textContent = css;
   });
 
+  let addingTag = $state(false);
+  /** The tag whose color swatches show in the Tags list. */
+  let expandedTag = $state<string | null>(null);
+
   /**
-   * Every tag in use, with how many notes use it: the tags stored on each
-   * file, but for the open note (or board) its current text.
+   * Tags to suggest while typing: the saved tags, then the other tags in the
+   * open note or board (for a card, the whole board).
    */
-  function tagsInUse(): TagSuggestion[] {
-    const open = sessionState?.note.id;
-    const live = editor && sessionState ? [documentTags(editor.getText())] : [];
-    return allTags(
-      notes.filter((n) => n.id !== open),
-      live,
-    );
+  function tagSuggestions(): TagSuggestion[] {
+    const saved = savedTags(tagColors);
+    const local = editor && sessionState ? documentTags(editor.getText()) : [];
+    return [
+      ...saved.map((tag) => ({ tag, saved: true })),
+      ...local.filter((t) => !(t.toLowerCase() in tagColors)).map((tag) => ({ tag, saved: false })),
+    ];
   }
   // Board cards have their own small editors; they get the tags from here.
-  setContext('tags', tagsInUse);
+  setContext('tags', tagSuggestions);
 
-  /** Pick a tag's color (null: back to the accent color), everywhere at once. */
+  /** Save a new tag with the next free color, and show its swatches. */
+  async function addTag(raw: string): Promise<string | null> {
+    const checked = checkTagName(raw, tagColors);
+    if ('error' in checked) return checked.error;
+    expandedTag = checked.tag;
+    await pickTagColor(checked.tag, nextTagColor(tagColors));
+    return null;
+  }
+
+  /** Remove a saved tag (the text in notes stays), with Undo. */
+  async function removeTag(tag: string) {
+    const color = tagColors[tag];
+    if (!color) return;
+    await pickTagColor(tag, null);
+    toast = {
+      message: `#${tag} removed from saved tags`,
+      action: { label: 'Undo', run: () => void pickTagColor(tag, color) },
+    };
+  }
+
+  /** Set a saved tag's color, or remove the tag (null), everywhere at once. */
   async function pickTagColor(tag: string, color: TagColor | null) {
     if (!folders) return;
     const before = tagColors;
@@ -526,7 +552,7 @@
         onDocChange: syncBoard,
         onSave: () => void session?.save(),
         onBlur: () => void session?.save(),
-        tags: tagsInUse,
+        tags: tagSuggestions,
       });
     } else {
       editor?.load(text, !note.canEdit);
@@ -828,7 +854,10 @@
         icon="tag"
         label="Tags"
         title="Tags and their colors"
-        onclick={() => (tagsOpen = true)}
+        onclick={() => {
+          expandedTag = null;
+          tagsOpen = true;
+        }}
       />
       <IconButton
         icon="logout"
@@ -948,21 +977,38 @@
   </section>
 </div>
 
-{#if toast}
-  <Toast
-    message={toast.message}
-    actionLabel={toast.action?.label}
-    onAction={toast.action?.run}
-    onClose={() => (toast = null)}
-  />
-{/if}
+{#snippet toastView()}
+  {#if toast}
+    <Toast
+      message={toast.message}
+      actionLabel={toast.action?.label}
+      onAction={toast.action?.run}
+      onClose={() => (toast = null)}
+    />
+  {/if}
+{/snippet}
+<!-- An open dialog makes the rest of the page untouchable, so the toast goes inside it. -->
+{#if !tagsOpen}{@render toastView()}{/if}
 
 <TagsDialog
   open={tagsOpen}
-  tags={tagsOpen ? tagsInUse() : []}
   colors={tagColors}
+  bind:expanded={expandedTag}
   onPick={pickTagColor}
+  onAdd={() => (addingTag = true)}
+  onRemove={removeTag}
   onClose={() => (tagsOpen = false)}
+>
+  {#if tagsOpen}{@render toastView()}{/if}
+</TagsDialog>
+
+<NameDialog
+  open={addingTag}
+  title="New tag"
+  label="Tag"
+  confirmLabel="Add"
+  onSubmit={addTag}
+  onClose={() => (addingTag = false)}
 />
 
 <NameDialog

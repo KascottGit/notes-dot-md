@@ -1,6 +1,7 @@
 /**
- * Tag autocomplete (SPEC "Tags"): typing `#` and a letter suggests tags used
- * anywhere, most used first, each with its color. Not inside code.
+ * Tag autocomplete (SPEC "Tags"): typing `#` and a letter suggests the saved
+ * tags (the ones given a color in the Tags list) and the tags already in this
+ * document, saved ones first, each with its color. Not inside code.
  */
 import {
   autocompletion,
@@ -17,8 +18,8 @@ import { NO_TAGS } from './livePreview';
 
 export interface TagSuggestion {
   tag: string;
-  /** How many notes use it; more is suggested first. */
-  count: number;
+  /** A saved tag (from the Tags list); these are suggested first. */
+  saved: boolean;
 }
 
 /** `#` and what's typed of the tag so far, at the start of a line or after a space. */
@@ -36,7 +37,7 @@ function applyTag(view: EditorView, completion: Completion, from: number, to: nu
   });
 }
 
-/** The completion source. `tags` gives every tag in use (read on each `#`). */
+/** The completion source. `tags` gives the tags to suggest (read on each `#`). */
 export function tagSource(tags: () => readonly TagSuggestion[]) {
   return (context: CompletionContext): CompletionResult | null => {
     const line = context.state.doc.lineAt(context.pos);
@@ -59,8 +60,7 @@ export function tagSource(tags: () => readonly TagSuggestion[]) {
       .filter((t) => t.tag.toLowerCase() !== lower)
       .map((t): Completion => ({
         label: `#${t.tag}`,
-        detail: String(t.count),
-        boost: Math.min(99, t.count),
+        boost: t.saved ? 1 : 0,
         apply: applyTag,
       }));
     return options.length ? { from, options, validFor: /^#[\p{L}\p{N}_/-]*$/u } : null;
