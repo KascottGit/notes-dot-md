@@ -619,9 +619,14 @@ export async function untrashNote(drive: DriveClient, note: Note): Promise<Note>
 
 /** Move a note to the Drive trash. Never hard-deletes. */
 export async function trashNote(drive: DriveClient, id: string): Promise<void> {
+  await setTrashed(drive, id, true);
+}
+
+/** Move any file (e.g. a card image) to the Drive trash, or take it back out. */
+export async function setTrashed(drive: DriveClient, id: string, trashed: boolean): Promise<void> {
   await drive.request(`${FILES}/${id}?fields=id`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ trashed: true }),
+    body: JSON.stringify({ trashed }),
   });
 }

@@ -33,7 +33,7 @@
   } from '../editor/board';
   import type { Editor } from '../editor/setup';
   import { drive } from '../drive/client';
-  import { uploadImage } from '../drive/notes';
+  import { setTrashed, uploadImage } from '../drive/notes';
   import AttachmentsDialog from './AttachmentsDialog.svelte';
   import BoardCard from './BoardCard.svelte';
   import CardBody from './CardBody.svelte';
@@ -43,6 +43,7 @@
   import IconButton from './IconButton.svelte';
   import InlineName from './InlineName.svelte';
   import { imageExtension, prepareImage, rememberImage } from './images';
+  import Toast from './Toast.svelte';
 
   interface Props {
     text: string;
@@ -145,6 +146,45 @@
       }
     }
     onSave();
+  }
+
+  /** Feedback inside the image board (a toast outside it can't be tapped while it's open). */
+  let imageToast = $state<{ message: string; undo?: () => void } | null>(null);
+
+  /** Remove an image from the card and move its file to the Drive trash, with Undo. */
+  async function removeImage(index: number) {
+    const ref = imagesFor;
+    const card = ref ? cardAt(ref) : undefined;
+    const removed = card?.attachments[index];
+    if (!ref || !card || !removed) return;
+    onEdit(setAttachments(text, ref, card.attachments.toSpliced(index, 1)));
+    onSave();
+    try {
+      await setTrashed(drive, removed.id, true);
+      imageToast = {
+        message: 'Image moved to trash',
+        undo: () => void restoreImage(ref, index, removed),
+      };
+    } catch (err) {
+      imageToast = {
+        message: `Removed from the card, but couldn't move the file to the Drive trash: ${errorText(err)}`,
+      };
+    }
+  }
+
+  /** Undo: take the file back out of the trash and put it back in its place. */
+  async function restoreImage(ref: CardRef, index: number, image: Attachment) {
+    try {
+      await setTrashed(drive, image.id, false);
+      const card = cardAt(ref);
+      if (!card) return;
+      onEdit(setAttachments(text, ref, card.attachments.toSpliced(index, 0, image)));
+      onSave();
+    } catch (err) {
+      imageToast = {
+        message: `Couldn't restore the image. It is in the Google Drive trash. (${errorText(err)})`,
+      };
+    }
   }
 
   function reorderImages(next: Attachment[]) {
@@ -731,8 +771,21 @@
   {readOnly}
   onFiles={(files) => void addImages(files)}
   onReorder={reorderImages}
-  onClose={() => (imagesFor = null)}
-/>
+  onRemove={(index) => void removeImage(index)}
+  onClose={() => {
+    imagesFor = null;
+    imageToast = null;
+  }}
+>
+  {#if imageToast}
+    <Toast
+      message={imageToast.message}
+      actionLabel={imageToast.undo ? 'Undo' : undefined}
+      onAction={imageToast.undo}
+      onClose={() => (imageToast = null)}
+    />
+  {/if}
+</AttachmentsDialog>
 
 <style>
   .board {
