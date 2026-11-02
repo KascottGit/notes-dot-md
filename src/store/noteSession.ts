@@ -7,7 +7,33 @@
  */
 import { AuthRequiredError } from '../auth/google';
 import { DriveError, type DriveClient } from '../drive/client';
-import { createNote, getNote, getNoteVersion, readNote, saveNote, type Note } from '../drive/notes';
+import {
+  createNote,
+  getNote,
+  getNoteVersion,
+  PREVIEW_MAX_BYTES,
+  readNote,
+  saveNote,
+  type Note,
+  type PropertyChanges,
+} from '../drive/notes';
+import { isBoard } from '../editor/board';
+import { previewText } from '../editor/markdown';
+
+/**
+ * App properties that follow from a note's text and differ from what the file
+ * has: the board type, and the preview line for the list (none for boards).
+ */
+export function propertyChanges(note: Note, text: string): PropertyChanges {
+  const board = isBoard(text);
+  const preview = board ? '' : previewText(text, note.title, PREVIEW_MAX_BYTES);
+  const wanted: PropertyChanges = { type: board ? 'board' : null, preview: preview || null };
+  const changes: PropertyChanges = {};
+  for (const [key, value] of Object.entries(wanted)) {
+    if ((note.appProperties[key] ?? null) !== value) changes[key] = value;
+  }
+  return changes;
+}
 
 export const AUTOSAVE_DELAY_MS = 2000;
 export const RETRY_DELAYS_MS = [2000, 5000, 15000];
@@ -231,7 +257,8 @@ export class NoteSession {
   /** Upload `text` without a version check. */
   private async write(text: string): Promise<void> {
     this.setStatus('saving');
-    const saved = await saveNote(this.drive, this.note.id, text);
+    // The board type and list preview go along in the same request.
+    const saved = await saveNote(this.drive, this.note.id, text, propertyChanges(this.note, text));
     this.note = { ...saved, folderId: this.note.folderId };
     this.base = text;
     this.retryAttempt = 0;

@@ -10,6 +10,7 @@ import {
   linkReferences,
   parseInline,
   parseTable,
+  previewText,
   type Inline,
 } from './markdown';
 
@@ -178,5 +179,57 @@ describe('imageMarkdown', () => {
     const state = stateOf(doc);
     const parts = linkParts(state, find(state, 'Image'), linkReferences(state))!;
     expect(parts.href).toBe('https://x.y/a%20b%281%29.png');
+  });
+});
+
+describe('previewText', () => {
+  it('leaves out markdown markers and joins lines', () => {
+    const md = [
+      '# Plan',
+      '',
+      'Some **bold**, *italic*, ~~gone~~ and `code`.',
+      '- [ ] a task',
+      '1. first',
+      '> a quote with a [link](https://x.y) and ![pic](https://x.y/p.png)',
+    ].join('\n');
+    expect(previewText(md)).toBe(
+      'Plan Some bold, italic, gone and code. a task first a quote with a link and',
+    );
+  });
+
+  it('skips a first heading that repeats the title', () => {
+    expect(previewText('# Shopping\n\n- milk\n- eggs', 'Shopping')).toBe('milk eggs');
+    expect(previewText('# Other\n\nText', 'Shopping')).toBe('Other Text');
+  });
+
+  it('drops fences, comments, rules, table delimiters and reference definitions', () => {
+    const md = [
+      '<!-- notes.md:board -->',
+      '```ts',
+      'const a = 1;',
+      '```',
+      '---',
+      '| A | B |',
+      '| --- | :-: |',
+      '| 1 | 2 |',
+      '[ref]: https://x.y',
+    ].join('\n');
+    expect(previewText(md)).toBe('const a = 1; A B 1 2');
+  });
+
+  it('keeps underscores and asterisks inside words', () => {
+    expect(previewText('snake_case and 2*3*4')).toBe('snake_case and 2*3*4');
+  });
+
+  it('fits in the byte limit without splitting a character', () => {
+    const text = previewText('å'.repeat(100), '', 117);
+    expect(new TextEncoder().encode(text).length).toBeLessThanOrEqual(117);
+    expect(text).toBe('å'.repeat(58));
+    expect(previewText('word '.repeat(50), '', 20)).toBe('word word word word');
+  });
+
+  it('is empty for an empty note', () => {
+    expect(previewText('')).toBe('');
+    expect(previewText('\n\n# \n- [ ]\n')).toBe('');
   });
 });

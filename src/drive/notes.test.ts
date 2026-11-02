@@ -14,11 +14,12 @@ import {
   listNotes,
   listNotesIn,
   moveNote,
+  notePreview,
   readNote,
   renameNote,
   renameFolder,
   saveNote,
-  setNoteType,
+  setNoteProperties,
   setPinned,
   trashFolder,
   trashNote,
@@ -180,6 +181,19 @@ describe('notes', () => {
 
     expect(await readNote(drive, note.id)).toBe('two');
     expect(Number(saved.version)).toBeGreaterThan(Number(note.version));
+  });
+
+  it('saves app properties in the same request as the content', async () => {
+    const { drive, defaultId, files, calls } = await withFolders();
+    const note = await createNote(drive, defaultId, 'A', 'one', { pinned: 'true' });
+    const before = calls.length;
+
+    const saved = await saveNote(drive, note.id, 'two', { preview: 'two', pinned: null });
+
+    expect(calls.length - before).toBe(1);
+    expect(await readNote(drive, note.id)).toBe('two');
+    expect(notePreview(saved)).toBe('two');
+    expect(files.get(note.id)!.appProperties).toEqual({ ...APP_PROPERTIES, preview: 'two' });
   });
 
   it('lists only markdown notes in a folder', async () => {
@@ -361,10 +375,10 @@ describe('note type', () => {
 
     const note = await createNote(drive, defaultId, 'Plan');
     expect(isBoardNote(note)).toBe(false);
-    const marked = await setNoteType(drive, note, true);
+    const marked = await setNoteProperties(drive, note, { type: 'board' });
     expect(isBoardNote(marked)).toBe(true);
     expect(marked.modifiedTime).toBe(note.modifiedTime);
-    const back = await setNoteType(drive, note, false);
+    const back = await setNoteProperties(drive, note, { type: null });
     expect(isBoardNote(back)).toBe(false);
     expect(files.get(note.id)!.appProperties).toEqual(APP_PROPERTIES);
   });

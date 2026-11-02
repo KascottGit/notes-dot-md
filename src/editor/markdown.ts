@@ -248,3 +248,74 @@ export function parseTable(
     rows: node.getChildren('TableRow').map((row) => fit(rowCells(state, row, refs))),
   };
 }
+
+/**
+ * The first words of a note as plain text, for the note list: markdown
+ * markers left out, lines joined with spaces, cut to fit `maxBytes` of UTF-8
+ * (Drive app properties are small). A first heading that repeats the title
+ * is skipped. Rough on purpose: it only has to read well in one line.
+ */
+export function previewText(markdown: string, title = '', maxBytes = 117): string {
+  const words: string[] = [];
+  let first = true;
+  let bytes = 0;
+  for (const raw of markdown.split('\n')) {
+    const line = previewLine(raw);
+    if (!line) continue;
+    const isHeading = /^\s{0,3}#{1,6}\s/.test(raw);
+    if (first && isHeading && line.toLowerCase() === title.trim().toLowerCase()) {
+      first = false;
+      continue;
+    }
+    first = false;
+    words.push(line);
+    bytes += new TextEncoder().encode(line).length + 1;
+    if (bytes > maxBytes) break;
+  }
+  return cutToBytes(words.join(' ').replace(/\s+/g, ' ').trim(), maxBytes);
+}
+
+/** One line without its markdown markers; '' for lines with nothing to read. */
+function previewLine(line: string): string {
+  const t = line.trim();
+  if (
+    !t ||
+    /^(`{3,}|~{3,})/.test(t) || // code fences
+    /^<!--.*-->$/.test(t) || // comments, such as the board marker
+    /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?$/.test(t) || // table delimiter rows
+    /^([-*_])(\s*\1){2,}$/.test(t) || // horizontal rules
+    /^\[[^\]]+\]:\s/.test(t) // reference definitions
+  ) {
+    return '';
+  }
+  return t
+    .replace(/^(>\s?)+/, '') // quotes
+    .replace(/^#{1,6}(\s+|$)/, '') // headings
+    .replace(/^([-*+]|\d+[.)])(\s+|$)(\[[ xX]\](\s+|$))?/, '') // list items and checkboxes
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '') // images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links
+    .replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1') // reference links
+    .replace(/<(https?:[^>]+)>/g, '$1') // autolinks
+    .replace(/<\/?[a-z][^>]*>/gi, '') // HTML tags
+    .replace(/(\*\*|__|~~|`)/g, '') // bold, strikethrough, code
+    .replace(/(^|\W)\*(\S)/g, '$1$2') // italic (opening)
+    .replace(/(\S)\*(\W|$)/g, '$1$2') // italic (closing)
+    .replace(/\s*\|\s*/g, ' ') // table cells
+    .replace(/\\([\\`*_{}[\]()#+\-.!|~<>])/g, '$1') // escapes
+    .trim();
+}
+
+/** Cut text to at most `maxBytes` of UTF-8, at a character (not byte) boundary. */
+function cutToBytes(text: string, maxBytes: number): string {
+  const encoder = new TextEncoder();
+  if (encoder.encode(text).length <= maxBytes) return text;
+  let out = '';
+  let bytes = 0;
+  for (const char of text) {
+    const size = encoder.encode(char).length;
+    if (bytes + size > maxBytes) break;
+    out += char;
+    bytes += size;
+  }
+  return out.trimEnd();
+}

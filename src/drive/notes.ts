@@ -335,6 +335,15 @@ export async function createNote(
     parents: [folderId],
     appProperties: { ...APP_PROPERTIES, ...properties },
   };
+  const file = await drive.json<DriveFile>(
+    `${UPLOAD}?uploadType=multipart&fields=${NOTE_FIELDS}`,
+    multipart('POST', metadata, content),
+  );
+  return toNote(file, folderId);
+}
+
+/** A multipart upload: metadata and content in one request. */
+function multipart(method: string, metadata: object, content: string): RequestInit {
   const boundary = `mdnotes-${crypto.randomUUID()}`;
   const body = [
     `--${boundary}`,
@@ -348,27 +357,39 @@ export async function createNote(
     `--${boundary}--`,
     '',
   ].join('\r\n');
-
-  const file = await drive.json<DriveFile>(`${UPLOAD}?uploadType=multipart&fields=${NOTE_FIELDS}`, {
-    method: 'POST',
+  return {
+    method,
     headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
     body,
-  });
-  return toNote(file, folderId);
+  };
 }
 
+/** App properties to change: a value sets it, null removes it. */
+export type PropertyChanges = Record<string, string | null>;
+
 /**
- * Replace a note's content. Returns the new metadata (with the new version).
+ * Replace a note's content, and change app properties in the same request
+ * when given. Returns the new metadata (with the new version).
  * The conflict check before saving lives in the save logic (M3).
  */
-export async function saveNote(drive: DriveClient, id: string, content: string): Promise<Note> {
+export async function saveNote(
+  drive: DriveClient,
+  id: string,
+  content: string,
+  properties: PropertyChanges = {},
+): Promise<Note> {
+  const withProperties = Object.keys(properties).length > 0;
+  const init: RequestInit = withProperties
+    ? multipart('PATCH', { appProperties: properties }, content)
+    : {
+        method: 'PATCH',
+        headers: { 'Content-Type': `${NOTE_MIME}; charset=UTF-8` },
+        body: content,
+      };
+  const type = withProperties ? 'multipart' : 'media';
   const file = await drive.json<DriveFile>(
-    `${UPLOAD}/${id}?uploadType=media&fields=${NOTE_FIELDS}`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': `${NOTE_MIME}; charset=UTF-8` },
-      body: content,
-    },
+    `${UPLOAD}/${id}?uploadType=${type}&fields=${NOTE_FIELDS}`,
+    init,
   );
   return toNote(file);
 }
@@ -430,18 +451,28 @@ export function isBoardNote(note: Note): boolean {
   return note.appProperties['type'] === 'board';
 }
 
+/** Drive allows 124 bytes per app property, key and value together. */
+export const PREVIEW_MAX_BYTES = 124 - 'preview'.length;
+
+/** The first words of the note, stored on the file when the app saves it. '' if none. */
+export function notePreview(note: Note): string {
+  return note.appProperties['preview'] ?? '';
+}
+
 /**
- * Mark a note as a board or a plain note (`appProperties.type`). The app does
- * this by itself, so the note keeps its modified time (and place in the list).
+ * Correct app properties the app keeps in step with the text (board type,
+ * preview). The app does this by itself, so the note keeps its modified time
+ * (and place in the list).
  */
-export async function setNoteType(drive: DriveClient, note: Note, board: boolean): Promise<Note> {
+export async function setNoteProperties(
+  drive: DriveClient,
+  note: Note,
+  properties: PropertyChanges,
+): Promise<Note> {
   const file = await drive.json<DriveFile>(`${FILES}/${note.id}?fields=${NOTE_FIELDS}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      appProperties: { type: board ? 'board' : null },
-      modifiedTime: note.modifiedTime,
-    }),
+    body: JSON.stringify({ appProperties: properties, modifiedTime: note.modifiedTime }),
   });
   return toNote(file, note.folderId);
 }

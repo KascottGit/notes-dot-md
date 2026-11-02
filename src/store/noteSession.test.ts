@@ -314,3 +314,37 @@ describe('metadata updates from rename or move', () => {
     expect(session.state.conflict).toBe(false);
   });
 });
+
+describe('app properties on save', () => {
+  it('stores the preview line with the text, in one request', async () => {
+    const { session, edit, files, note, calls } = await setup('');
+    edit('# Note\n\nBuy **milk** and eggs');
+    const before = calls.length;
+    await session.save();
+    // The version check, then the upload with the properties.
+    expect(calls.length - before).toBe(2);
+    expect(files.get(note.id)!.appProperties?.['preview']).toBe('Buy milk and eggs');
+  });
+
+  it('sends no properties when they are unchanged', async () => {
+    const { session, edit, calls } = await setup('');
+    const start = 'A long first line. '.repeat(10);
+    edit(start);
+    await session.save();
+    // Past the preview's length: the preview stays the same.
+    edit(start + '\n\nmore further down');
+    await session.save();
+    const uploads = calls.filter((c) => c.url.pathname.startsWith('/upload/'));
+    expect(uploads.at(-1)!.url.searchParams.get('uploadType')).toBe('media');
+  });
+
+  it('marks boards and gives them no preview', async () => {
+    const { session, edit, files, note } = await setup('');
+    edit('Plain text');
+    await session.save();
+    edit('<!-- notes.md:board -->\n\n# Todo\n');
+    await session.save();
+    expect(files.get(note.id)!.appProperties).toMatchObject({ type: 'board' });
+    expect(files.get(note.id)!.appProperties).not.toHaveProperty('preview');
+  });
+});

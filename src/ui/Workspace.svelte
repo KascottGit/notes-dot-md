@@ -17,7 +17,7 @@
     readNote,
     renameFolder,
     renameNote,
-    setNoteType,
+    setNoteProperties,
     setPinned,
     isBoardNote,
     isPinned,
@@ -31,7 +31,12 @@
   import { isBoard, NEW_BOARD_TEXT } from '../editor/board';
   import { createEditor, type Editor } from '../editor/setup';
   import { loadSort, saveSort, sortCategories, type SortOrder } from '../store/noteList';
-  import { NoteSession, type ConflictChoice, type SessionState } from '../store/noteSession';
+  import {
+    NoteSession,
+    propertyChanges,
+    type ConflictChoice,
+    type SessionState,
+  } from '../store/noteSession';
   import { clearStash, readStash, saveStash, type Stash } from '../store/stash';
   import { safeLocalStorage } from '../store/storage';
   import type { Account } from '../drive/account';
@@ -298,7 +303,7 @@
     boardAsText = false;
     boardFile = isBoard(text);
     boardText = text;
-    void syncNoteType(note, boardFile);
+    void syncNoteProperties(note, text);
     const port = {
       getText: () => editor?.getText() ?? text,
       setText: (t: string) => editor?.setText(t),
@@ -320,25 +325,23 @@
     syncBoard();
   }
 
-  /** The note (open as board or text) whose type is being written to Drive. */
-  let typeSyncing: string | null = null;
-
-  /** Keep the board mark on the file (an icon in the list) in step with the text. */
-  async function syncNoteType(note: Note, board: boolean) {
-    if (!note.canEdit || isBoardNote(note) === board || typeSyncing === note.id) return;
-    typeSyncing = note.id;
+  /**
+   * On open: correct the board mark and preview on the file (the list's icon
+   * and preview line), e.g. after another tool changed the note. Saves keep
+   * them in step after that.
+   */
+  async function syncNoteProperties(note: Note, text: string) {
+    const changes = propertyChanges(note, text);
+    if (!note.canEdit || Object.keys(changes).length === 0) return;
     try {
-      replaceNote(await setNoteType(drive, note, board));
+      replaceNote(await setNoteProperties(drive, note, changes));
     } catch {
-      // Only the list icon depends on it; the next open or save tries again.
-    } finally {
-      typeSyncing = null;
+      // Only the list depends on them; the next open or save tries again.
     }
   }
 
   function onSessionState(state: SessionState) {
     sessionState = state;
-    if (state.status === 'saved') void syncNoteType(state.note, boardFile);
     if (state.status === 'saved' && !redirecting) clearStash();
     // Keep the list in step with saves (modified time, name).
     notes = notes.map((n) => (n.id === state.note.id ? state.note : n));

@@ -128,15 +128,7 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
         };
         if (patch.name !== undefined) f.name = patch.name;
         if (patch.trashed !== undefined) f.trashed = patch.trashed;
-        if (patch.appProperties) {
-          // Drive merges appProperties; null deletes a key.
-          const merged: Record<string, string> = { ...f.appProperties };
-          for (const [key, value] of Object.entries(patch.appProperties)) {
-            if (value === null) delete merged[key];
-            else merged[key] = value;
-          }
-          f.appProperties = merged;
-        }
+        if (patch.appProperties) mergeProperties(f, patch.appProperties);
         const add = url.searchParams.get('addParents');
         const remove = url.searchParams.get('removeParents');
         if (remove) f.parents = f.parents.filter((p) => p !== remove);
@@ -158,17 +150,24 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
       if (url.searchParams.get('uploadType') !== 'multipart' || !boundary) {
         return json(400, { error: { message: 'Expected a multipart upload' } });
       }
-      const parts = body.split(`--${boundary}`).slice(1, -1);
-      const partBody = (p: string) => p.slice(p.indexOf('\r\n\r\n') + 4, -2);
-      const metadata = JSON.parse(partBody(parts[0]!)) as Partial<FakeFile>;
-      return json(200, meta(add({ ...metadata, content: partBody(parts[1]!) })));
+      const { metadata, content } = splitMultipart(body, boundary);
+      return json(200, meta(add({ ...(metadata as Partial<FakeFile>), content })));
     }
 
     m = path.match(/^\/upload\/drive\/v3\/files\/([^/]+)$/);
     if (m && method === 'PATCH') {
       const f = files.get(m[1]!);
       if (!f) return json(404, { error: { message: 'File not found' } });
-      f.content = body;
+      if (url.searchParams.get('uploadType') === 'multipart') {
+        const type = new Headers(init?.headers).get('Content-Type') ?? '';
+        const boundary = type.match(/boundary=(.+)$/)?.[1] ?? '';
+        const { metadata, content } = splitMultipart(body, boundary);
+        const props = (metadata as { appProperties?: Record<string, string | null> }).appProperties;
+        if (props) mergeProperties(f, props);
+        f.content = content;
+      } else {
+        f.content = body;
+      }
       touch(f);
       return json(200, meta(f));
     }
@@ -188,6 +187,22 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
       offline = value;
     },
   };
+}
+
+/** Drive merges appProperties; null deletes a key. */
+function mergeProperties(f: FakeFile, changes: Record<string, string | null>) {
+  const merged: Record<string, string> = { ...f.appProperties };
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === null) delete merged[key];
+    else merged[key] = value;
+  }
+  f.appProperties = merged;
+}
+
+function splitMultipart(body: string, boundary: string): { metadata: unknown; content: string } {
+  const parts = body.split(`--${boundary}`).slice(1, -1);
+  const partBody = (p: string) => p.slice(p.indexOf('\r\n\r\n') + 4, -2);
+  return { metadata: JSON.parse(partBody(parts[0]!)), content: partBody(parts[1]!) };
 }
 
 function unquote(s: string): string {

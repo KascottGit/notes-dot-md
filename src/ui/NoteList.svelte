@@ -1,6 +1,6 @@
 <!-- The note list: search, category filter, sort, and the notes themselves. -->
 <script lang="ts">
-  import { isBoardNote, isPinned, type Category, type Note } from '../drive/notes';
+  import { isBoardNote, isPinned, notePreview, type Category, type Note } from '../drive/notes';
   import {
     countByCategory,
     filterNotes,
@@ -111,6 +111,9 @@
           {/if}
           {note.title}
         </span>
+        {#if notePreview(note) && !isBoardNote(note)}
+          <span class="preview">{notePreview(note)}</span>
+        {/if}
         <!-- Board or note: the same icons as the header's switch between board and text. -->
         {#snippet kind()}
           <span
@@ -484,6 +487,14 @@
   .title {
     overflow: hidden;
     font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .preview {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 0.875rem;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
