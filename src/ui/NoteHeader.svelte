@@ -28,6 +28,10 @@
     onToggleBoard?: () => void;
     /** Full width, lined up with a board instead of the note text column. */
     wide?: boolean;
+    /** Wider screens: the note list is shown (false: hidden). */
+    sidebarOpen?: boolean;
+    /** Wider screens: show or hide the note list. */
+    onToggleSidebar?: () => void;
     /** The note's text is still loading (or failed to): show it, but nothing can be changed yet. */
     opening?: 'loading' | 'failed' | null;
   }
@@ -46,6 +50,8 @@
     boardView = null,
     onToggleBoard,
     wide = false,
+    sidebarOpen = true,
+    onToggleSidebar,
     opening = null,
   }: Props = $props();
 
@@ -84,6 +90,15 @@
 <div class="header" class:joined={!sessionState.readOnly} class:wide>
   <div class="inner">
     <span class="back"><IconButton icon="back" label="Back to notes" onclick={onBack} /></span>
+    {#if onToggleSidebar}
+      <span class="sidebar">
+        <IconButton
+          icon="sidebar"
+          label={sidebarOpen ? 'Hide note list' : 'Show note list'}
+          onclick={onToggleSidebar}
+        />
+      </span>
+    {/if}
     <div class="title">
       <InlineName
         bind:this={title}
@@ -186,6 +201,12 @@
     margin-left: -10px;
   }
 
+  /* Wider screens only (phones show one pane at a time and use Back). */
+  .sidebar {
+    display: inline-flex;
+    margin-left: -12px;
+  }
+
   @media (max-width: 899px) {
     .inner {
       padding-left: 16px;
@@ -193,6 +214,10 @@
 
     .back {
       display: inline-flex;
+    }
+
+    .sidebar {
+      display: none;
     }
   }
 

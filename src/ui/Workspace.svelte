@@ -132,6 +132,22 @@
   const boardMode = $derived(boardFile && !boardAsText);
   /** The board's text, kept in step with the (hidden) editor, which stays the source of truth. */
   let boardText = $state('');
+  /** Wider screens: the note list was hidden (remembered on this device). */
+  const SIDEBAR_KEY = 'mdnotes.sidebarHidden';
+  let sidebarHidden = $state(safeLocalStorage()?.getItem(SIDEBAR_KEY) === '1');
+  /** Hidden only while a note is open; with nothing open the list is all there is. */
+  const sidebarCollapsed = $derived(sidebarHidden && headerState !== null);
+
+  function toggleSidebar() {
+    sidebarHidden = !sidebarHidden;
+    try {
+      if (sidebarHidden) safeLocalStorage()?.setItem(SIDEBAR_KEY, '1');
+      else safeLocalStorage()?.removeItem(SIDEBAR_KEY);
+    } catch {
+      // Only a preference.
+    }
+  }
+
   /** Which pane shows on narrow screens. */
   let view = $state<'list' | 'editor'>('list');
   /** Slide between list and note on phones, but not on the first screen. */
@@ -841,7 +857,7 @@
   }
 </script>
 
-<div class="workspace" data-view={view} class:animate>
+<div class="workspace" data-view={view} class:animate class:collapsed={sidebarCollapsed}>
   <aside>
     <div class="brand">
       <span class="app">notes.md</span>
@@ -901,6 +917,8 @@
         opening={opening ? (openError ? 'failed' : 'loading') : null}
         {categories}
         onBack={() => (view = 'list')}
+        sidebarOpen={!sidebarCollapsed}
+        onToggleSidebar={toggleSidebar}
         onRetry={() => void session?.retry()}
         onRename={renameOpenNote}
         onMove={moveOpenNote}
@@ -1038,6 +1056,33 @@
     flex-direction: column;
     min-height: 0;
     border-right: 1px solid var(--border);
+  }
+
+  /* Wider screens: the note list can be hidden; it slides closed and open. */
+  @media (min-width: 900px) {
+    .workspace {
+      transition: grid-template-columns 200ms ease;
+    }
+
+    .workspace.collapsed {
+      grid-template-columns: 0px minmax(0, 1fr);
+    }
+
+    aside {
+      overflow: hidden;
+    }
+
+    /* Keep the list's width while it slides, so nothing inside reflows. */
+    aside > * {
+      min-width: clamp(300px, 36vw, 520px);
+    }
+
+    /* Hidden after the slide: not clickable and out of the Tab order. */
+    .collapsed aside {
+      border-right-color: transparent;
+      visibility: hidden;
+      transition: visibility 0s 200ms;
+    }
   }
 
   aside > :global(.list) {

@@ -192,7 +192,7 @@ Placement: under the note title on every screen size, horizontally scrollable on
 
 Categories are Drive folders, so the structure the app shows is the same one the user sees in Drive.
 
-- **Note list:** a sidebar on screens ≥ 900px wide (36% of the width, 300–520px), its own screen with back navigation on mobile. On desktop the notes are cards in a grid: two columns when the sidebar has room (cards at least 190px), else one. On phones it is a single list.
+- **Note list:** a sidebar on screens ≥ 900px wide (36% of the width, 300–520px), its own screen with back navigation on mobile. On desktop the notes are cards in a grid: two columns when the sidebar has room (cards at least 190px), else one. On phones it is a single list. On wider screens the sidebar can be hidden while a note is open (added 2026-11-02): a sidebar icon button at the left of the note header slides it closed or open (200ms), so the note gets the whole width. The choice is remembered on the device (`localStorage`). With no note open, the list always shows. Phones don't show the button (they show one pane at a time).
 - **Default category:** `General` (renamed from `Inbox` on 2026-10-30, which felt like a mail tool). It comes first and cannot be renamed or deleted. On start, a `Notes/Inbox/` folder is renamed to `General` when no `General` exists: same folder id, same notes.
 - **Category filter:** "All notes" plus one chip per category folder, with the note count. On phones the chips are one row that scrolls sideways; on desktop they wrap.
 - **Account:** no app header bar (dropped in M8 to give the note more room). The top of the note list shows the app name, the signed-in email (when there is room) and a sign-out icon button.
