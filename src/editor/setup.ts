@@ -40,7 +40,7 @@ import {
   shorthandInput,
 } from './lists';
 import { livePreview } from './livePreview';
-import { pasteImages } from './paste';
+import { dropSpot, imageFiles, imageSpots, insertAtSpot, markSpot, pasteImages } from './paste';
 import { tagCompletion, type TagSuggestion } from './tagComplete';
 
 /** Marks changes made by the app (e.g. loading a newer version), not by typing. */
@@ -63,6 +63,8 @@ export interface EditorOptions {
   extensions?: Extension[];
   /** Every tag in use, for tag autocomplete; none without it. */
   tags?: () => readonly TagSuggestion[];
+  /** Pasted or dropped image files, and the spot their image lines go (see paste.ts). */
+  onImages?: (files: File[], spot: number) => void;
 }
 
 export interface Editor {
@@ -77,6 +79,12 @@ export interface Editor {
   load(doc: string, readOnly: boolean): void;
   /** Run a format command on the current selection, keeping focus in the editor. */
   run(command: StateCommand): void;
+  /** A spot at the cursor where image lines go once uploaded (moves with edits). */
+  markSpot(): number;
+  /** Put an image line at a spot; false if the spot is gone (another note was opened). */
+  insertAtSpot(spot: number, line: string): boolean;
+  /** Forget a spot. */
+  dropSpot(spot: number): void;
   focus(): void;
   destroy(): void;
 }
@@ -271,6 +279,8 @@ export function createEditor(options: EditorOptions): Editor {
         options.variant === 'card' ? cardTheme : [],
         options.extensions ?? [],
         options.tags ? tagCompletion(options.tags) : [],
+        imageSpots,
+        options.onImages ? imageFiles(options.onImages) : [],
       ],
     });
 
@@ -294,6 +304,15 @@ export function createEditor(options: EditorOptions): Editor {
     firstLine: () => view.state.doc.line(1).text,
     load(doc, readOnly) {
       view.setState(makeState(doc, readOnly));
+    },
+    markSpot() {
+      return markSpot(view, view.state.selection.main.head);
+    },
+    insertAtSpot(spot, line) {
+      return insertAtSpot(view, spot, line);
+    },
+    dropSpot(spot) {
+      dropSpot(view, spot);
     },
     run(command) {
       command(view);

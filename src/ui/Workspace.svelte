@@ -43,6 +43,11 @@
     type TagColors,
   } from '../store/tagColors';
   import TagsDialog from './TagsDialog.svelte';
+  import { driveImageLine, imageUrl, uploadImageFile } from './images';
+  import { setDriveImageLoader } from '../editor/widgets';
+
+  // Drive images in notes are loaded through the API (they aren't public).
+  setDriveImageLoader(imageUrl);
   import { createEditor, type Editor } from '../editor/setup';
   import {
     loadSort,
@@ -320,6 +325,41 @@
       imagesFolderId.catch(() => (imagesFolderId = null));
     }
     return imagesFolderId;
+  }
+
+  /** The image button's file picker (notes). */
+  let notePicker = $state<HTMLInputElement>();
+
+  /**
+   * Upload images pasted, dropped or picked in a note, and put an image line
+   * for each at its spot (where the cursor was), even if typing went on.
+   */
+  async function addNoteImages(files: File[], spot: number) {
+    const ed = editor;
+    if (!ed || files.length === 0) return;
+    const title = (creating ?? sessionState?.note)?.title ?? 'Image';
+    toast = {
+      message: files.length === 1 ? 'Adding the image…' : `Adding ${files.length} images…`,
+    };
+    // The stored (proxied) object, to close only this message later.
+    const adding = toast;
+    try {
+      const folder = await imagesFolder();
+      let lost = 0;
+      for (const file of files) {
+        const id = await uploadImageFile(folder, file, title);
+        if (!ed.insertAtSpot(spot, driveImageLine(id))) lost++;
+      }
+      if (lost) {
+        toast = { message: 'The note was closed before the image could be put in it.' };
+      } else if (toast === adding) {
+        toast = null;
+      }
+    } catch (err) {
+      toast = { message: `Couldn't add the image: ${message(err)}` };
+    } finally {
+      ed.dropSpot(spot);
+    }
   }
 
   /** Picked tag colors, from the settings file in Drive. */
@@ -666,6 +706,7 @@
         onSave: () => void session?.save(),
         onBlur: () => void session?.save(),
         tags: tagSuggestions,
+        onImages: (files, spot) => void addNoteImages(files, spot),
       });
     } else {
       editor?.load(text, readOnly);
@@ -1025,6 +1066,20 @@
   }
 </script>
 
+<input
+  bind:this={notePicker}
+  class="picker"
+  type="file"
+  accept="image/png,image/jpeg,image/gif,image/webp"
+  multiple
+  tabindex="-1"
+  onchange={(e) => {
+    const files = [...(e.currentTarget.files ?? [])];
+    e.currentTarget.value = '';
+    if (editor && files.length) void addNoteImages(files, editor.markSpot());
+  }}
+/>
+
 <div class="workspace" data-view={view} class:animate class:collapsed={sidebarCollapsed}>
   <aside>
     <div class="brand">
@@ -1114,7 +1169,7 @@
             onDueDate={() => board?.pickDueDate()}
           />
         {:else}
-          <Toolbar run={(command) => editor?.run(command)} />
+          <Toolbar run={(command) => editor?.run(command)} onImage={() => notePicker?.click()} />
         {/if}
       {/if}
     {/if}
@@ -1312,7 +1367,8 @@
     min-height: 0;
   }
 
-  .hidden {
+  .hidden,
+  .picker {
     display: none;
   }
 

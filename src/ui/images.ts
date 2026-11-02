@@ -3,7 +3,7 @@
  * upload, and showing Drive images, which are not public, from memory.
  */
 import { drive } from '../drive/client';
-import { readFileBlob } from '../drive/notes';
+import { readFileBlob, uploadImage } from '../drive/notes';
 
 /** Longest side and size above which a photo is scaled down before upload. */
 const MAX_SIDE = 2048;
@@ -65,6 +65,33 @@ export function imageUrl(id: string): Promise<string> {
   }
   return url;
 }
+
+/**
+ * Upload an image file (scaled down first when large) to the attachments
+ * folder, named after `title` and the time. Returns its Drive file id; the
+ * image shows from memory right away.
+ */
+export async function uploadImageFile(
+  folderId: string,
+  file: Blob,
+  title: string,
+): Promise<string> {
+  const image = await prepareImage(file);
+  const name = title.replace(/[/\\:*?"<>|]+/g, ' ').trim() || 'Image';
+  const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ').replace(/:/g, '.');
+  const id = await uploadImage(
+    drive,
+    folderId,
+    `${name} ${stamp}.${imageExtension(image.type)}`,
+    image,
+  );
+  rememberImage(id, image);
+  return id;
+}
+
+/** The markdown line for an image in Drive. */
+export const driveImageLine = (id: string, alt = ''): string =>
+  `![${alt}](https://drive.google.com/file/d/${id}/view)`;
 
 /** Show an image right away that was just uploaded from this device. */
 export function rememberImage(id: string, image: Blob): void {

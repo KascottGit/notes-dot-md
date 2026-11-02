@@ -33,7 +33,7 @@
   } from '../editor/board';
   import type { Editor } from '../editor/setup';
   import { drive } from '../drive/client';
-  import { setTrashed, uploadImage } from '../drive/notes';
+  import { setTrashed } from '../drive/notes';
   import AttachmentsDialog from './AttachmentsDialog.svelte';
   import BoardCard from './BoardCard.svelte';
   import CardBody from './CardBody.svelte';
@@ -42,7 +42,7 @@
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
   import InlineName from './InlineName.svelte';
-  import { imageExtension, prepareImage, rememberImage } from './images';
+  import { uploadImageFile } from './images';
   import Toast from './Toast.svelte';
 
   interface Props {
@@ -127,16 +127,7 @@
     }
     for (const file of files) {
       try {
-        const image = await prepareImage(file);
-        const title = (cardAt(ref)?.title ?? 'Image').replace(/[/\\:*?"<>|]+/g, ' ').trim();
-        const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ').replace(/:/g, '.');
-        const id = await uploadImage(
-          drive,
-          folder,
-          `${title} ${stamp}.${imageExtension(image.type)}`,
-          image,
-        );
-        rememberImage(id, image);
+        const id = await uploadImageFile(folder, file, cardAt(ref)?.title ?? 'Image');
         const card = cardAt(ref);
         if (card) onEdit(setAttachments(text, ref, [...card.attachments, { id, alt: '' }]));
       } catch (err) {

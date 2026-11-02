@@ -77,7 +77,7 @@ Rendering rules:
 | Link | `[text](url)`, `[text][label]`, `[label]` | Link-colored text; Ctrl+click or tap opens it. A reference link needs a matching `[label]: url`; otherwise it is plain text in brackets | Shown dimmed |
 | Bare URL | `https://…`, `www.…`, `me@example.com` | Link; `www.` opens over https, emails as `mailto:` | Always visible |
 | Link definition | `[label]: url` | Small, muted monospace | Always visible |
-| Image | `![alt](url)` or `![alt][label]` | The image (http/https only, at most 24em tall). No usable source or a failed load shows the alt text in a dashed box | Source shown dimmed, image after it |
+| Image | `![alt](url)` or `![alt][label]` | The image (http/https only, at most 24em tall). Images in Drive (`https://drive.google.com/file/d/<id>/view`) aren't public, so they are loaded through the Drive API, like card images. No usable source or a failed load shows the alt text in a dashed box | Source shown dimmed, image after it |
 | Escape | `\*` | The character, without the backslash | Shown dimmed |
 | Entity | `&amp;`, `&#169;` | The character | Shown as typed |
 | Tag | `#school`, `#work/notes` (after a space or at a line start; letters, digits, `_ - /`, not only digits) | A label in its saved color (see Tags), else the accent color, in notes and on board cards. Not in code, URLs or HTML | Always the same |
@@ -101,7 +101,8 @@ Behavior:
 - **Tables** (like Obsidian, added 2026-10-31) stay tables while editing. Tapping or clicking a cell turns it into a text box with that cell's markdown, and every keystroke writes it back into the cell's place in the line (a `|` typed in a cell is saved as `\|`). Tab / Shift+Tab go to the next / previous cell (Tab in the last cell adds a row), Enter goes to the cell below (a new row from the bottom row), ↑ / ↓ go to the row above or below and out of the table at its edges, Escape goes back to the text after the table. A "+" bar to the right adds a column and one below adds a row (shown on hover with a mouse, and while a cell is being edited). While editing, a tool row adds a row below or a column to the right, deletes the row or column (never the header row or the only column), sets the column's alignment (left / center / right, written as `:--` / `:-:` / `--:`; pressing the current one goes back to the default, since markdown aligns whole columns, not single cells), or shows the table as markdown text ("Edit as text") until the cursor leaves it. A cell's column grows as you type, up to about 20em, then the text wraps. Each change rewrites only the table lines it is about.
 - **Text under a table stays text.** In markdown a table runs on until a blank line, so a line typed right under it would become a row. Typing at the table's start or end goes above or below it instead, typing on the line right under it first keeps a blank line, and Enter at the end of a table starts a new paragraph below a blank line.
 - **Tapping below the last line** starts a new line there, with the cursor on it, instead of putting the cursor at the end of the last line. After a list, quote or table a blank line goes in between, so the new line is plain text. An empty last line is used as it is.
-- **Paste** inserts plain text. One exception: an image copied from a web page (Copy Image; the clipboard holds HTML with only `<img>`) pastes as `![alt](url)`. Converting other pasted HTML to markdown is a later nice-to-have.
+- **Paste** inserts plain text. An image copied from a web page (Copy Image; the clipboard holds HTML with only `<img>`) pastes as `![alt](url)`. Converting other pasted HTML to markdown is a later nice-to-have.
+- **Images in notes** (added 2026-11-03): pasting or dropping image files (screenshots, photos, images copied on iPhone, which come without a URL), or picking them with the format bar's image button, uploads them like card images (to `Notes/.attachments/`, scaled down the same way) and puts `![](https://drive.google.com/file/d/<fileId>/view)` on a line of its own where the cursor was. That spot moves along with any typing while the upload runs. A toast says "Adding the image…" until it is in.
 - **No comment shortcut:** CodeMirror's Ctrl+/ (toggle comment, `<!-- -->`) is removed. On Nordic and German keyboards Ctrl+Shift+7 arrives as Ctrl+/, and must make a numbered list.
 - **Theme** follows `prefers-color-scheme`, with light and dark styles.
 - **Fonts:** note text in a gentle serif (Source Serif 4), headings and app UI in a matching sans (Inter), code in JetBrains Mono (the locally installed JetBrainsMono Nerd Font is preferred when present). Fonts are bundled with the app.
@@ -125,6 +126,7 @@ The format bar edits the markdown text through the same commands as the keyboard
 | Quote | Line prefix ` >  ` | Ctrl+Shift+. |
 | Code block | Wrap lines in ```` ``` ```` fences | Ctrl+Alt+C |
 | Table | Insert an empty table (header row and one row, two columns) on its own lines, with blank lines around it; its first cell opens for typing. Not a toggle | Ctrl+Alt+T |
+| Image (notes only) | Pick photos or image files; each goes in at the cursor (see "Images in notes") | — |
 | Move up / Move down | Move the list item with its children, or the selected lines | Alt+↑ / Alt+↓ |
 | Outdent / Indent | Un-nest or nest a list item; indent other lines | Shift+Tab / Tab |
 
@@ -355,7 +357,6 @@ Open questions:
 
 Open work, roughly in priority order. When an item is done, describe it in the section it belongs to and remove it here.
 
-- [ ] **Images in notes** (added 2026-11-02): paste, drop or add images in a note like on a card's image board: uploaded to `Notes/.attachments/` (scaled down the same way) and inserted as `![](https://drive.google.com/file/d/<fileId>/view)` at the cursor. Drive images in notes (and in the text view of boards) render as real images, loaded through the Drive API like card images, instead of the "Image in Drive" label. Covers screenshots and photos copied on iPhone, which come without a URL.
 - [ ] **Due dates that stand out** (added 2026-11-02): a card's due date chip turns red when overdue and amber when due today. Later, a "Due soon" view collects dated cards (and open tasks with dates) from all boards.
 - [ ] **Archive view on boards** (added 2026-11-02): an "Archive (n)" button on a board shows its archived cards, each with a Restore action that moves the card's lines back to a column; no need to open the text view.
 - [ ] **Recently deleted** (added 2026-11-02): a view of the notes in the Drive trash that came from the `Notes/` folders, with Restore, so a note can come back after its Undo toast is gone.

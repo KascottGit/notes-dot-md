@@ -148,10 +148,17 @@ function decodeEntity(entity: string): string {
   return doc.documentElement.textContent ?? entity;
 }
 
+/** Gives a URL to show a Drive image with (Drive files aren't public). Set by the app. */
+let driveImageLoader: ((fileId: string) => Promise<string>) | null = null;
+
+export function setDriveImageLoader(loader: (fileId: string) => Promise<string>): void {
+  driveImageLoader = loader;
+}
+
 /**
  * An image, or its alt text when it has no loadable source or fails to load.
- * Card images in Drive aren't public, so they show as a label here (the
- * board's image board shows them).
+ * Images in Drive (`https://drive.google.com/file/d/<id>/view`) aren't
+ * public: they are loaded through the app's Drive loader.
  */
 function imageElement(src: string | null, alt: string, view: EditorView): HTMLElement {
   const placeholder = (text = alt || src || 'Image') => {
@@ -161,15 +168,26 @@ function imageElement(src: string | null, alt: string, view: EditorView): HTMLEl
     if (src) el.title = src;
     return el;
   };
-  if (src && driveFileId(src)) return placeholder(alt || 'Image in Drive');
-  if (!isLoadable(src)) return placeholder();
+  const driveId = src ? driveFileId(src) : null;
+  if (driveId && !driveImageLoader) return placeholder(alt || 'Image in Drive');
+  if (!driveId && !isLoadable(src)) return placeholder();
   // The img sits in a wrapper that stays: swapping the widget's own outer
   // element would look like typing to the editor and change the text.
   const wrap = document.createElement('span');
   wrap.className = 'cm-md-image-wrap';
   const img = document.createElement('img');
   img.className = 'cm-md-image';
-  img.src = src;
+  if (driveId && driveImageLoader) {
+    driveImageLoader(driveId).then(
+      (url) => (img.src = url),
+      () => {
+        img.replaceWith(placeholder(alt || "Couldn't load the image"));
+        view.requestMeasure();
+      },
+    );
+  } else {
+    img.src = src!;
+  }
   img.alt = alt;
   if (alt) img.title = alt;
   img.referrerPolicy = 'no-referrer';

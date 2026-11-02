@@ -33,11 +33,13 @@
     headingLevels?: Level[];
     /** Board cards: a due date button that opens the date picker. */
     onDueDate?: () => void;
+    /** Notes: an image button that adds photos or image files at the cursor. */
+    onImage?: () => void;
     /** Shown but not usable yet (the note is still loading). */
     disabled?: boolean;
   }
 
-  let { run, headingLevels = [1, 2, 3], onDueDate, disabled = false }: Props = $props();
+  let { run, headingLevels = [1, 2, 3], onDueDate, onImage, disabled = false }: Props = $props();
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
   const mod = isMac ? '⌘' : 'Ctrl+';
@@ -181,6 +183,19 @@
         onclick={onDueDate}
       >
         <Icon name="calendar" />
+      </button>
+    {/if}
+    {#if onImage}
+      <span class="sep" aria-hidden="true"></span>
+      <button
+        class="tool"
+        aria-label="Add image"
+        title="Add image (or paste or drop one)"
+        onmousedown={keepFocus}
+        onpointerdown={keepFocus}
+        onclick={onImage}
+      >
+        <Icon name="image" />
       </button>
     {/if}
   </div>
