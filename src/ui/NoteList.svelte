@@ -159,7 +159,7 @@
   <ChipRow label="Categories">
     <Chip
       label="All notes"
-      count={notes.length}
+      count={loading ? undefined : notes.length}
       active={selectedCategory === null}
       onclick={() => onSelectCategory(null)}
     />
@@ -215,7 +215,18 @@
   {#if error}
     <p class="message error" role="alert">{error}</p>
   {:else if loading}
-    <p class="message">Loading notes…</p>
+    <!-- Placeholder cards in the shape of notes, so nothing jumps when they arrive. -->
+    <div class="notes" aria-busy="true">
+      <p class="visually-hidden">Loading notes…</p>
+      <ul class="placeholders" aria-hidden="true">
+        {#each [72, 48, 86, 60, 40, 78] as width, i (i)}
+          <li class="row placeholder">
+            <span class="line title-line" style:width={`${width}%`}></span>
+            <span class="line meta-line"></span>
+          </li>
+        {/each}
+      </ul>
+    </div>
   {:else if shown.length === 0}
     <p class="message">
       {query ? 'No titles match your search.' : 'No notes here yet. Create one to get started.'}
@@ -443,6 +454,54 @@
     color: var(--text-muted);
     font-size: 0.8125rem;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Shown only if loading takes a moment, so quick loads don't flash. */
+  .placeholders {
+    animation: placeholders-in 220ms ease-out 250ms backwards;
+  }
+
+  @keyframes placeholders-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* The same box as a note (.item): padding, title line and date line. */
+  .placeholder {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    min-height: 44px;
+    padding: 14px 12px 15px;
+  }
+
+  .placeholder:hover {
+    background: var(--bg);
+  }
+
+  .line {
+    display: block;
+    border-radius: 6px;
+    background: var(--bg-muted);
+  }
+
+  .title-line {
+    height: 12px;
+  }
+
+  .meta-line {
+    width: 45%;
+    height: 10px;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
     white-space: nowrap;
   }
 
