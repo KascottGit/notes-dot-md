@@ -1,51 +1,16 @@
 # notes.md
 
-A markdown note-taking app that keeps every note as a plain `.md` file in your own Google Drive.
-
-notes.md runs entirely in the browser, on phones and desktop. There is no backend and no database: the app talks to the Google Drive API directly, and your notes stay in a `Notes/` folder you can open, back up or edit with any other tool.
-
-**Status:** early development. Notes with live preview (including tables and images), a format bar, categories, sorting, search and export work, with a light and dark theme for phone and desktop browsers. Later phases come next. See [Roadmap](#roadmap).
+A markdown note-taking app for phone and desktop browsers that keeps every note as a plain `.md` file in your own Google Drive. What it does and how it is built is in [`SPEC.md`](SPEC.md).
 
 Live app: https://kascottgit.github.io/notes-dot-md/
 
-## Why
+## Docs
 
-- **Your notes are just files.** Each note is one `.md` file in Drive. Categories are folders. What you see in the app is what you see in Drive.
-- **The text is always plain markdown.** The editor renders markdown inline (live preview, like Obsidian), but it never rewrites your text. Copy, export and Drive all get exactly the markdown you typed. A copied checklist pastes into GitHub as `- [ ] item`.
-- **No server to trust.** Sign-in goes straight to Google, and the access token lives in memory only.
+Each topic lives in one place:
 
-## Planned features (v1)
-
-- Live-preview editor (CodeMirror 6) with GitHub-flavored markdown: clickable task lists, tables, images and links
-- Format bar and keyboard shortcuts that toggle bold, italic, headings, lists, checklists, quotes and code, and move or indent list items
-- Categories (Drive folders), sorting by modified, created or title, and title search
-- Autosave with conflict detection, so a version saved on another device is never silently overwritten
-- Export a note as `.md`; copying text gives markdown
-- Light and dark themes, built for phone and desktop browsers
-
-Later phases: a Trello-style task board stored as a markdown note, letting Claude read and edit notes, and sharing through Drive.
-
-Offline editing is not a goal: the app needs a network connection.
-
-## How notes are stored
-
-```
-My Drive/
-  Notes/                 created on first sign-in
-    General/             default category
-    School/
-    Projects/
-      Drive layer.md
-```
-
-- One note = one file named `<title>.md`.
-- One category = one subfolder of `Notes/` (one level deep).
-- Deleting a note moves it to the Drive trash. The app never permanently deletes anything.
-- The app asks for full Drive access (the `drive` scope), so notes created by other tools, such as Claude, rclone or a manual upload, show up too. It only reads and writes the `Notes/` folder.
-
-## Tech stack
-
-Vite · TypeScript · Svelte 5 · CodeMirror 6 · Google OAuth (redirect flow) · Google Drive REST API v3 · Vitest. Hosted on GitHub Pages.
+- **This README:** setting up, developing and deploying.
+- [`SPEC.md`](SPEC.md): what the app does and how it is built (features, storage, stack, milestones, to do).
+- [`CLAUDE.md`](CLAUDE.md): how to work in this repo (rules, code layout, conventions, UI rules, testing). Used by Claude Code.
 
 ## Development
 
@@ -68,10 +33,6 @@ Vite · TypeScript · Svelte 5 · CodeMirror 6 · Google OAuth (redirect flow) �
 6. Copy `.env.example` to `.env` and set `VITE_GOOGLE_CLIENT_ID`. The client ID is not secret, but `.env` stays out of git.
 7. For the deployed site, add the same value as a repository variable: **Settings → Secrets and variables → Actions → Variables → New repository variable**, named `VITE_GOOGLE_CLIENT_ID`. The deploy workflow passes it to the build.
 
-### Deployment
-
-Every push to `main` runs `.github/workflows/deploy.yml`: check, lint, test, build, then deploy to GitHub Pages. One-time setup: in **Settings → Pages**, set **Source** to **GitHub Actions**.
-
 ### Commands
 
 ```sh
@@ -84,24 +45,11 @@ npm run lint      # eslint + prettier --check
 npm test          # vitest
 ```
 
-## Roadmap
+The app icons are drawn by `scripts/make-icons.py`; how to run it is at the top of that file.
 
-- [x] **M0** Project setup and GitHub Pages deploy
-- [x] **M1** Google sign-in with token renewal
-- [x] **M2** Drive layer (list, read, create, save, rename, move, trash)
-- [x] **M3** Plain editor, autosave and conflict handling
-- [x] **M4** Live preview rendering
-- [x] **M5** Format bar and shortcuts
-- [x] **M6** Categories, sorting and search
-- [ ] **M7** Export, tables and images
-- [x] **M8** Dark mode and polish
-- [x] **M9** Task board
-- [ ] Later: Claude access, sharing
+### Deployment
 
-## Project docs
-
-- [`SPEC.md`](SPEC.md): the full product and technical spec
-- [`CLAUDE.md`](CLAUDE.md): working rules for this repo (used by Claude Code)
+Every push to `main` runs `.github/workflows/deploy.yml`: check, lint, test, build, then deploy to GitHub Pages. One-time setup: in **Settings → Pages**, set **Source** to **GitHub Actions**.
 
 ## License
 

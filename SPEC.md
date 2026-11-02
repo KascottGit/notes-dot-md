@@ -1,20 +1,15 @@
 # notes.md — Spec
 
+What the app does and how it is built: features, storage, stack, milestones and what is still to do. How to work in the repo (golden rules, code layout, UI rules, testing) is in `CLAUDE.md`; setup and deployment are in `README.md`. Each topic lives in one of these files only.
+
 ## Overview
 
-**notes.md** is a web app for writing notes in markdown, with every note stored as a plain `.md` file in the user's Google Drive. It is open source on GitHub in the repo `notes-dot-md`. It runs in the browser on phones and desktop; it is not installed as an app (no PWA, decided 2026-10-30). The primary desktop is EndeavourOS with Hyprland.
+**notes.md** is a web app for writing notes in markdown, with every note stored as a plain `.md` file in the user's Google Drive. It is open source on GitHub in the repo `notes-dot-md`, and runs in the browser on phones and desktop. The golden rules in `CLAUDE.md` hold for everything below.
 
-**Guiding principle: the file is always plain markdown.** The editor renders markdown inline (live preview), but the document text never changes form. Copying, exporting and Drive all see exactly the same markdown.
-
-Goals for v1:
-
-- Google Drive is the only storage. No backend, no database.
+- Google Drive is the only storage.
 - One editing mode: live preview. No toggle between editor and preview.
 - GitHub-flavored markdown (GFM), including task lists.
-- A format bar, categories, sorting, export to `.md`, and copy as markdown.
-- A data model ready for two later phases: a task board that replaces Trello, Claude reading and writing notes, and sharing with other people.
-
-Non-goals: offline support (the app requires a network connection) and installing it as an app (PWA). It is used in the browser.
+- Notes and task boards (a Trello replacement) are both plain markdown files.
 
 ## Tech stack and architecture
 
@@ -28,28 +23,7 @@ The app is a static single-page app that talks to Google Drive straight from the
 | Code highlighting in fenced blocks | `@codemirror/language-data` |
 | Auth | OAuth 2.0 redirect flow for browser apps (`response_type=token`), no library. Changed from the GIS popup token client on 2026-10-29: popups can't hand the token back in iPhone Safari |
 | Storage | Google Drive REST API v3 via `fetch` |
-| Hosting | GitHub Pages at https://\<username>.github.io/notes-dot-md/, deployed by a GitHub Actions workflow; Vite base set to /notes-dot-md/ |
-
-Suggested module layout:
-
-```
-src/
-  auth/google.ts         redirect sign-in, getToken(), renewal
-  drive/client.ts        fetch wrapper: auth header, retries, 401 handling
-  drive/notes.ts         list/read/create/save/rename/move/trash, folder bootstrap
-  editor/setup.ts        CodeMirror configuration and keymaps
-  editor/livePreview.ts  decoration plugin (rendering rules)
-  editor/widgets.ts      checkbox, bullet, rule and image widgets
-  editor/tableEdit.ts    table cells, rows and columns as text changes (no DOM)
-  editor/tableWidget.ts  the editable table widget
-  editor/markdown.ts     markdown helpers: links and references, inline content, tables
-  editor/commands.ts     format commands, shared by toolbar and shortcuts
-  ui/                    Svelte components: NoteList, Toolbar, NoteHeader,
-                         ConflictDialog, Toast
-  store/                 app state: current note, note list, sort, save status
-```
-
-Keep all markdown logic (parsing helpers, format commands) free of UI code. The later board view reuses it.
+| Hosting | GitHub Pages at https://\<username>.github.io/notes-dot-md/, deployed by a GitHub Actions workflow (see README) |
 
 ## Google Drive storage and auth
 
@@ -70,38 +44,16 @@ Storage rules:
 - A category is a direct subfolder of `Notes/`. One level only in v1.
 - Tag every file and folder the app creates with `appProperties: { app: "mdnotes" }`.
 - Find the root on start with `name='Notes' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false`. Cache its id in `localStorage`.
-- Deleting a note moves it to the Drive trash (`trashed: true`). The app never hard-deletes.
 - Sanitize filenames: strip `/ \ : * ? " < > |`, and add `  (2) ` on duplicates.
-
-Drive API calls:
-
-| Action | Request |
-| --- | --- |
-| List notes in a category | `GET /drive/v3/files?q='<folderId>' in parents and trashed=false&fields=files(id,name,createdTime,modifiedTime,version,parents,appProperties)` |
-| Read a note | `GET /drive/v3/files/{id}?alt=media` |
-| Create a note | `POST /upload/drive/v3/files?uploadType=multipart` (metadata + content) |
-| Save content | `PATCH /upload/drive/v3/files/{id}?uploadType=media` |
-| Rename | `PATCH /drive/v3/files/{id}` with `{ name }` |
-| Move to another category | `PATCH /drive/v3/files/{id}?addParents=<new>&removeParents=<old>` |
-| Delete | `PATCH /drive/v3/files/{id}` with `{ trashed: true }` |
 
 Token handling:
 
 - Sign in by redirecting to Google's OAuth page (`response_type=token`). Google sends the user back with the token in the URL fragment; read it, check the `state` value, and remove it from the URL right away. Tokens last about an hour.
-- Keep the token in memory only, never in `localStorage`.
 - A returning user (remembered login hint) is signed in automatically on page load with one `prompt=none` redirect, which has no UI. If Google needs a click, show the sign-in button.
 - On a 401 or an expired token, requests wait and a "Session expired · Continue" banner appears. Renewing is a `prompt=none` redirect; it also happens on its own when the user returns to the app with less than 5 minutes left on the token.
-- Before any redirect, keep the open note and unsaved text in `sessionStorage` and restore it afterwards (also done when the page is hidden, since iOS may discard background tabs). Never drop unsaved text.
+- Before any redirect, keep the open note and unsaved text in `sessionStorage` and restore it afterwards (also done when the page is hidden, since iOS may discard background tabs).
 
-Google Cloud setup (done by hand before milestone 1):
-
-1. Create a Google Cloud project and enable the Google Drive API.
-2. Configure the OAuth consent screen as External, in testing mode, with yourself as a test user.
-3. Create an OAuth client ID of type Web application.
-4. Add authorized JavaScript origins: `http://localhost:5173` and `https://<username>.github.io`. Origins are domain only, so the `/notes-dot-md/` path is not part of them. Add authorized redirect URIs, with the path and trailing slash: `http://localhost:5173/notes-dot-md/` and `https://<username>.github.io/notes-dot-md/`.
-5. Put the client ID in `.env` as `VITE_GOOGLE_CLIENT_ID`. It is not a secret.
-
-Because the full scope is used, `Notes/` can contain files the app did not create: `.md` files uploaded by hand or written by other tools, and also non-markdown files and shortcuts. The note list shows only markdown files and ignores the rest. The scope lives in one config constant.
+Because the full scope is used, `Notes/` can contain files the app did not create: `.md` files uploaded by hand or written by other tools, and also non-markdown files and shortcuts. The note list shows only markdown files and ignores the rest.
 
 ## Editor: live preview
 
@@ -112,7 +64,6 @@ Implementation:
 - A `ViewPlugin` walks the syntax tree for the visible ranges and builds a `DecorationSet`. Rebuild on `docChanged`, `viewportChanged` and `selectionSet`.
 - `Decoration.mark` styles text (bold, heading size). `Decoration.replace` hides syntax markers. `Decoration.replace` with a `WidgetType` draws checkboxes, bullets and rules.
 - **Reveal rule:** markers are hidden except on the line(s) the cursor or selection touches. There they show as dimmed text so the user can edit them. Checkboxes are the exception and always render as checkboxes.
-- Rendering must never change the document text. All formatting lives in decorations.
 
 Rendering rules:
 
@@ -129,7 +80,7 @@ Rendering rules:
 | Image | `![alt](url)` or `![alt][label]` | The image (http/https only, at most 24em tall). No usable source or a failed load shows the alt text in a dashed box | Source shown dimmed, image after it |
 | Escape | `\*` | The character, without the backslash | Shown dimmed |
 | Entity | `&amp;`, `&#169;` | The character | Shown as typed |
-| Tag | `#school`, `#work/notes` (after a space or at a line start; letters, digits, `_ - /`, not only digits) | Accent-colored label, in notes and on board cards. Not in code, URLs or HTML | Always the same |
+| Tag | `#school`, `#work/notes` (after a space or at a line start; letters, digits, `_ - /`, not only digits) | A label in its saved color (see Tags), else the accent color, in notes and on board cards. Not in code, URLs or HTML | Always the same |
 | Bullet list | ` -  ` or ` *  ` | Bullet dot widget | Shown dimmed |
 | Numbered list | ` 1.  ` | Number kept, styled | Always visible |
 | Task | ` - [ ]  ` / ` - [x]  ` | Clickable checkbox; checked items dimmed and struck | Never: always a checkbox |
@@ -154,8 +105,6 @@ Behavior:
 - **No comment shortcut:** CodeMirror's Ctrl+/ (toggle comment, `<!-- -->`) is removed. On Nordic and German keyboards Ctrl+Shift+7 arrives as Ctrl+/, and must make a numbered list.
 - **Theme** follows `prefers-color-scheme`, with light and dark styles.
 - **Fonts:** note text in a gentle serif (Source Serif 4), headings and app UI in a matching sans (Inter), code in JetBrains Mono (the locally installed JetBrainsMono Nerd Font is preferred when present). Fonts are bundled with the app.
-
-Risk: mobile keyboards can misbehave next to hidden text, for example cursor jumps or autocorrect landing in the wrong place. Test on a real phone as soon as the first decorations exist.
 
 ## Format bar
 
@@ -186,13 +135,13 @@ Toggle behavior:
 - **Switching list type** replaces the existing prefix. For example, a bullet list becomes a checklist instead of getting both markers. Numbered lists are renumbered in order.
 - Buttons call `preventDefault` on `mousedown`/`pointerdown` so the editor keeps focus and the selection.
 
-Placement: under the note title on every screen size, horizontally scrollable on narrow screens. (Changed 2026-10-29 from pinning it above the keyboard on mobile.) On iPhone the app fits itself above the on-screen keyboard, so the header and bar stay at the top while typing (`ui/keyboardFit.ts`; see To do, being tested).
+Placement: under the note title on every screen size, horizontally scrollable on narrow screens. (Changed 2026-10-29 from pinning it above the keyboard on mobile.) On iPhone it stays at the top while typing (see Mobile, "Keyboard").
 
 ## Organization: categories and sorting
 
 Categories are Drive folders, so the structure the app shows is the same one the user sees in Drive.
 
-- **Note list:** a sidebar on screens ≥ 900px wide (36% of the width, 300–520px), its own screen with back navigation on mobile. On desktop the notes are cards in a grid: two columns when the sidebar has room (cards at least 190px), else one. On phones it is a single list. On wider screens the sidebar can be hidden while a note is open (added 2026-11-02): a sidebar icon button at the left of the note header slides it closed or open (200ms), so the note gets the whole width. The choice is remembered on the device (`localStorage`). With no note open, the list always shows. Phones don't show the button (they show one pane at a time).
+- **Note list:** a sidebar on screens ≥ 900px wide (36% of the width, 300–520px), its own screen with back navigation on mobile. On desktop the notes are cards in a grid: two columns when the sidebar has room (cards at least 190px), else one. On phones it is a single list. Each card shows the title, a preview line and the date (see below). While the list loads, grey placeholder cards in the same shape stand in, so the layout doesn't jump. On wider screens the sidebar can be hidden while a note is open (added 2026-11-02): a sidebar icon button at the left of the note header slides it closed or open (200ms), so the note gets the whole width. The choice is remembered on the device (`localStorage`). With no note open, the list always shows. Phones don't show the button (they show one pane at a time).
 - **Default category:** `General` (renamed from `Inbox` on 2026-10-30, which felt like a mail tool). It comes first and cannot be renamed or deleted. On start, a `Notes/Inbox/` folder is renamed to `General` when no `General` exists: same folder id, same notes.
 - **Category filter:** "All notes" plus one chip per category folder, with the note count. On phones the chips are one row that scrolls sideways; on desktop they wrap.
 - **Account:** no app header bar (dropped in M8 to give the note more room). The top of the note list shows the app name, the signed-in email (when there is room) and a sign-out icon button.
@@ -200,8 +149,10 @@ Categories are Drive folders, so the structure the app shows is the same one the
 - **Move a note:** a category dropdown in the note header, which runs the Drive move request.
 - **Sort:** Last modified (default, newest first), Created, Title A–Z. Persist the choice in `localStorage`.
 - **Search:** titles filter as you type (client-side). Once typing pauses (300 ms), the note text is searched too, through Drive's `fullText contains` query on the category folders, plus the notes kept in memory (Drive indexes new text after a delay). Title matches come first; notes found only in their text follow under "In note text". If the text search fails, titles still work and a line says so.
+- **Preview line:** each note card shows the first words of the note under the title, in muted text, one line with ellipsis. The text is stored on the file as `appProperties.preview` when the app saves the note, so the list doesn't have to read every note (Drive allows 124 bytes per property, key plus value). Every card keeps this line's room, also boards and empty notes (blank there), so all cards are the same height. Markdown markers are left out, a first heading that repeats the title is skipped, and boards show none. Saving sends the preview in the same request as the text (only when it changed), and opening a note corrects a missing or stale one without changing the note's modified time, like the board mark. Notes changed by another tool show a stale preview until saved in the app.
 - **Title:** the filename is the source of truth. Editing the title field in the note header renames the file.
-- **Opening a note** (added 2026-11-02): tapping a note shows its screen right away, with the title, category and "Opening…" in the header, the format bar dimmed, and grey placeholders (only if loading takes more than a moment): lines for a note, columns with cards in the board's layout for a board (changed 2026-11-02). The text fades in when Drive has sent it. Tapping another note while one loads opens that one instead; going back to the list while it loads keeps you on the list. If loading fails, the header says "Couldn't open" with a Retry button, and the previous note's text is never shown under the new title.
+- **Opening a note** (added 2026-11-02): tapping a note shows its screen right away, with the title, category and "Opening…" in the header, the format bar dimmed, and grey placeholders (only if loading takes more than a moment): lines for a note, columns with cards in the board's layout for a board (changed 2026-11-02). The text fades in when Drive has sent it. Tapping another note while one loads opens that one instead; going back to the list while it loads keeps you on the list. If loading fails, the header says "Couldn't open" with a Retry button, and the previous note's text is never shown under the new title. The text of the last 20 opened notes, as last loaded or saved, is kept in memory (not `localStorage`): reopening one shows it at once, then checks its `version` as the window-focus check does (a newer text with no local edits replaces it; local edits follow the usual conflict rules).
+- **Address bar:** the open note's Drive file id is in the URL (`#/n/<fileId>`), so a reload reopens the note and a bookmark opens it. On phones, opening a note adds a history entry, so the browser's Back (and the in-app back button) returns to the list; on wider screens, where the list is always shown, the entry is replaced. A new tab with no note in the URL reopens the last open note (its id kept in `localStorage`); reloading a tab that shows the list stays on the list. A note that is gone or trashed falls back to the list without an error. The sign-in redirect keeps the route in `sessionStorage` and puts it back after Google sends the user back.
 - **New note:** the New button opens a menu with Note and Board. A note is created in the selected category (General under "All notes"), titled `Untitled`, with the title field focused. Its screen opens at once and the file is created in the background (changed 2026-11-02): the status says "Creating…", the title and text can be typed right away (the title is given to the file and the text saved as soon as it exists), and pin, delete, export and the category wait until then. Opening another note waits for the file first. If it can't be created, the text stays in the editor with a Retry button, and leaving the note is refused until it is created.
 - **Note or board:** each note in the list shows an icon for its type, the same icons as the header's switch between board and text: next to the category name under "All notes", before the date in a single category. The type is stored on the file as `appProperties.type = "board"`, so the list doesn't have to read every note. The board marker on the first line is what counts: new boards get the property when they are created, and opening or saving a note in the app corrects it (keeping the note's modified time). A note made a board by another tool shows its icon once it has been opened in the app.
 - **Pinned notes:** `appProperties.pinned = "true"`, shown in a Pinned section above all other notes. Toggle with the pin button in the note header, the pin button that shows when hovering a note in the list (mouse only), or on touch screens by swiping a note left to right and releasing (like Apple Notes).
@@ -229,28 +180,27 @@ Acceptance check: copy a rendered checklist from the app and paste it into a Git
 
 ## Saving and conflict handling
 
-The app autosaves, and it never silently overwrites a version saved from another device.
+The app autosaves. These rules carry out golden rule 3 (never lose text, never silently overwrite a newer version).
 
 - **Autosave** 2 seconds after the last keystroke, plus on Ctrl+S, on editor blur, and when the page becomes hidden (`visibilitychange`).
 - **Save status** in the note header, under the title next to the category: Saved · Saving… · Unsaved changes · Couldn't save.
 - **Conflict check:** store the file's `version` from the last load or save. Before each save, fetch `fields=version,modifiedTime`. If the version changed, do not save. Open a dialog with three choices: Load theirs, Keep mine (overwrite), Save mine as a copy.
 - **On window focus,** re-check the open note. If it changed elsewhere and there are no unsaved local edits, reload it silently.
-- **Network errors:** retry with backoff (2 s, 5 s, 15 s), then show "Couldn't save" with a retry button. Keep the text in the editor.
+- **Network errors:** retry with backoff (2 s, 5 s, 15 s), then show "Couldn't save" with a retry button.
 - **Leaving the page** with unsaved changes triggers the browser's `beforeunload` warning.
 
 ## Mobile
 
-The app must feel good in a phone browser and on a Linux desktop. It runs in the browser only: no web manifest, no service worker, no install.
+The app must feel good in a phone browser and on a Linux desktop.
 
 - **Viewport:** `<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">`.
-- **No zoom:** pinch and double-tap zoom are turned off (owner decision, 2026-10-29): `touch-action: pan-x pan-y`, plus cancelling Safari's gesture events, since iPhone Safari ignores `user-scalable=no`. Text inputs and the editor still use a font size of at least 16px so focusing them never zooms.
+- **No zoom:** pinch and double-tap zoom are turned off (owner decision, 2026-10-29): `touch-action: pan-x pan-y`, plus cancelling Safari's gesture events, since iPhone Safari ignores `user-scalable=no`.
 - **Layout:** two panes (list + editor) at ≥ 900px wide, one pane below that. The note header (title, category · status, actions) and the format bar form one block above the note. The header spans the whole width; the format bar is as wide as its buttons and centered, the same for notes and boards (changed 2026-11-02). On phones the note slides in from the right and the list from the left.
-- **Motion:** short and quiet: 120ms color fades on hover, 180–220ms slides. With `prefers-reduced-motion`, all of it is instant.
+- **Keyboard (iPhone):** the header and format bar stay at the top while typing, and the note area shrinks to fit above the keyboard with the tapped line in view, like Apple Notes (`ui/keyboardFit.ts`, confirmed 2026-11-02). The app never follows Safari's page panning: after the viewport has been still for 120 ms it sizes itself to the visual viewport, scrolls the caret into view inside its scroller (32px above the keyboard) and undoes Safari's pan with `scrollTo(0, 0)`, so nothing loops. The keyboard height is remembered per orientation (`localStorage`), so from the second time the app shrinks on focus, before the keyboard arrives. (Two earlier tries were dropped: following `offsetTop` hid the tapped line, and scrolling after every resize flickered.)
 - **Icons:** ".md" in Source Serif 4, the note text font (changed 2026-11-02; drawn as outlines by `scripts/make-icons.py`). `favicon.svg` is just the text, dark, and light in dark mode; the 32px PNG fallback and the 180px `apple-touch-icon.png` (Safari bookmarks and favorites, square corners) show it on a white tile. The app name "notes.md" (note list, sign-in screen) is in the same serif.
-- **Touch targets** of at least 44 × 44px for toolbar buttons and checkboxes.
 - **Test targets:** a mobile browser on a phone (currently Safari on iPhone); Chromium and Firefox on Linux (Wayland/Hyprland). On Hyprland the app can also run as `chromium --app=<url>`.
 
-## Later phase: task board (Trello replacement)
+## Task board (Trello replacement)
 
 A board is just another markdown note, shown as columns of cards. The same file still opens in the normal editor, and Claude or any other tool can edit it as text. Every card holds full markdown: text, subtasks, images, code, tables. (Format decided 2026-10-31.)
 
@@ -287,8 +237,7 @@ More details.
 - **Done** = the card is in the board's last column (not counting `# Archive`). Cards have no checkbox of their own; task items inside the body are normal checkboxes. The card shows their progress, e.g. "1/2".
 - **Text outside cards** (between the marker and the first column, or between a column heading and its first card) is kept as it is and shown at the top of the board or column.
 - **New board** (Board in the New button's menu) creates a file with Todo / Ongoing / Done columns.
-- **Images** are URLs, as in notes, until uploads are added.
-- **Later still:** a "Tasks" view that collects cards and open tasks with due dates from all notes.
+- **Images:** uploaded to a card's image board (see "Image attachments on cards" below), or any image URL, as in notes.
 
 ### Board view
 
@@ -306,7 +255,7 @@ A board file opens in its own view, not the note editor, with the rules below. T
 - The heading buttons in the card's format bar offer levels 3–6 only.
 - A newline typed or pasted into the title field ends the edit instead of entering the title.
 - This is the one place where the app changes text as it is entered. Rendering still never changes the text (golden rule 1).
-- Agents follow the same rule; the format README in the notes folder says so.
+- Other tools editing a board should follow the same rule (see the Claude access phase).
 
 **Drag and drop**
 - A card is dragged by its title row (on touch, press and hold for about 300ms, so scrolling still works). The body is for editing, not dragging.
@@ -337,15 +286,10 @@ A board file opens in its own view, not the note editor, with the rules below. T
 **Layout**
 - **Desktop (≥ 900px):** like Trello. Columns side by side, about 280px wide, and the board scrolls sideways. Each column scrolls on its own when it is taller than the screen. Cards show their full body.
 - **Phone (< 900px):** vertical. Columns are stacked top to bottom as sections, each with its heading and then its cards, full width. The whole page scrolls as one list.
-- Colors, fonts, motion and touch targets follow the same tokens and rules as the rest of the app.
-
-The parser and the card move/replace helpers live in `editor/markdown.ts` (or a sibling module without DOM code) and are unit-tested with sample boards, including cards with code blocks: a `#` line inside a fenced code block is not a heading.
-
-What v1 must already get right for this: GFM task lists, heading rendering, and markdown helpers kept separate from the UI.
 
 ## Later phase: letting Claude write in the notes
 
-Yes, this is possible, and because notes are plain `.md` files in Drive there are several routes. **Recommendation:** use route B (Claude Code + an rclone mount) now for free, and build route C (your own connector) once the board exists, if you want Claude to edit notes from the Claude app on your phone.
+Yes, this is possible, and because notes are plain `.md` files in Drive there are several routes. **Recommendation:** use route B (Claude Code + an rclone mount) now for free, and build route C (your own connector) later, if you want Claude to edit notes from the Claude app on your phone.
 
 | Route | How it works | Claude can | Effort |
 | --- | --- | --- | --- |
@@ -356,12 +300,12 @@ Yes, this is possible, and because notes are plain `.md` files in Drive there ar
 
 Notes per route:
 
-- **A:** fine for reading and asking questions about notes. Files it creates are invisible to the app under `drive.file`.
-- **B:** files changed through rclone stay the same Drive files, so the app keeps seeing them. Files rclone *creates* are invisible to the app under `drive.file`, like A.
-- **C:** custom connectors must be reachable from the public internet; they can be authless or use OAuth, and they work on Free (one connector), Pro, Max, Team and Enterprise plans ([Anthropic help article](https://support.anthropic.com/en/articles/11176164-pre-built-connectors-using-remote-mcp), [setup guide](https://help.boomi.com/docs/Atomsphere/Platform/Connect_claude_setup)). The same server also works in Claude Code with `claude mcp add --transport http`. Host it on Cloudflare Workers or similar, using the **same Google Cloud project** as the web app; `drive.file` access should then cover files created by either (verify early). Suggested tools: `list_notes`, `read_note`, `create_note`, `append_to_note`, `replace_in_note`, `add_card`, `move_card`, `check_task`.
+- **A:** fine for reading and asking questions about notes.
+- **B:** files changed or created through rclone are ordinary Drive files, so the app sees them.
+- **C:** custom connectors must be reachable from the public internet; they can be authless or use OAuth, and they work on Free (one connector), Pro, Max, Team and Enterprise plans ([Anthropic help article](https://support.anthropic.com/en/articles/11176164-pre-built-connectors-using-remote-mcp), [setup guide](https://help.boomi.com/docs/Atomsphere/Platform/Connect_claude_setup)). The same server also works in Claude Code with `claude mcp add --transport http`. Host it on Cloudflare Workers or similar, using the **same Google Cloud project** as the web app. Suggested tools: `list_notes`, `read_note`, `create_note`, `append_to_note`, `replace_in_note`, `add_card`, `move_card`, `check_task`.
 - **D:** a browser call to the Claude API needs the `anthropic-dangerous-direct-browser-access: true` header. The API key stays in the browser, which is acceptable only for a personal app.
 
-Design rule for v1 so every route works: notes stay plain markdown with no app-only state outside the file, and the app re-reads a note when it changes elsewhere (already covered by the conflict check).
+So every route works, the note text is all another tool needs: what the app keeps outside it (pins, previews, tag colors, the board type) is optional, and the app re-reads a note when it changes elsewhere (the conflict check). Tools that edit boards should be told the board rules (no `#`/`##` lines inside a card body), for example in a format note in the `Notes/` folder.
 
 ## Later phase: sharing and collaboration
 
@@ -369,34 +313,31 @@ Sharing can stay clean because Drive already handles it; real-time co-editing ca
 
 | Step | What it adds | How | Backend needed |
 | --- | --- | --- | --- |
-| 1. Drive-native sharing | Share a note or category with someone by email, as viewer or editor | Drive `permissions.create`. The recipient adds it to their notes.md through the Google Picker, which grants `drive.file` access to that file | No |
+| 1. Drive-native sharing | Share a note or category with someone by email, as viewer or editor | Drive `permissions.create`. How a shared note shows up in the recipient's notes.md is decided when this is built | No |
 | 2. Read-only public link | A URL anyone can open to read a note | Set the file to "anyone with the link" and open it on a `/view/<fileId>` route, read with an API key | No |
-| 3. Take-turns collaboration | Two people edit the same note at different times, and non-overlapping edits merge automatically | Three-way merge of base, mine and theirs (for example with `diff-match-patch`) instead of always showing the conflict dialog | No |
+| 3. Take-turns collaboration | Two people edit the same note at different times, and non-overlapping edits merge automatically | See "Merge edits" in To do | No |
 | 4. Real-time co-editing | Live cursors and simultaneous typing, like Google Docs | Yjs CRDT with the `y-codemirror.next` binding and a WebSocket relay (self-hosted `y-websocket` or a hosted service). Drive keeps the saved `.md` snapshot | Yes |
 
 Recommendation: steps 1–3 fit the no-backend design. Step 4 is only worth it if live co-editing turns out to be a real need.
 
 What v1 should already do so this stays easy:
 
-- Identify notes by Drive file id, never by path or title.
 - Keep the text as loaded from Drive (the base) next to the edited text. Step 3 needs it.
 - Do not assume the user owns every file. Read `capabilities.canEdit` and show a read-only mode when it is false.
 - Keep sharing out of the note text. Permissions live in Drive, not in the markdown.
 
-Open point: whether sharing a whole category folder through the Picker also gives access to the notes inside it under `drive.file`. Test this before building step 1 for categories.
-
 ## Milestones
 
-Build in this order. Each milestone ends with a working deployed app and its acceptance criteria checked.
+Built in this order. Each milestone ends with a working deployed app and its acceptance criteria checked. After M9, work continues from the To do list below; M10 and M11 come later.
 
 - [x] **M0 Project setup:** Vite + Svelte + TypeScript, ESLint and Prettier, GitHub Actions deploy to GitHub Pages under /notes-dot-md/. *Done when* an empty app shell is live at the Pages URL.
 - [x] **M1 Sign-in:** redirect sign-in, sign in and sign out, token renewal. *Done when* sign-in works on desktop and mobile, and a save made more than an hour after sign-in still succeeds.
 - [x] **M2 Drive layer:** `drive/notes.ts` with list, read, create, save, rename, move and trash; `Notes/` and the default category folder created on first run. *Done when* a note created in the app appears in Drive as a `.md` file and survives a round trip.
 - [x] **M3 Plain editor and saving:** CodeMirror without rendering rules, autosave, save status, conflict dialog. *Done when* edits reach Drive within 3 seconds, and editing the same note on two devices shows the conflict dialog.
 - [x] **M4 Live preview:** every rendering rule in the editor table, checkbox widgets, list continuation, the `[]` shorthand. *Done when* all rules render, markers reappear on the active line, checkboxes toggle, and a copied checklist pastes into GitHub as `- [ ]` lines. Tested on a phone.
-- [x] **M5 Format bar:** all buttons and shortcuts with toggle behavior, pinned above the keyboard on mobile. *Done when* each button applies and removes its format and the selection survives a tap.
+- [x] **M5 Format bar:** all buttons and shortcuts with toggle behavior. *Done when* each button applies and removes its format and the selection survives a tap.
 - [x] **M6 Organization:** category filter and management, move note, sort, title search. *Done when* folders in Drive match categories in the app and the sort choice survives a reload.
-- [ ] **M7 Export and GFM rendering:** export button; rendered tables and images, reference links, escapes and entities (copy stays native, no button). *Done when* the exported file opens unchanged in another editor, and tables and images render in the editor while their text stays plain markdown.
+- [x] **M7 Export and GFM rendering:** export button; rendered tables and images, reference links, escapes and entities (copy stays native, no button). *Done when* the exported file opens unchanged in another editor, and tables and images render in the editor while their text stays plain markdown.
 - [x] **M8 Polish:** responsive layout and dark mode pass, favicon. No PWA. *Done when* the app looks and works right in Safari on iPhone and in Chromium and Firefox on Linux, at every width.
 - [x] **M9 Task board:** board view for files starting with `<!-- notes.md:board -->`. *Done when* cards can be edited, renamed, added, deleted (to Archive) and dragged between columns on desktop and phone, and every change shows up as the expected lines in the text view.
 - [ ] **Later — M10 Claude access:** route B, then route C.
@@ -404,26 +345,21 @@ Build in this order. Each milestone ends with a working deployed app and its acc
 
 ## Out of scope and open questions
 
-Out of scope for v1: offline editing, installing as an app (PWA), real-time collaboration, uploading images (except image attachments on board cards; other images are shown from URLs only), footnotes, GitHub alerts (`> [!NOTE]`), rendering inline HTML, nested categories, a version history view (Drive keeps revisions), and sharing.
+Out of scope: offline editing (the app needs a network connection), installing it as an app (no PWA, web manifest or service worker; decided 2026-10-30), real-time collaboration, footnotes, GitHub alerts (`> [!NOTE]`), rendering inline HTML, nested categories, and a version history view (Drive keeps revisions).
 
 Open questions:
 
-- [x] Keep `drive.file`, or switch to the full `drive` scope so notes created by Claude or other tools show up? **Decided 2026-10-29: full `drive` scope.** The notes on `drive.file` limits in the later-phase sections no longer apply.
-- [x] Due date syntax for board cards? **Decided 2026-10-31: `📅 YYYY-MM-DD`** (see task board).
 - [ ] Use a custom domain instead of `<username>.github.io/notes-dot-md/`?
 
-To do (later):
+## To do
 
-- [x] **A URL per note** (added 2026-11-02): the open note's Drive file id goes in the address bar (for example `#/n/<fileId>`), so a reload reopens the note, a bookmark opens it, and the browser's Back (the phone's back swipe) returns from the note to the list instead of leaving the app. The id is in the URL, not the title, since notes are identified by file id. When the app starts with no note in the URL, it reopens the last open note (its id kept in `localStorage`); a note that is gone or trashed falls back to the list without an error. Details: on phones, opening a note adds a history entry (Back and the in-app back button return to the list); on wider screens, where the list is always shown, the entry is replaced. "Last open note" applies to a new tab only, so reloading a tab that shows the list stays on the list. The sign-in redirect keeps the route in `sessionStorage` and puts it back after Google sends the user back.
-- [x] **Full-text search** (added 2026-11-02): search note text as well as titles, through Drive's `fullText contains` query on the `Notes/` folders. Title matches come first. Results update as you type, debounced so Drive isn't queried on every keystroke.
-- [x] **Open recent notes instantly** (added 2026-11-02): keep the text of the last 20 opened notes, as last loaded or saved, in memory (not `localStorage`) and show it right away when one is reopened, then check its `version` as the focus check does. If it changed elsewhere and there are no local edits, load the new text; local edits follow the usual conflict rules.
-- [x] **Placeholder rows while the list loads** (added 2026-11-02): grey rows in the shape of note cards instead of the "Loading notes…" text, so the layout doesn't jump when the notes arrive. No animation under `prefers-reduced-motion`.
-- [x] **A preview line in the note list** (added 2026-11-02): each note card shows the first words of the note under the title, in muted text, one line with ellipsis. The text is stored on the file as `appProperties.preview` when the app saves the note, so the list doesn't have to read every note (Drive allows 124 bytes per property, key plus value). Every card keeps this line's room, also boards and empty notes (blank there), so all cards are the same height (changed 2026-11-02). Markdown markers are left out of the preview, a first heading that repeats the title is skipped, and boards show none. Saving sends the preview in the same request as the text (only when it changed), and opening a note corrects a missing or stale one without changing the note's modified time, like the board mark. Notes changed by another tool show a stale preview until saved in the app.
-- [x] **One "New" button** (added 2026-11-02): replace the "New note" and "New board" buttons with one New button that opens a small menu (Note, Board), so the search field keeps the room on phones.
-- [ ] **More table editing:** drag rows and columns to reorder them, set a column's alignment, sort by a column, and keep the pipes aligned in the text.
-- [ ] **Paste image data** (screenshots, photos, and images copied on iPhone, which often come without a URL): upload the image to Drive next to the note and insert `![alt](…)` pointing at it. Needs a way to show Drive images (they are not public URLs).
-- [ ] **Keep the header and format bar visible above the iPhone keyboard.** Priority: the most noticeable problem on phones (2026-11-02). Goal: like Apple Notes, the header and bar stay at the top and the note area shrinks to fit above the keyboard, with the cursor line kept visible. Tried on 2026-10-29: (1) sizing the app to the `visualViewport` and following its `offsetTop` made the tapped line end up hidden; (2) adding a scroll-cursor-into-view step after each resize made the screen flicker until the editor was tapped again, likely a loop between Safari panning the page, the app scrolling it back and the editor scrolling. Try 3 (2026-11-02, `ui/keyboardFit.ts`, needs confirming on a real iPhone): never follow Safari's panning. After the viewport has been still for 120 ms, in one go: size the app to the visual viewport, scroll the caret into view inside its scroller (32px above the keyboard), then `scrollTo(0, 0)` to undo Safari's pan. The caret is then visible, so Safari doesn't pan again and nothing loops. The keyboard height is remembered per orientation (`localStorage`), so from the second time the app shrinks on focus, before the keyboard arrives, and Safari doesn't pan at all. Only the first keyboard in a browser shows one jump.
+Open work, roughly in priority order. When an item is done, describe it in the section it belongs to and remove it here.
 
-## Handing this to Claude Code
-
-Export this doc as Markdown, save it in the repo as `SPEC.md`, and add a `CLAUDE.md` that points to it. Then ask Claude Code to build one milestone at a time and stop after each one for testing.
+- [ ] **Instant app start** (added 2026-11-02): keep the note list (ids, titles, previews, dates, categories and the app properties the list uses; no note text, no tokens) in `localStorage`, show it at once on start, then refresh it from Drive in the background and update what changed. Signing out clears it.
+- [ ] **Images in notes** (added 2026-11-02): paste, drop or add images in a note like on a card's image board: uploaded to `Notes/.attachments/` (scaled down the same way) and inserted as `![](https://drive.google.com/file/d/<fileId>/view)` at the cursor. Drive images in notes (and in the text view of boards) render as real images, loaded through the Drive API like card images, instead of the "Image in Drive" label. Covers screenshots and photos copied on iPhone, which come without a URL.
+- [ ] **Due dates that stand out** (added 2026-11-02): a card's due date chip turns red when overdue and amber when due today. Later, a "Due soon" view collects dated cards (and open tasks with dates) from all boards.
+- [ ] **Archive view on boards** (added 2026-11-02): an "Archive (n)" button on a board shows its archived cards, each with a Restore action that moves the card's lines back to a column; no need to open the text view.
+- [ ] **Recently deleted** (added 2026-11-02): a view of the notes in the Drive trash that came from the `Notes/` folders, with Restore, so a note can come back after its Undo toast is gone.
+- [ ] **Merge edits** (added 2026-11-02; also step 3 of sharing): when a save finds a newer version, merge the edits three ways (the text as loaded, mine and theirs, for example with `diff-match-patch`) and save the result when the changes don't overlap. The conflict dialog only shows when they do.
+- [ ] **Image captions** (added 2026-11-02): a short caption under each image on a card's image board, stored as the image's alt text (`![caption](…)`).
+- [ ] **More table editing:** drag rows and columns to reorder them, sort by a column, and keep the pipes aligned in the text.
