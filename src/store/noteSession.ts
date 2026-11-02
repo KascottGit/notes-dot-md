@@ -167,8 +167,11 @@ export class NoteSession {
       // The user may have typed while we were loading; then the save handles it.
       if (this.busy() || this.isDirty() || this.disposed) return;
       this.note = { ...note, folderId: this.note.folderId };
-      this.base = text;
-      this.port.setText(text);
+      // Only metadata changed (a pin, a rename): leave the editor and cursor alone.
+      if (text !== this.base) {
+        this.base = text;
+        this.port.setText(text);
+      }
       this.setStatus('saved');
     } catch {
       // Offline or similar; the next save checks again.

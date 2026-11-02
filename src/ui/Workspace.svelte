@@ -220,6 +220,21 @@
     return session?.hasUnsavedWork() ?? false;
   }
 
+  /**
+   * Notes opened recently, with their text as last loaded or saved, newest
+   * last. In memory only. Reopening one shows it at once, then checks Drive.
+   */
+  // Not shown anywhere, so a plain (non-reactive) Map.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const recent = new Map<string, { note: Note; text: string }>();
+  const RECENT_MAX = 20;
+
+  function remember(note: Note, text: string) {
+    recent.delete(note.id);
+    recent.set(note.id, { note, text });
+    if (recent.size > RECENT_MAX) recent.delete(recent.keys().next().value!);
+  }
+
   /** Stop showing a note that is still loading (its result is dropped). */
   function cancelOpening() {
     openSeq++;
@@ -244,10 +259,11 @@
     }
     const seq = ++openSeq;
     openError = null;
+    const cached = recent.get(note.id);
     // Fresh metadata, so the conflict check starts from the real current version.
     // Fetched while the current note saves, so the two waits overlap.
-    const loaded = Promise.all([getNote(drive, note.id), readNote(drive, note.id)]);
-    loaded.catch(() => {}); // Handled below; may be dropped if the switch is refused.
+    const loaded = cached ? null : Promise.all([getNote(drive, note.id), readNote(drive, note.id)]);
+    loaded?.catch(() => {}); // Handled below; may be dropped if the switch is refused.
     if (session && session.hasUnsavedWork()) {
       if (!(await session.flush())) {
         if (seq !== openSeq) return;
@@ -258,6 +274,17 @@
       }
       if (seq !== openSeq) return;
     }
+    if (cached) {
+      // Seen before: show that text now, then check Drive like on window focus.
+      // The version stays the one the text belongs to, so a newer one is noticed.
+      const newer = Number(note.version) > Number(cached.note.version);
+      const meta = newer ? note : cached.note;
+      show({ ...meta, version: cached.note.version, folderId: note.folderId }, cached.text);
+      if (focus) editor?.focus();
+      void session?.checkRemote();
+      return;
+    }
+    if (!loaded) return; // (Only when cached, handled above.)
     opening = note;
     view = 'editor';
     try {
@@ -285,6 +312,7 @@
 
   function show(note: Note, text: string, fade = false) {
     cancelOpening();
+    remember(note, text);
     fadeIn = fade;
     session?.dispose();
     if (!editor && editorEl) {
@@ -342,6 +370,9 @@
 
   function onSessionState(state: SessionState) {
     sessionState = state;
+    if (state.status === 'saved' && session?.state.note.id === state.note.id) {
+      remember(state.note, session.baseText);
+    }
     if (state.status === 'saved' && !redirecting) clearStash();
     // Keep the list in step with saves (modified time, name).
     notes = notes.map((n) => (n.id === state.note.id ? state.note : n));
@@ -434,6 +465,7 @@
 
   /** Move a note to the Drive trash, with Undo. */
   async function deleteNote(note: Note) {
+    recent.delete(note.id);
     if (opening?.id === note.id) {
       cancelOpening();
       openError = null;

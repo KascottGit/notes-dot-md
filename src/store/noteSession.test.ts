@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeDrive } from '../drive/fakeDrive';
-import { createNote, ensureFolders, readNote, saveNote, type Note } from '../drive/notes';
+import {
+  createNote,
+  ensureFolders,
+  readNote,
+  saveNote,
+  setPinned,
+  type Note,
+} from '../drive/notes';
 import {
   AUTOSAVE_DELAY_MS,
   NoteSession,
@@ -220,6 +227,18 @@ describe('remote changes on focus', () => {
     await session.checkRemote();
 
     expect(editor.text).toBe('local');
+  });
+  it('takes new metadata without touching the editor when only that changed', async () => {
+    const { session, editor, drive, note } = await setup();
+    const setText = vi.spyOn(editor, 'setText');
+    await setPinned(drive, note, true);
+
+    await session.checkRemote();
+
+    expect(setText).not.toHaveBeenCalled();
+    expect(session.state.note.appProperties['pinned']).toBe('true');
+    // The next save doesn't see a conflict.
+    expect(Number(session.state.note.version)).toBeGreaterThan(Number(note.version));
   });
 });
 
