@@ -502,7 +502,6 @@
     top: 2px;
     right: 2px;
     --reveal-width: 88px;
-    justify-content: flex-end;
     border-radius: 8px;
     /* The row's color, so the buttons cover the end of the title cleanly. */
     background: inherit;

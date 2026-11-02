@@ -136,7 +136,9 @@ body {
  * Put `reveal-host` on the item and `reveal` on the buttons' wrapper;
  * `--reveal-width` is the open width (default 44px, one button). Touch
  * screens always show them, unless the wrapper also has `mouse-only` (touch
- * screens then swipe, or remove somewhere else).
+ * screens then swipe, or remove somewhere else). Keep the buttons at the
+ * box's start (no `justify-content: flex-end`): they travel in with its
+ * growing left edge; pinned to the right they would only be uncovered.
  */
 .reveal {
   display: inline-flex;

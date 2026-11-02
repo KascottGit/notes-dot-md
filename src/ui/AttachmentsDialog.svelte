@@ -491,7 +491,6 @@
     position: absolute;
     top: 4px;
     right: 4px;
-    justify-content: flex-end;
     border-radius: 8px;
     background: var(--bg);
   }
