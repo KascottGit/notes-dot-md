@@ -68,7 +68,7 @@
   });
 </script>
 
-<article class="card" class:dragging bind:this={el} data-card={index}>
+<article class="card reveal-host" class:dragging bind:this={el} data-card={index}>
   <div
     class="title-row"
     class:editing
@@ -109,7 +109,8 @@
       </span>
     {/if}
     {#if !readOnly || card.attachments.length > 0}
-      <span class="attach" class:has={card.attachments.length > 0}>
+      <!-- Always shown once the card has images (with their count), else on hover like delete. -->
+      <span class="attach" class:reveal={card.attachments.length === 0}>
         <IconButton
           icon="attach"
           label={`Images on ${card.title}`}
@@ -120,7 +121,7 @@
       </span>
     {/if}
     {#if !readOnly}
-      <span class="delete">
+      <span class="delete reveal">
         <IconButton
           icon="trash"
           label={`Delete card ${card.title}`}
@@ -215,29 +216,6 @@
    * show it.
    */
   @media (hover: hover) and (pointer: fine) {
-    .delete,
-    .attach:not(.has) {
-      width: 0;
-      overflow: hidden;
-      opacity: 0;
-      transition:
-        width 120ms ease,
-        opacity 120ms ease;
-    }
-
-    .card:hover .delete,
-    .delete:focus-within,
-    .card:hover .attach,
-    .attach:focus-within {
-      width: 44px;
-      opacity: 1;
-    }
-
-    .card:hover .attach.has,
-    .attach.has {
-      width: auto;
-    }
-
     .card:hover :global(.cm-placeholder) {
       visibility: visible;
     }

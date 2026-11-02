@@ -30,8 +30,12 @@
     sidebarOpen?: boolean;
     /** Wider screens: show or hide the note list. */
     onToggleSidebar?: () => void;
-    /** The note's text is still loading (or failed to): show it, but nothing can be changed yet. */
-    opening?: 'loading' | 'failed' | null;
+    /**
+     * 'loading' / 'failed': the note's text is still loading (or failed to):
+     * show it, but nothing can be changed yet. 'creating': a new note whose
+     * file is being created; the title can be typed, the actions wait.
+     */
+    opening?: 'loading' | 'failed' | 'creating' | null;
   }
 
   let {
@@ -53,7 +57,7 @@
   }: Props = $props();
 
   const loading = $derived(opening !== null);
-  const locked = $derived(sessionState.readOnly || loading);
+  const locked = $derived(sessionState.readOnly || opening === 'loading' || opening === 'failed');
 
   const pinned = $derived(isPinned(sessionState.note));
   const categoryName = $derived(
@@ -65,16 +69,18 @@
   const label = $derived(
     opening === 'loading'
       ? 'Opening…'
-      : opening === 'failed'
-        ? "Couldn't open"
-        : sessionState.readOnly
-          ? 'Read-only'
-          : {
-              saved: 'Saved',
-              saving: 'Saving…',
-              unsaved: 'Unsaved changes',
-              error: "Couldn't save",
-            }[sessionState.status],
+      : opening === 'creating'
+        ? 'Creating…'
+        : opening === 'failed'
+          ? "Couldn't open"
+          : sessionState.readOnly
+            ? 'Read-only'
+            : {
+                saved: 'Saved',
+                saving: 'Saving…',
+                unsaved: 'Unsaved changes',
+                error: "Couldn't save",
+              }[sessionState.status],
   );
 
   /** Put the cursor in the title with all of it selected (for new notes). */
@@ -114,7 +120,7 @@
           <select
             aria-label="Category"
             value={sessionState.note.folderId}
-            disabled={locked}
+            disabled={locked || loading}
             onchange={(e) => {
               const picked = e.currentTarget.value;
               // Show the real category until the move has gone through.

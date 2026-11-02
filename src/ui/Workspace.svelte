@@ -118,10 +118,16 @@
   /** Counts opens, so a slow load that was overtaken by another is dropped. */
   let openSeq = 0;
   /** The note header shows the loading note (title, category) until its text arrives. */
+  /** A new note shown before its file exists in Drive; it is created in the background. */
+  let creating = $state<Note | null>(null);
+  /** The background creation: true once the file exists and the note is saved as usual. */
+  let creatingTask: Promise<boolean> | null = null;
   const headerState = $derived<SessionState | null>(
     opening
       ? { note: opening, status: 'saved', error: null, conflict: false, readOnly: !opening.canEdit }
-      : sessionState,
+      : creating
+        ? { note: creating, status: 'saved', error: null, conflict: false, readOnly: false }
+        : sessionState,
   );
   /** Fade the text in once it has loaded (not on the very first open). */
   let fadeIn = $state(false);
@@ -435,7 +441,7 @@
 
   /** Edits not yet on Drive, or a save in progress. */
   export function hasUnsavedWork(): boolean {
-    return session?.hasUnsavedWork() ?? false;
+    return creating !== null || (session?.hasUnsavedWork() ?? false);
   }
 
   /**
@@ -515,6 +521,14 @@
     }
     const seq = ++openSeq;
     openError = null;
+    // A new note still being created: let it finish, so its text is saved.
+    if (creatingTask) {
+      if (!(await settleCreating()) || seq !== openSeq) return;
+      if (session && note.id === session.state.note.id) {
+        view = 'editor';
+        return;
+      }
+    }
     const cached = recent.get(note.id);
     // Fresh metadata, so the conflict check starts from the real current version.
     // Fetched while the current note saves, so the two waits overlap.
@@ -571,11 +585,19 @@
     remember(note, text);
     fadeIn = fade;
     session?.dispose();
+    loadText(text, !note.canEdit);
+    void syncNoteProperties(note, text);
+    attachSession(note, text);
+    view = 'editor';
+  }
+
+  /** Put a text in the editor (and the board view), with an empty undo history. */
+  function loadText(text: string, readOnly: boolean) {
     if (!editor && editorEl) {
       editor = createEditor({
         parent: editorEl,
         doc: text,
-        readOnly: !note.canEdit,
+        readOnly,
         onChange: () => session?.edited(),
         onDocChange: syncBoard,
         onSave: () => void session?.save(),
@@ -583,19 +605,21 @@
         tags: tagSuggestions,
       });
     } else {
-      editor?.load(text, !note.canEdit);
+      editor?.load(text, readOnly);
     }
     boardAsText = false;
     boardFile = isBoard(text);
     boardText = text;
-    void syncNoteProperties(note, text);
+  }
+
+  /** Save the editor's text to this note from now on. `text` is what Drive has. */
+  function attachSession(note: Note, text: string) {
     const port = {
       getText: () => editor?.getText() ?? text,
       setText: (t: string) => editor?.setText(t),
     };
     session = new NoteSession(drive, note, text, port, onSessionState);
     sessionState = session.state;
-    view = 'editor';
   }
 
   /** After any change to the text: is it (still) a board, and what does the board show. */
@@ -635,30 +659,91 @@
     notes = notes.map((n) => (n.id === state.note.id ? state.note : n));
   }
 
+  /**
+   * A new note or board: its screen opens at once, with the title selected,
+   * and the file is created in the background (SPEC "New note").
+   */
   async function newNote(kind: 'note' | 'board' = 'note') {
     if (!folders) return;
     openError = null;
+    if (!(await settleCreating())) return;
     if (session && !(await session.flush())) {
       openError =
         "This note has changes that couldn't be saved yet. Resolve that before switching.";
       return;
     }
+    cancelOpening();
+    const now = new Date().toISOString();
+    const draft: Note = {
+      id: '',
+      name: 'Untitled.md',
+      title: 'Untitled',
+      folderId: selectedCategory ?? folders.defaultId,
+      createdTime: now,
+      modifiedTime: now,
+      version: '0',
+      canEdit: true,
+      appProperties: kind === 'board' ? { type: 'board' } : {},
+    };
+    session?.dispose();
+    session = null;
+    sessionState = null;
+    creating = draft;
+    fadeIn = false;
+    loadText(kind === 'board' ? NEW_BOARD_TEXT : '', false);
+    view = 'editor';
+    await tick();
+    header?.focusTitle();
+    creatingTask = createInBackground(draft);
+  }
+
+  /** Create the new note's file. Text typed and a title given meanwhile go along. */
+  async function createInBackground(draft: Note): Promise<boolean> {
+    const text = editor?.getText() ?? '';
     try {
-      const text = kind === 'board' ? NEW_BOARD_TEXT : '';
       const note = await createNote(
         drive,
-        selectedCategory ?? folders.defaultId,
+        draft.folderId,
         'Untitled',
         text,
-        kind === 'board' ? { type: 'board' } : {},
+        isBoard(text) ? { type: 'board' } : {},
       );
       notes = [...notes, note];
-      show(note, text);
-      await tick();
-      header?.focusTitle();
+      const title = creating?.title ?? 'Untitled';
+      creating = null;
+      openError = null;
+      remember(note, text);
+      attachSession(note, text);
+      // Typed while the file was being created: save it like any edit.
+      if (editor && editor.getText() !== text) session?.edited();
+      if (title !== 'Untitled') await renameOpenNote(title);
+      return true;
     } catch (err) {
-      openError = `Couldn't create a note: ${message(err)}`;
+      openError = `Couldn't create the note: ${message(err)} Your text is still here.`;
+      return false;
     }
+  }
+
+  /** Try creating the new note's file again. */
+  function retryCreate() {
+    if (!creating) return;
+    openError = null;
+    creatingTask = createInBackground(creating);
+  }
+
+  /**
+   * Before leaving a new note: wait until its file exists. False (and a
+   * message) if it couldn't be created, so its text isn't left behind.
+   */
+  async function settleCreating(): Promise<boolean> {
+    if (!creatingTask) return true;
+    if (await creatingTask) {
+      creatingTask = null;
+      return true;
+    }
+    openError = "This new note couldn't be created in Drive yet. Retry, or copy its text first.";
+    view = 'editor';
+    return false;
   }
 
   async function resolve(choice: ConflictChoice) {
@@ -679,6 +764,11 @@
   }
 
   async function renameOpenNote(title: string) {
+    if (creating) {
+      // The file doesn't exist yet: it gets this title once it does.
+      creating = { ...creating, title, name: `${title}.md` };
+      return;
+    }
     if (!session) return;
     openError = null;
     try {
@@ -861,6 +951,8 @@
     if (session?.hasUnsavedWork()) {
       void session.save();
       event.preventDefault();
+    } else if (creating) {
+      event.preventDefault(); // A new note still being created in Drive.
     }
   }
 
@@ -926,7 +1018,7 @@
       <NoteHeader
         bind:this={header}
         sessionState={headerState}
-        opening={opening ? (openError ? 'failed' : 'loading') : null}
+        opening={opening ? (openError ? 'failed' : 'loading') : creating ? 'creating' : null}
         {categories}
         onBack={() => (view = 'list')}
         sidebarOpen={!sidebarCollapsed}
@@ -966,6 +1058,7 @@
       <p class="open-error" role="alert">
         {openError}
         {#if opening}<button class="retry" onclick={retryOpen}>Retry</button>{/if}
+        {#if creating}<button class="retry" onclick={retryCreate}>Retry</button>{/if}
       </p>
     {/if}
     {#if opening && !openError}
@@ -983,11 +1076,11 @@
     {:else if !headerState}
       <p class="empty">Select a note, or create a new one.</p>
     {/if}
-    {#if sessionState && !opening && boardMode}
+    {#if headerState && !opening && boardMode}
       <Board
         bind:this={board}
         text={boardText}
-        readOnly={sessionState.readOnly}
+        readOnly={headerState.readOnly}
         onEdit={(text) => editor?.edit(text)}
         onSave={() => void session?.save()}
         onToast={(message, undo) => {
@@ -998,7 +1091,7 @@
     {/if}
     <div
       class="editor"
-      class:hidden={!sessionState || opening || boardMode}
+      class:hidden={!headerState || opening || boardMode}
       class:fade={fadeIn}
       bind:this={editorEl}
     ></div>

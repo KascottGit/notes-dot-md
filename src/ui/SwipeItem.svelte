@@ -11,14 +11,15 @@
   import Icon from './Icon.svelte';
 
   interface Props {
-    pinned: boolean;
+    pinned?: boolean;
     disabled?: boolean;
-    onPin: () => void;
+    /** Left to right pins; without it, that swipe does nothing (e.g. tags). */
+    onPin?: () => void;
     onDelete: () => void;
     children: Snippet;
   }
 
-  let { pinned, disabled = false, onPin, onDelete, children }: Props = $props();
+  let { pinned = false, disabled = false, onPin, onDelete, children }: Props = $props();
 
   /** How far to swipe right before releasing pins. */
   const THRESHOLD = 80;
@@ -70,8 +71,8 @@
       row?.setPointerCapture(event.pointerId);
     }
     let next = start.offset + dx;
-    // An open row only swipes closed, not on to pinning.
-    if (start.offset < 0) next = Math.min(0, next);
+    // An open row only swipes closed, not on to pinning (nor rows that can't pin).
+    if (start.offset < 0 || !onPin) next = Math.min(0, next);
     // Past the usual distance, it keeps following but more slowly.
     const limit = next > 0 ? THRESHOLD * 1.5 : REVEAL;
     const beyond = Math.max(0, Math.abs(next) - limit);
@@ -92,7 +93,7 @@
     }
     swiping = false;
     swallowClick = true; // The release must not also open the note.
-    if (offset >= THRESHOLD) {
+    if (offset >= THRESHOLD && onPin) {
       close();
       onPin();
     } else if (offset <= -REVEAL / 2) {

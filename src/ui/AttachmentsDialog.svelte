@@ -271,7 +271,7 @@
     <div class="grid" role="list" bind:this={grid}>
       {#each attachments as attachment, i (attachment.id)}
         <div
-          class="tile"
+          class="tile reveal-host"
           class:dragged={dragged === i}
           class:target={target === i && dragged !== i}
           data-index={i}
@@ -295,7 +295,7 @@
           {/await}
           {#if !readOnly}
             <!-- With a mouse, on hover; touch screens remove from the large view. -->
-            <span class="tile-remove">
+            <span class="tile-remove reveal mouse-only">
               <IconButton
                 icon="trash"
                 label={`Remove image ${i + 1}`}
@@ -486,27 +486,14 @@
     box-shadow: 0 6px 24px rgb(0 0 0 / 25%);
   }
 
-  /* The trash button on a tile: with a mouse, on hover (touch removes from the large view). */
+  /* The trash button on a tile: sweeps in on hover (app.css .reveal); touch removes from the large view. */
   .tile-remove {
     position: absolute;
     top: 4px;
     right: 4px;
-    display: none;
+    justify-content: flex-end;
     border-radius: 8px;
     background: var(--bg);
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    .tile-remove {
-      display: block;
-      opacity: 0;
-      transition: opacity 120ms ease;
-    }
-
-    .tile:hover .tile-remove,
-    .tile-remove:focus-within {
-      opacity: 1;
-    }
   }
 
   .tile:focus-visible {

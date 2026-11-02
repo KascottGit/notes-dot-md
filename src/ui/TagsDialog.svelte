@@ -13,6 +13,7 @@
   } from '../store/tagColors';
   import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
+  import SwipeItem from './SwipeItem.svelte';
   import IconButton from './IconButton.svelte';
 
   interface Props {
@@ -64,23 +65,28 @@
       {#each tags as tag (tag)}
         {@const color = colors[tag]}
         <li>
-          <div class="line">
-            <button
-              class="row"
-              aria-expanded={expanded === tag}
-              title={`#${tag}: choose a color`}
-              onclick={() => (expanded = expanded === tag ? null : tag)}
-            >
-              <span class="name"><span class="tag" data-tag={tag}>#{tag}</span></span>
-              <Icon name="chevronDown" size={16} />
-            </button>
-            <IconButton
-              icon="trash"
-              label={`Remove #${tag}`}
-              title="Remove from saved tags"
-              onclick={() => onRemove(tag)}
-            />
-          </div>
+          <!-- Touch: swipe left for Delete, as in the note list. Mouse: trash on hover. -->
+          <SwipeItem onDelete={() => onRemove(tag)}>
+            <div class="line reveal-host">
+              <button
+                class="row"
+                aria-expanded={expanded === tag}
+                title={`#${tag}: choose a color`}
+                onclick={() => (expanded = expanded === tag ? null : tag)}
+              >
+                <span class="name"><span class="tag" data-tag={tag}>#{tag}</span></span>
+                <Icon name="chevronDown" size={16} />
+              </button>
+              <span class="reveal mouse-only">
+                <IconButton
+                  icon="trash"
+                  label={`Remove #${tag}`}
+                  title="Remove from saved tags"
+                  onclick={() => onRemove(tag)}
+                />
+              </span>
+            </div>
+          </SwipeItem>
           {#if expanded === tag}
             <div class="swatches" role="group" aria-label={`Color for #${tag}`}>
               {#each TAG_COLORS as c (c)}

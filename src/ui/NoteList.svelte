@@ -110,7 +110,7 @@
     onPin={() => onTogglePin(note)}
     onDelete={() => onDeleteNote(note)}
   >
-    <div class="row" class:selected={note.id === selectedNoteId}>
+    <div class="row reveal-host" class:selected={note.id === selectedNoteId}>
       <button
         class="item"
         aria-current={note.id === selectedNoteId ? 'true' : undefined}
@@ -123,9 +123,10 @@
           {/if}
           {note.title}
         </span>
-        {#if notePreview(note) && !isBoardNote(note)}
-          <span class="preview">{notePreview(note)}</span>
-        {/if}
+        <!-- Always the line's room (empty for boards and empty notes), so all cards are the same height. -->
+        <span class="preview" aria-hidden={!notePreview(note) || isBoardNote(note)}>
+          {isBoardNote(note) ? '\u00a0' : notePreview(note) || '\u00a0'}
+        </span>
         <!-- Board or note: the same icons as the header's switch between board and text. -->
         {#snippet kind()}
           <span
@@ -147,7 +148,7 @@
       </button>
       <!-- With a mouse, pin and delete show on hover (touch screens swipe instead). -->
       {#if note.canEdit}
-        <span class="hover-actions">
+        <span class="hover-actions reveal mouse-only">
           <IconButton
             icon="pin"
             label={isPinned(note) ? 'Unpin note' : 'Pin note'}
@@ -269,6 +270,7 @@
         {#each [72, 48, 86, 60, 40, 78] as width, i (i)}
           <li class="row placeholder">
             <span class="line title-line" style:width={`${width}%`}></span>
+            <span class="line preview-line"></span>
             <span class="line meta-line"></span>
           </li>
         {/each}
@@ -494,30 +496,16 @@
     cursor: pointer;
   }
 
+  /* Pin and delete sweep in at the top right on hover (app.css .reveal), over the title's end. */
   .hover-actions {
-    display: none;
-  }
-
-  /* Only where there is a mouse: on touch screens nothing shows on hover. */
-  @media (hover: hover) and (pointer: fine) {
-    .hover-actions {
-      position: absolute;
-      top: 50%;
-      right: 2px;
-      display: flex;
-      border-radius: 8px;
-      /* The row's color, so the buttons cover the end of the title cleanly. */
-      background: inherit;
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(-50%);
-    }
-
-    .row:hover .hover-actions,
-    .row:focus-within .hover-actions {
-      opacity: 1;
-      pointer-events: auto;
-    }
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    --reveal-width: 88px;
+    justify-content: flex-end;
+    border-radius: 8px;
+    /* The row's color, so the buttons cover the end of the title cleanly. */
+    background: inherit;
   }
 
   .title {
@@ -564,7 +552,7 @@
   .placeholder {
     display: flex;
     flex-direction: column;
-    gap: 11px;
+    gap: 12px;
     min-height: 44px;
     padding: 14px 12px 15px;
   }
@@ -581,6 +569,11 @@
 
   .title-line {
     height: 12px;
+  }
+
+  .preview-line {
+    width: 80%;
+    height: 10px;
   }
 
   .meta-line {

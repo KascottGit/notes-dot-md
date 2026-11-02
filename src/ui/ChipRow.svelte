@@ -9,13 +9,15 @@
     label: string;
     /** Always one sideways-scrolling line, also on desktop. */
     scroll?: boolean;
+    /** Centered (it still scrolls from the first chip when it doesn't fit). */
+    center?: boolean;
     children: Snippet;
   }
 
-  let { label, scroll = false, children }: Props = $props();
+  let { label, scroll = false, center = false, children }: Props = $props();
 </script>
 
-<div class="chips" class:scroll role="group" aria-label={label}>
+<div class="chips" class:scroll class:center role="group" aria-label={label}>
   {@render children()}
 </div>
 
@@ -31,6 +33,15 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
+  }
+
+  /* Auto margins (not justify-content) so an overflowing row still starts at its first chip. */
+  .chips.center > :global(:first-child) {
+    margin-left: auto;
+  }
+
+  .chips.center > :global(:last-child) {
+    margin-right: auto;
   }
 
   .chips::-webkit-scrollbar {

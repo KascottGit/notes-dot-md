@@ -601,7 +601,7 @@
 <div class="board" bind:this={root} data-scroll>
   {#if tags.length > 0}
     <div class="filter">
-      <ChipRow label="Filter cards by tag" scroll>
+      <ChipRow label="Filter cards by tag" scroll center>
         <Chip label="All cards" active={tagFilter === null} onclick={() => (tagFilter = null)} />
         {#each tags as t (t.tag.toLowerCase())}
           {@const active = tagFilter?.toLowerCase() === t.tag.toLowerCase()}
@@ -641,7 +641,7 @@
       >
         <!-- Tap the title to rename; press and hold (or drag with a mouse) to move the column. -->
         <header
-          class="column-head"
+          class="column-head reveal-host"
           class:movable={!readOnly}
           class:editing={editingColumn === ci}
           role="presentation"
@@ -674,7 +674,7 @@
             >{count}</span
           >
           {#if !readOnly}
-            <span class="column-delete">
+            <span class="column-delete reveal">
               <IconButton
                 icon="trash"
                 label={`Delete column ${column.title}`}
@@ -868,24 +868,6 @@
   .column-head:not(.editing) .column-title :global(.inline-name) {
     cursor: inherit;
     pointer-events: none;
-  }
-
-  /* With a mouse, delete opens up on hover (as on cards); touch screens always show it. */
-  @media (hover: hover) and (pointer: fine) {
-    .column-delete {
-      width: 0;
-      overflow: hidden;
-      opacity: 0;
-      transition:
-        width 120ms ease,
-        opacity 120ms ease;
-    }
-
-    .column-head:hover .column-delete,
-    .column-delete:focus-within {
-      width: 44px;
-      opacity: 1;
-    }
   }
 
   .filter {

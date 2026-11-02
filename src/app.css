@@ -129,3 +129,39 @@ body {
 #app {
   height: 100%;
 }
+
+/*
+ * Buttons that show on hover with a mouse (trash, pin): they sweep in from
+ * the side, anchored at the top right of their item, the same everywhere.
+ * Put `reveal-host` on the item and `reveal` on the buttons' wrapper;
+ * `--reveal-width` is the open width (default 44px, one button). Touch
+ * screens always show them, unless the wrapper also has `mouse-only` (touch
+ * screens then swipe, or remove somewhere else).
+ */
+.reveal {
+  display: inline-flex;
+  flex: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .reveal {
+    width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      width 120ms ease,
+      opacity 120ms ease;
+  }
+
+  .reveal-host:hover .reveal,
+  .reveal:focus-within {
+    width: var(--reveal-width, 44px);
+    opacity: 1;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .reveal.mouse-only {
+    display: none;
+  }
+}
