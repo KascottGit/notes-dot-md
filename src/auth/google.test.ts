@@ -23,11 +23,15 @@ function setup(opts: { hash?: string; hint?: string; session?: Record<string, st
   const clearHash = vi.fn(() => {
     hash = '';
   });
+  const setHash = vi.fn((h: string) => {
+    hash = h;
+  });
   const auth = createAuth({
     clientId: 'client-id',
     redirectUri: () => REDIRECT_URI,
     getHash: () => hash,
     clearHash,
+    setHash,
     navigate,
     revoke,
     storage,
@@ -42,6 +46,7 @@ function setup(opts: { hash?: string; hint?: string; session?: Record<string, st
     navigate,
     revoke,
     clearHash,
+    getHash: () => hash,
     /** The query of the last Google URL the app navigated to. */
     lastRequest: () => new URL(navigate.mock.calls.at(-1)![0]).searchParams,
     advance(ms: number) {
@@ -129,6 +134,21 @@ describe('coming back from Google', () => {
     expect(auth.state).toMatchObject({ status: 'signed-in', error: null });
     expect(session.data.has('mdnotes.oauthState')).toBe(false);
     await expect(auth.getToken()).resolves.toBe('token-1');
+  });
+
+  it("puts the open note's route back after the round trip to Google", () => {
+    const away = setup({ hash: '#/n/abc123', hint: 'me@example.com' });
+    away.auth.init(); // Automatic sign-in: goes to Google.
+    expect(away.session.data.get('mdnotes.returnRoute')).toBe('#/n/abc123');
+
+    const back = setup({
+      hash: grantHash(),
+      session: { ...STARTED, ...Object.fromEntries(away.session.data) },
+    });
+    back.auth.init();
+    expect(back.auth.state.status).toBe('signed-in');
+    expect(back.getHash()).toBe('#/n/abc123');
+    expect(back.session.data.has('mdnotes.returnRoute')).toBe(false);
   });
 
   it('rejects a response whose state does not match (forged redirect)', async () => {

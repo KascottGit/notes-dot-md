@@ -22,6 +22,8 @@ const LOGIN_HINT_KEY = 'mdnotes.loginHint';
 const STATE_KEY = 'mdnotes.oauthState';
 /** Set while an automatic (no-click) sign-in is tried, so a failure can't loop. */
 const AUTO_KEY = 'mdnotes.autoSignIn';
+/** sessionStorage: the app's place (`#/n/<id>`) while away at Google. */
+const ROUTE_KEY = 'mdnotes.returnRoute';
 /** Treat a token as expired a minute early so requests don't race the expiry. */
 const EXPIRY_MARGIN_MS = 60_000;
 /** Errors from prompt=none that just mean "the user has to click". */
@@ -63,6 +65,8 @@ export interface AuthDeps {
   getHash: () => string;
   /** Remove the fragment from the address bar and history. */
   clearHash: () => void;
+  /** Put an app route (`#/...`) back in the address bar after the sign-in redirect. */
+  setHash?: (hash: string) => void;
   navigate: (url: string) => void;
   revoke: (token: string) => void;
   /** localStorage: the login hint. */
@@ -122,6 +126,10 @@ export function createAuth(deps: AuthDeps) {
     }
     const nonce = randomState();
     write(session, STATE_KEY, nonce);
+    // Google sends the user back to the bare redirect URI, so keep the open note's route.
+    const route = deps.getHash();
+    if (route.startsWith('#/')) write(session, ROUTE_KEY, route);
+    else remove(session, ROUTE_KEY);
     const params = new URLSearchParams({
       client_id: deps.clientId,
       redirect_uri: deps.redirectUri(),
@@ -139,6 +147,9 @@ export function createAuth(deps: AuthDeps) {
   /** Handle `#access_token=...` or `#error=...` after Google sends the user back. */
   function readRedirectResult(params: URLSearchParams) {
     deps.clearHash();
+    const route = read(session, ROUTE_KEY);
+    remove(session, ROUTE_KEY);
+    if (route?.startsWith('#/')) deps.setHash?.(route);
     const expected = read(session, STATE_KEY);
     remove(session, STATE_KEY);
     if (!expected || params.get('state') !== expected) {
@@ -321,6 +332,10 @@ export const auth = createAuth({
   clearHash: () => {
     const { pathname, search } = window.location;
     window.history.replaceState(window.history.state, '', pathname + search);
+  },
+  setHash: (hash) => {
+    const { pathname, search } = window.location;
+    window.history.replaceState(window.history.state, '', pathname + search + hash);
   },
   navigate: (url) => window.location.assign(url),
   revoke: (value) => {

@@ -46,6 +46,13 @@
   } from '../store/noteSession';
   import { clearStash, readStash, saveStash, type Stash } from '../store/stash';
   import { safeLocalStorage } from '../store/storage';
+  import {
+    firstStartInTab,
+    hashForNote,
+    loadLastNote,
+    noteFromHash,
+    saveLastNote,
+  } from '../store/route';
   import type { Account } from '../drive/account';
   import Board from './Board.svelte';
   import ConflictDialog from './ConflictDialog.svelte';
@@ -123,23 +130,99 @@
     if (firstView) firstView = false;
     else animate = true;
   });
+  /**
+   * The open note in the address bar (`#/n/<id>`), so a reload or bookmark
+   * reopens it. On phones, opening a note adds a history entry, so Back
+   * returns to the list; on wider screens the list is always shown, so the
+   * entry is replaced instead.
+   */
+  const startRoute = noteFromHash(window.location.hash);
+  /** False until the note from the URL (or the last note) has been reopened. */
+  let routeReady = $state(false);
+  /** history.back() was called; its popstate hasn't arrived yet. */
+  let goingBack = false;
+  const narrow = () => window.matchMedia('(max-width: 899px)').matches;
+  const urlWith = (hash: string) => window.location.pathname + window.location.search + hash;
+  const routeNoteId = $derived(opening?.id ?? sessionState?.note.id ?? null);
+
+  $effect(() => {
+    if (!routeReady || goingBack) return;
+    const id = routeNoteId;
+    const wanted = id && (view === 'editor' || !narrow()) ? hashForNote(id) : '';
+    if (id) saveLastNote(id);
+    if (window.location.hash === wanted) return;
+    const pushed = window.history.state?.mdnotesNote === true;
+    if (!wanted && pushed) {
+      // Back to the list on a phone: undo the note's entry, like the browser's Back.
+      goingBack = true;
+      window.history.back();
+    } else if (wanted && narrow() && !noteFromHash(window.location.hash)) {
+      window.history.pushState({ mdnotesNote: true }, '', urlWith(wanted));
+    } else {
+      window.history.replaceState(pushed ? window.history.state : null, '', urlWith(wanted));
+    }
+  });
+
+  /** The browser's Back or Forward (or an edited address): show what the URL says. */
+  function onPopState() {
+    goingBack = false;
+    const id = noteFromHash(window.location.hash);
+    if (!id) {
+      view = 'list';
+      return;
+    }
+    if (id === routeNoteId) {
+      view = 'editor';
+      return;
+    }
+    const note = notes.find((n) => n.id === id);
+    if (note) void openNote(note);
+    else window.history.replaceState(null, '', urlWith(''));
+  }
+
+  /**
+   * On start: reopen unsaved text from before a reload, else the note in the
+   * URL, else (in a new tab) the last open note. A note that is gone is skipped.
+   */
+  async function reopenOnStart() {
+    const newTab = firstStartInTab();
+    if (listError) return;
+    // On phones, put the list under the note, so Back goes there (after a
+    // reload, the note's own entry is still there).
+    const pushed = window.history.state?.mdnotesNote === true;
+    if (narrow() && startRoute && !pushed) window.history.replaceState(null, '', urlWith(''));
+    if (readStash()) {
+      routeReady = true;
+      await restoreStash();
+      return;
+    }
+    const last = loadLastNote();
+    const id = startRoute ?? (newTab ? last : null);
+    const note = id ? notes.find((n) => n.id === id) : undefined;
+    if (id && !note && id === last) saveLastNote(null);
+    routeReady = true;
+    if (note) await openNote(note);
+  }
+
   /** Leaving for Google's sign-in page, with unsaved text stashed. */
   let redirecting = false;
   let stopStashOnRedirect: (() => void) | null = null;
 
   onMount(() => {
-    void loadList().then(restoreStash);
+    void loadList().then(reopenOnStart);
     stopStashOnRedirect = auth.onBeforeRedirect(() => {
       redirecting = true;
       stashOpenNote();
     });
     window.addEventListener('focus', onWindowFocus);
+    window.addEventListener('popstate', onPopState);
     window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('visibilitychange', onVisibilityChange);
   });
 
   onDestroy(() => {
     window.removeEventListener('focus', onWindowFocus);
+    window.removeEventListener('popstate', onPopState);
     window.removeEventListener('beforeunload', onBeforeUnload);
     document.removeEventListener('visibilitychange', onVisibilityChange);
     stopStashOnRedirect?.();
@@ -519,6 +602,7 @@
   /** Move a note to the Drive trash, with Undo. */
   async function deleteNote(note: Note) {
     recent.delete(note.id);
+    if (loadLastNote() === note.id) saveLastNote(null);
     if (opening?.id === note.id) {
       cancelOpening();
       openError = null;
