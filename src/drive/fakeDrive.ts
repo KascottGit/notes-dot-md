@@ -15,6 +15,8 @@ export interface FakeFile {
   createdTime: string;
   modifiedTime: string;
   appProperties?: Record<string, string>;
+  /** Binary content (an uploaded image), served instead of `content`. */
+  data?: Blob;
 }
 
 interface Call {
@@ -44,6 +46,7 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
       createdTime: f.createdTime ?? time,
       modifiedTime: f.modifiedTime ?? time,
       ...(f.appProperties ? { appProperties: f.appProperties } : {}),
+      ...(f.data ? { data: f.data } : {}),
     };
     files.set(file.id, file);
     return file;
@@ -51,7 +54,7 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
   initial.forEach(add);
 
   function meta(f: FakeFile) {
-    const { content: _content, version, ...rest } = f; // eslint-disable-line @typescript-eslint/no-unused-vars
+    const { content: _content, data: _data, version, ...rest } = f; // eslint-disable-line @typescript-eslint/no-unused-vars
     return { ...rest, version: String(version), capabilities: { canEdit: true } };
   }
 
@@ -98,7 +101,13 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
   const fetchFn: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
     const method = init?.method ?? 'GET';
-    const body = typeof init?.body === 'string' ? init.body : '';
+    // A Blob body (an image upload) is read byte for byte, one character per byte.
+    const blob = init?.body instanceof Blob ? init.body : null;
+    const body = blob
+      ? bytesToString(new Uint8Array(await blob.arrayBuffer()))
+      : typeof init?.body === 'string'
+        ? init.body
+        : '';
     calls.push({ method, url, body });
     if (offline) throw new TypeError('Failed to fetch');
     const path = url.pathname;
@@ -123,7 +132,7 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
       const f = files.get(m[1]!);
       if (!f) return json(404, { error: { message: 'File not found' } });
       if (method === 'GET') {
-        if (url.searchParams.get('alt') === 'media') return new Response(f.content);
+        if (url.searchParams.get('alt') === 'media') return new Response(f.data ?? f.content);
         return json(200, meta(f));
       }
       if (method === 'PATCH') {
@@ -154,7 +163,14 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
       if (url.searchParams.get('uploadType') !== 'multipart' || !boundary) {
         return json(400, { error: { message: 'Expected a multipart upload' } });
       }
-      const { metadata, content } = splitMultipart(body, boundary);
+      const { metadata, content, type: partType } = splitMultipart(body, boundary);
+      if (blob) {
+        const data = new Blob([stringToBytes(content)], { type: partType });
+        return json(
+          200,
+          meta(add({ ...(metadata as Partial<FakeFile>), mimeType: partType, data })),
+        );
+      }
       return json(200, meta(add({ ...(metadata as Partial<FakeFile>), content })));
     }
 
@@ -205,10 +221,26 @@ function mergeProperties(f: FakeFile, changes: Record<string, string | null>) {
   f.appProperties = merged;
 }
 
-function splitMultipart(body: string, boundary: string): { metadata: unknown; content: string } {
+function splitMultipart(
+  body: string,
+  boundary: string,
+): { metadata: unknown; content: string; type: string } {
   const parts = body.split(`--${boundary}`).slice(1, -1);
   const partBody = (p: string) => p.slice(p.indexOf('\r\n\r\n') + 4, -2);
-  return { metadata: JSON.parse(partBody(parts[0]!)), content: partBody(parts[1]!) };
+  const type = /Content-Type: ([^;\r\n]+)/.exec(parts[1]!)?.[1] ?? '';
+  return { metadata: JSON.parse(partBody(parts[0]!)), content: partBody(parts[1]!), type };
+}
+
+function bytesToString(bytes: Uint8Array): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    out += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+  return out;
+}
+
+function stringToBytes(text: string): Uint8Array<ArrayBuffer> {
+  return Uint8Array.from(text, (c) => c.charCodeAt(0));
 }
 
 function unquote(s: string): string {

@@ -219,11 +219,15 @@ function writeCache(storage: StorageLike | null, rootId: string) {
   }
 }
 
-/** Category folders directly under `Notes/`, sorted by name. */
+/**
+ * Category folders directly under `Notes/`, sorted by name. Folders whose
+ * name starts with `.` are the app's own (`.attachments`), not categories.
+ */
 export async function listCategories(drive: DriveClient, rootId: string): Promise<Category[]> {
   const q = `${quoteQuery(rootId)} in parents and mimeType = '${FOLDER_MIME}' and trashed = false`;
   const files = await listAll(drive, q, FOLDER_FIELDS);
   return files
+    .filter((f) => !f.name.startsWith('.'))
     .map((f) => ({ id: f.id, name: f.name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -504,6 +508,48 @@ export async function setNoteProperties(
     body: JSON.stringify({ appProperties: properties, modifiedTime: note.modifiedTime }),
   });
   return toNote(file, note.folderId);
+}
+
+/** Where card images are kept: `Notes/.attachments/` (not a category). */
+export const ATTACHMENTS_FOLDER = '.attachments';
+
+/** The attachments folder's id, created the first time. */
+export async function attachmentsFolder(drive: DriveClient, rootId: string): Promise<string> {
+  const found = await findFolder(drive, rootId, ATTACHMENTS_FOLDER);
+  return found?.id ?? (await createFolder(drive, rootId, ATTACHMENTS_FOLDER)).id;
+}
+
+/** Upload an image file. Returns its Drive file id. */
+export async function uploadImage(
+  drive: DriveClient,
+  folderId: string,
+  name: string,
+  image: Blob,
+): Promise<string> {
+  const boundary = `mdnotes-${crypto.randomUUID()}`;
+  const metadata = { name, parents: [folderId], appProperties: APP_PROPERTIES };
+  const head = [
+    `--${boundary}`,
+    'Content-Type: application/json; charset=UTF-8',
+    '',
+    JSON.stringify(metadata),
+    `--${boundary}`,
+    `Content-Type: ${image.type || 'application/octet-stream'}`,
+    '',
+    '',
+  ].join('\r\n');
+  const file = await drive.json<DriveFile>(`${UPLOAD}?uploadType=multipart&fields=id`, {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body: new Blob([head, image, `\r\n--${boundary}--\r\n`]),
+  });
+  return file.id;
+}
+
+/** Download a file's content, e.g. an attached image. */
+export async function readFileBlob(drive: DriveClient, id: string): Promise<Blob> {
+  const res = await drive.request(`${FILES}/${id}?alt=media`);
+  return res.blob();
 }
 
 /** The app's settings file in `Notes/` (tag colors). Not a note: notes live in categories. */

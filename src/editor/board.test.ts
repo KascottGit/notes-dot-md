@@ -5,6 +5,9 @@ import {
   archiveCard,
   boardTags,
   deleteColumn,
+  joinAttachments,
+  setAttachments,
+  splitAttachments,
   documentTags,
   hasTag,
   bodyForFile,
@@ -384,5 +387,52 @@ describe('documentTags', () => {
     expect(
       documentTags('<!-- notes.md:board -->\n\n# Todo\n\n## Report #uni\n\n#uni #urgent\n'),
     ).toEqual(['uni', 'urgent']);
+  });
+});
+
+describe('card attachments', () => {
+  const img = (id: string) => `![](https://drive.google.com/file/d/${id}/view)`;
+
+  it('splits the image lines at the end of a body from its text', () => {
+    expect(splitAttachments(`Some text\n\n${img('a1')}\n${img('b-2')}`)).toEqual({
+      text: 'Some text',
+      attachments: [
+        { id: 'a1', alt: '' },
+        { id: 'b-2', alt: '' },
+      ],
+    });
+    expect(splitAttachments(img('a1'))).toEqual({ text: '', attachments: [{ id: 'a1', alt: '' }] });
+  });
+
+  it('leaves image lines before other text, other images and code alone', () => {
+    const body = `${img('a1')}\n\nText after`;
+    expect(splitAttachments(body)).toEqual({ text: body, attachments: [] });
+    const web = 'Text\n\n![](https://example.com/x.png)';
+    expect(splitAttachments(web).attachments).toEqual([]);
+    const code = `\`\`\`\n${img('a1')}\n\`\`\``;
+    expect(splitAttachments(code).attachments).toEqual([]);
+  });
+
+  it('joins text and attachments with a blank line', () => {
+    const a = [{ id: 'a1', alt: '' }];
+    expect(joinAttachments('Text\n', a)).toBe(`Text\n\n${img('a1')}`);
+    expect(joinAttachments('', a)).toBe(img('a1'));
+    expect(joinAttachments('Text', [])).toBe('Text');
+  });
+
+  it("sets a card's attachments, changing only its body", () => {
+    const board = '<!-- notes.md:board -->\n\n# Todo\n\n## A\n\nText\n\n## B\n\nOther\n';
+    const once = setAttachments(board, { column: 0, card: 0 }, [{ id: 'x', alt: '' }]);
+    expect(once).toBe(
+      `<!-- notes.md:board -->\n\n# Todo\n\n## A\n\nText\n\n${img('x')}\n\n## B\n\nOther\n`,
+    );
+    const card = parseBoard(once).columns[0]!.cards[0]!;
+    expect(card.attachments).toEqual([{ id: 'x', alt: '' }]);
+    const twice = setAttachments(once, { column: 0, card: 0 }, [
+      { id: 'y', alt: '' },
+      { id: 'x', alt: '' },
+    ]);
+    expect(twice).toContain(`Text\n\n${img('y')}\n${img('x')}\n\n## B`);
+    expect(setAttachments(twice, { column: 0, card: 0 }, [])).toBe(board);
   });
 });

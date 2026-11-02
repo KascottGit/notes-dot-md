@@ -37,6 +37,15 @@ export interface BoardCard {
   tasks: { done: number; total: number };
   /** Every `#tag` in the title and body (not in code), without the `#`, as first written. */
   tags: string[];
+  /** Images on the card's image board, in order (the image lines at the end of its body). */
+  attachments: Attachment[];
+}
+
+/** An image attached to a card: a Drive file, as an image line at the end of the card body. */
+export interface Attachment {
+  /** The Drive file id. */
+  id: string;
+  alt: string;
 }
 
 export interface BoardColumn {
@@ -207,6 +216,7 @@ export function parseBoard(text: string): Board {
         meta: parseMeta(bodyText),
         tasks: countTasks(bodyText),
         tags: uniqueTags(tagLines),
+        attachments: splitAttachments(bodyText).attachments,
       });
     }
   }
@@ -392,6 +402,60 @@ export function headingFixes(
     });
   });
   return fixes;
+}
+
+// ---------------------------------------------------------- Image attachments
+
+/** An attachment line: `![alt](https://drive.google.com/file/d/<id>/view)`. */
+const ATTACHMENT_LINE =
+  /^!\[([^\]\n]*)\]\(https:\/\/drive\.google\.com\/file\/d\/([\w-]+)\/view\)[ \t]*$/;
+
+export function attachmentLine(attachment: Attachment): string {
+  const alt = attachment.alt.replace(/[[\]\n]/g, ' ');
+  return `![${alt}](https://drive.google.com/file/d/${attachment.id}/view)`;
+}
+
+/**
+ * A card body split into its text and its attachments: the image lines at
+ * the end (with blank lines between them), as long as they are not in code.
+ */
+export function splitAttachments(body: string): { text: string; attachments: Attachment[] } {
+  const lines = splitLines(body);
+  const inCode = codeLines(lines);
+  let start = lines.length;
+  while (start > 0) {
+    const line = lines[start - 1]!;
+    if (!isBlank(line) && (inCode[start - 1] || !ATTACHMENT_LINE.test(line.text))) break;
+    start--;
+  }
+  const attachments: Attachment[] = [];
+  for (let i = start; i < lines.length; i++) {
+    const m = ATTACHMENT_LINE.exec(lines[i]!.text);
+    if (m) attachments.push({ alt: m[1]!, id: m[2]! });
+  }
+  if (attachments.length === 0) return { text: body, attachments };
+  const text = start === 0 ? '' : body.slice(0, lines[start - 1]!.to);
+  return { text: text.replace(/(?:\n[ \t]*)+$/, ''), attachments };
+}
+
+/** A card body from its text and attachments (the attachments after a blank line). */
+export function joinAttachments(text: string, attachments: readonly Attachment[]): string {
+  if (attachments.length === 0) return text;
+  const lines = attachments.map(attachmentLine).join('\n');
+  const trimmed = text.replace(/(?:\n[ \t]*)+$/, '');
+  return trimmed.trim() ? `${trimmed}\n\n${lines}` : lines;
+}
+
+/** Set a card's attachments (in this order), changing only that card's body. */
+export function setAttachments(
+  text: string,
+  ref: CardRef,
+  attachments: readonly Attachment[],
+): string {
+  const card = parseBoard(text).columns[ref.column]?.cards[ref.card];
+  if (!card) return text;
+  const body = splitAttachments(text.slice(card.body.from, card.body.to)).text;
+  return replaceBody(text, card.body, joinAttachments(body, attachments));
 }
 
 /**

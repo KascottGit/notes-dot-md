@@ -14,6 +14,7 @@
     listNotesIn,
     DEFAULT_FOLDER_NAME,
     moveNote,
+    attachmentsFolder,
     readNote,
     searchNoteText,
     renameFolder,
@@ -271,6 +272,17 @@
     } finally {
       loading = false;
     }
+  }
+
+  /** `Notes/.attachments/`, found or created the first time a card image is added. */
+  let imagesFolderId: Promise<string> | null = null;
+  function imagesFolder(): Promise<string> {
+    if (!folders) return Promise.reject(new Error('The notes folder is not loaded yet.'));
+    if (!imagesFolderId) {
+      imagesFolderId = attachmentsFolder(drive, folders.rootId);
+      imagesFolderId.catch(() => (imagesFolderId = null));
+    }
+    return imagesFolderId;
   }
 
   /** Picked tag colors, from the settings file in Drive. */
@@ -981,6 +993,7 @@
         onToast={(message, undo) => {
           toast = { message, ...(undo ? { action: { label: 'Undo', run: undo } } : {}) };
         }}
+        {imagesFolder}
       />
     {/if}
     <div

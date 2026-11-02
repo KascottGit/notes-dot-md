@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fakeDrive } from './fakeDrive';
 import {
   APP_PROPERTIES,
+  attachmentsFolder,
   createFolder,
   createNote,
   ensureFolders,
@@ -15,6 +16,7 @@ import {
   listNotesIn,
   moveNote,
   notePreview,
+  readFileBlob,
   readNote,
   renameNote,
   renameFolder,
@@ -25,6 +27,7 @@ import {
   trashFolder,
   trashNote,
   untrashNote,
+  uploadImage,
 } from './notes';
 
 function memoryStorage(initial: Record<string, string> = {}) {
@@ -397,5 +400,26 @@ describe('note type', () => {
     const back = await setNoteProperties(drive, note, { type: null });
     expect(isBoardNote(back)).toBe(false);
     expect(files.get(note.id)!.appProperties).toEqual(APP_PROPERTIES);
+  });
+});
+
+describe('image attachments', () => {
+  it('uploads images into Notes/.attachments, which is not a category', async () => {
+    const { drive, rootId, files } = await withFolders();
+    const folder = await attachmentsFolder(drive, rootId);
+    expect(await attachmentsFolder(drive, rootId)).toBe(folder);
+    expect((await listCategories(drive, rootId)).map((c) => c.name)).toEqual(['General']);
+
+    const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0x80, 0x0d, 0x0a]);
+    const id = await uploadImage(
+      drive,
+      folder,
+      'Photo.png',
+      new Blob([bytes], { type: 'image/png' }),
+    );
+    const file = files.get(id)!;
+    expect(file).toMatchObject({ name: 'Photo.png', parents: [folder], mimeType: 'image/png' });
+    const back = await readFileBlob(drive, id);
+    expect(new Uint8Array(await back.arrayBuffer())).toEqual(bytes);
   });
 });

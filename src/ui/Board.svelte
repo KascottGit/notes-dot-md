@@ -20,14 +20,21 @@
     parseBoard,
     renameCard,
     renameColumn,
+    joinAttachments,
     replaceBody,
+    setAttachments,
     setDueDate,
+    splitAttachments,
     visibleColumns,
+    type Attachment,
     type Board,
     type CardRef,
     type Span,
   } from '../editor/board';
   import type { Editor } from '../editor/setup';
+  import { drive } from '../drive/client';
+  import { uploadImage } from '../drive/notes';
+  import AttachmentsDialog from './AttachmentsDialog.svelte';
   import BoardCard from './BoardCard.svelte';
   import CardBody from './CardBody.svelte';
   import Chip from './Chip.svelte';
@@ -35,6 +42,7 @@
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
   import InlineName from './InlineName.svelte';
+  import { imageExtension, prepareImage, rememberImage } from './images';
 
   interface Props {
     text: string;
@@ -43,9 +51,11 @@
     onEdit: (text: string) => void;
     onSave: () => void;
     onToast: (message: string, undo?: () => void) => void;
+    /** The Drive folder card images go to (created when first needed). */
+    imagesFolder: () => Promise<string>;
   }
 
-  let { text, readOnly, onEdit, onSave, onToast }: Props = $props();
+  let { text, readOnly, onEdit, onSave, onToast, imagesFolder }: Props = $props();
 
   const board = $derived(parseBoard(text));
   const columns = $derived(visibleColumns(board));
@@ -82,6 +92,68 @@
     const span = spanOf(board, part);
     if (span) onEdit(replaceBody(text, span, body));
   }
+
+  // ---------------------------------------------------------- Card images
+
+  /** The card whose image board is open. */
+  let imagesFor = $state<CardRef | null>(null);
+  const imagesCard = $derived(
+    imagesFor ? (board.columns[imagesFor.column]?.cards[imagesFor.card] ?? null) : null,
+  );
+  let uploading = $state(0);
+  let imageError = $state<string | null>(null);
+
+  const cardAt = (ref: CardRef) => parseBoard(text).columns[ref.column]?.cards[ref.card];
+
+  function openImages(ref: CardRef) {
+    imageError = null;
+    imagesFor = ref;
+  }
+
+  /** Upload images one by one, adding each to the card when it's in Drive. */
+  async function addImages(files: File[]) {
+    const ref = imagesFor;
+    if (!ref) return;
+    imageError = null;
+    uploading += files.length;
+    let folder: string;
+    try {
+      folder = await imagesFolder();
+    } catch (err) {
+      uploading -= files.length;
+      imageError = `Couldn't add images: ${errorText(err)}`;
+      return;
+    }
+    for (const file of files) {
+      try {
+        const image = await prepareImage(file);
+        const title = (cardAt(ref)?.title ?? 'Image').replace(/[/\\:*?"<>|]+/g, ' ').trim();
+        const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ').replace(/:/g, '.');
+        const id = await uploadImage(
+          drive,
+          folder,
+          `${title} ${stamp}.${imageExtension(image.type)}`,
+          image,
+        );
+        rememberImage(id, image);
+        const card = cardAt(ref);
+        if (card) onEdit(setAttachments(text, ref, [...card.attachments, { id, alt: '' }]));
+      } catch (err) {
+        imageError = `Couldn't add an image: ${errorText(err)}`;
+      } finally {
+        uploading--;
+      }
+    }
+    onSave();
+  }
+
+  function reorderImages(next: Attachment[]) {
+    if (!imagesFor) return;
+    onEdit(setAttachments(text, imagesFor, next));
+    onSave();
+  }
+
+  const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
   // ---------------------------------------------------------- Focus and toolbar
 
@@ -591,18 +663,20 @@
               <BoardCard
                 {card}
                 index={i}
-                body={slice(card.body)}
+                body={splitAttachments(slice(card.body)).text}
                 {readOnly}
                 dragging={dragging?.kind === 'card' &&
                   dragging.ref.column === ci &&
                   dragging.ref.card === i}
                 focusTitle={newCardKey === key(ref)}
-                onBody={(t) => editPart({ kind: 'card', ...ref }, t)}
+                onBody={(t) =>
+                  editPart({ kind: 'card', ...ref }, joinAttachments(t, card.attachments))}
                 onRename={(title) => rename(ref, title)}
                 onTitleDone={() => {
                   if (newCardKey === key(ref)) newCardKey = null;
                 }}
                 onDelete={() => remove(ref)}
+                onAttach={() => openImages(ref)}
                 onPress={(e, el, onTap) => startPress(e, { kind: 'card', ref }, el, onTap)}
                 onFocus={(e) => focused(e, { kind: 'card', ...ref })}
                 onDestroyed={destroyed}
@@ -647,6 +721,18 @@
     onchange={onDatePicked}
   />
 </div>
+
+<AttachmentsDialog
+  open={imagesCard !== null}
+  title={imagesCard?.title ?? ''}
+  attachments={imagesCard?.attachments ?? []}
+  {uploading}
+  error={imageError}
+  {readOnly}
+  onFiles={(files) => void addImages(files)}
+  onReorder={reorderImages}
+  onClose={() => (imagesFor = null)}
+/>
 
 <style>
   .board {

@@ -25,6 +25,8 @@
     onRename: (title: string) => Promise<void>;
     onTitleDone: () => void;
     onDelete: () => void;
+    /** Open the card's image board. */
+    onAttach: () => void;
     /** Pointer down on the title row: the board decides between a tap (rename) and a drag. */
     onPress: (event: PointerEvent, cardEl: HTMLElement, onTap: () => void) => void;
     onFocus: (editor: Editor) => void;
@@ -43,6 +45,7 @@
     onRename,
     onTitleDone,
     onDelete,
+    onAttach,
     onPress,
     onFocus,
     onDestroyed,
@@ -103,6 +106,17 @@
       >
         <Icon name="task" size={16} />
         {card.tasks.done}/{card.tasks.total}
+      </span>
+    {/if}
+    {#if !readOnly || card.attachments.length > 0}
+      <span class="attach" class:has={card.attachments.length > 0}>
+        <IconButton
+          icon="attach"
+          label={`Images on ${card.title}`}
+          title={card.attachments.length > 0 ? 'Images' : 'Add images'}
+          count={card.attachments.length}
+          onclick={onAttach}
+        />
       </span>
     {/if}
     {#if !readOnly}
@@ -201,7 +215,8 @@
    * show it.
    */
   @media (hover: hover) and (pointer: fine) {
-    .delete {
+    .delete,
+    .attach:not(.has) {
       width: 0;
       overflow: hidden;
       opacity: 0;
@@ -211,9 +226,16 @@
     }
 
     .card:hover .delete,
-    .delete:focus-within {
+    .delete:focus-within,
+    .card:hover .attach,
+    .attach:focus-within {
       width: 44px;
       opacity: 1;
+    }
+
+    .card:hover .attach.has,
+    .attach.has {
+      width: auto;
     }
 
     .card:hover :global(.cm-placeholder) {

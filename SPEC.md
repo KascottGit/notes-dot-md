@@ -319,6 +319,13 @@ A board file opens in its own view, not the note editor, with the rules below. T
 - **Add:** "Add column" after the last column adds `# Untitled` before the hidden Archive and puts the cursor in its title.
 - **Delete:** the trash `IconButton` in the column header (on hover with a mouse, always on touch). The column's cards move to the Archive column in order, and any text between its heading and first card becomes an archived card with the column's title, so no text is lost. A column with cards asks to confirm first; either way there is an Undo toast.
 
+**Image attachments on cards** (added 2026-11-02)
+- Each card has an attachment (paperclip) `IconButton` next to its trash button. With images it always shows, with their count; without, it shows like the trash button (on hover with a mouse, always on touch). It opens the card's image board: a dialog titled with the card's title.
+- **The image board** shows the card's images as a tidy grid in their order. Images are added by pasting (Ctrl+V; on iPhone, long-press and Paste), by dropping image files on it, or with an "Add photo" button (the photo library or camera on phones, a file picker on desktop). Several at once is fine; each shows as a placeholder tile while it uploads. Drag a tile to reorder (with a mouse, just drag; on touch, press and hold first). Images only (PNG, JPEG, GIF, WebP). Viewing large, deleting and captions are not part of this step; an image line can still be removed in the text view.
+- **Files:** images are uploaded to `Notes/.attachments/` in Drive (created when first needed; folders whose name starts with `.` are never categories). Photos larger than 2048px on the long side, or over 2 MB, are scaled down and saved as JPEG (quality 0.85) before uploading; smaller images are uploaded as they are.
+- **In the markdown:** each image is one line at the end of the card body, `![](https://drive.google.com/file/d/<fileId>/view)`, after a blank line. So attachments move and archive with their card, the order is the line order, and Claude or other tools can see them. The card's body editor doesn't show these lines (the board splits them off and puts them back when the body changes); the text view shows them as they are.
+- **Showing images:** Drive images are not public, so the app downloads each one through the Drive API with the user's token and shows it from memory (kept for the session).
+
 **Filter by tag** (added 2026-10-31)
 - When cards use `#tags` (in the title or body, not in code), a row of chips above the columns shows "All cards" and each tag with how many cards have it, most used first. Choosing a tag shows only the cards that have it (any case); choosing it again or "All cards" shows all. Column counts show the cards shown.
 - The filter is not saved; it resets when the board is opened again.
@@ -395,7 +402,7 @@ Build in this order. Each milestone ends with a working deployed app and its acc
 
 ## Out of scope and open questions
 
-Out of scope for v1: offline editing, installing as an app (PWA), real-time collaboration, uploading images and attachments (images are shown from URLs only), footnotes, GitHub alerts (`> [!NOTE]`), rendering inline HTML, nested categories, a version history view (Drive keeps revisions), and sharing.
+Out of scope for v1: offline editing, installing as an app (PWA), real-time collaboration, uploading images (except image attachments on board cards; other images are shown from URLs only), footnotes, GitHub alerts (`> [!NOTE]`), rendering inline HTML, nested categories, a version history view (Drive keeps revisions), and sharing.
 
 Open questions:
 
