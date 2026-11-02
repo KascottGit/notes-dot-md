@@ -1238,11 +1238,11 @@
     padding: 4px 4px 0 16px;
   }
 
+  /* The name in the note text's serif, like the icon. */
   .app {
-    font-family: var(--font-heading);
-    font-size: 1.0625rem;
-    font-weight: 650;
-    letter-spacing: -0.01em;
+    font-family: var(--font-body);
+    font-size: 1.1875rem;
+    font-weight: 600;
   }
 
   .dev {

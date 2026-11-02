@@ -246,7 +246,7 @@ The app must feel good in a phone browser and on a Linux desktop. It runs in the
 - **No zoom:** pinch and double-tap zoom are turned off (owner decision, 2026-10-29): `touch-action: pan-x pan-y`, plus cancelling Safari's gesture events, since iPhone Safari ignores `user-scalable=no`. Text inputs and the editor still use a font size of at least 16px so focusing them never zooms.
 - **Layout:** two panes (list + editor) at ≥ 900px wide, one pane below that. The note header (title, category · status, actions) and the format bar form one block above the note. The header spans the whole width; the format bar is as wide as its buttons and centered, the same for notes and boards (changed 2026-11-02). On phones the note slides in from the right and the list from the left.
 - **Motion:** short and quiet: 120ms color fades on hover, 180–220ms slides. With `prefers-reduced-motion`, all of it is instant.
-- **Icons:** `favicon.svg`, a 32px PNG fallback and a 180px `apple-touch-icon.png` (Safari bookmarks and favorites).
+- **Icons:** ".md" in Source Serif 4, the note text font (changed 2026-11-02; drawn as outlines by `scripts/make-icons.py`). `favicon.svg` is just the text, dark, and light in dark mode; the 32px PNG fallback and the 180px `apple-touch-icon.png` (Safari bookmarks and favorites, square corners) show it on a white tile. The app name "notes.md" (note list, sign-in screen) is in the same serif.
 - **Touch targets** of at least 44 × 44px for toolbar buttons and checkboxes.
 - **Test targets:** a mobile browser on a phone (currently Safari on iPhone); Chromium and Firefox on Linux (Wayland/Hyprland). On Hyprland the app can also run as `chromium --app=<url>`.
 

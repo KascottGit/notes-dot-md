@@ -59,9 +59,12 @@
     text-align: center;
   }
 
+  /* The name in the note text's serif, like the icon. */
   h1 {
     margin: 0;
-    font-size: 1.75rem;
+    font-family: var(--font-body);
+    font-size: 2rem;
+    font-weight: 600;
   }
 
   p {
