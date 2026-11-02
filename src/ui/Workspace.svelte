@@ -339,35 +339,65 @@
     const checked = checkTagName(raw, tagColors);
     if ('error' in checked) return checked.error;
     expandedTag = checked.tag;
-    await pickTagColor(checked.tag, nextTagColor(tagColors));
+    // Shows at once; saved to Drive in the background, so the dialog closes right away.
+    void pickTagColor(checked.tag, nextTagColor(tagColors));
     return null;
   }
 
   /** Remove a saved tag (the text in notes stays), with Undo. */
-  async function removeTag(tag: string) {
+  function removeTag(tag: string) {
     const color = tagColors[tag];
     if (!color) return;
-    await pickTagColor(tag, null);
+    void pickTagColor(tag, null);
     toast = {
       message: `#${tag} removed from saved tags`,
       action: { label: 'Undo', run: () => void pickTagColor(tag, color) },
     };
   }
 
-  /** Set a saved tag's color, or remove the tag (null), everywhere at once. */
-  async function pickTagColor(tag: string, color: TagColor | null) {
-    if (!folders) return;
-    const before = tagColors;
-    const next = { ...tagColors };
-    if (color) next[tag.toLowerCase()] = color;
-    else delete next[tag.toLowerCase()];
-    tagColors = next;
-    try {
-      tagColors = await saveTagColor(drive, folders.rootId, tag, color);
-    } catch (err) {
-      tagColors = before;
-      toast = { message: `Couldn't save the color for #${tag}: ${message(err)}` };
+  /** Color changes shown already but not yet in Drive (lower-case tag → color, null: removed). */
+  // Not shown directly (tagColors is), so a plain Map.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const unsavedColors = new Map<string, TagColor | null>();
+  /** Saves run one after another, so each reads what the one before wrote. */
+  let colorSaves: Promise<void> = Promise.resolve();
+
+  /** Colors as saved, with the changes still on their way on top. */
+  function withUnsaved(colors: TagColors): TagColors {
+    const next = { ...colors };
+    for (const [tag, color] of unsavedColors) {
+      if (color) next[tag] = color;
+      else delete next[tag];
     }
+    return next;
+  }
+
+  /**
+   * Set a saved tag's color, or remove the tag (null). Shows everywhere at
+   * once; Drive is updated in the background.
+   */
+  function pickTagColor(tag: string, color: TagColor | null): Promise<void> {
+    const rootId = folders?.rootId;
+    if (!rootId) return Promise.resolve();
+    const key = tag.toLowerCase();
+    const before = tagColors[key] ?? null;
+    unsavedColors.set(key, color);
+    tagColors = withUnsaved(tagColors);
+    colorSaves = colorSaves.then(async () => {
+      try {
+        const saved = await saveTagColor(drive, rootId, key, color);
+        if (unsavedColors.get(key) === color) unsavedColors.delete(key);
+        tagColors = withUnsaved(saved);
+      } catch (err) {
+        if (unsavedColors.get(key) === color) unsavedColors.delete(key);
+        const back = { ...tagColors };
+        if (before) back[key] = before;
+        else delete back[key];
+        tagColors = withUnsaved(back);
+        toast = { message: `Couldn't save the color for #${key}: ${message(err)}` };
+      }
+    });
+    return colorSaves;
   }
 
   /** Re-read categories and notes from Drive, so changes made there show up. */
@@ -1061,14 +1091,21 @@
         {#if creating}<button class="retry" onclick={retryCreate}>Retry</button>{/if}
       </p>
     {/if}
-    {#if opening && !openError}
+    {#if opening && !openError && isBoardNote(opening)}
+      <!-- A board loading: placeholder columns and cards in the board's layout. -->
+      <div class="placeholder-board" aria-busy="true" aria-label="Loading board">
+        {#each [[70, 55, 80], [60, 75], [65]] as cards, i (i)}
+          <div class="ph-column">
+            <span class="line ph-title"></span>
+            {#each cards as width, j (j)}
+              <div class="ph-card"><span class="line" style:width={`${width}%`}></span></div>
+            {/each}
+          </div>
+        {/each}
+      </div>
+    {:else if opening && !openError}
       <!-- Placeholder lines while the text loads; they show only if it takes a moment. -->
-      <div
-        class="placeholder"
-        class:wide={isBoardNote(opening)}
-        aria-busy="true"
-        aria-label="Loading note"
-      >
+      <div class="placeholder" aria-busy="true" aria-label="Loading note">
         {#each [92, 78, 85, 40, 0, 88, 70] as width, i (i)}
           <span class="line" style:width={`${width}%`}></span>
         {/each}
@@ -1268,16 +1305,59 @@
     animation: fade-in 220ms ease-out 250ms backwards;
   }
 
-  /* Boards: lined up with the board header. */
-  .placeholder.wide {
-    max-width: none;
-    padding-left: 30px;
-  }
-
-  .placeholder .line {
+  .placeholder .line,
+  .placeholder-board .line {
+    display: block;
     height: 12px;
     border-radius: 6px;
     background: var(--bg-muted);
+  }
+
+  /* The board's own layout (Board.svelte): 288px columns side by side, stacked on phones. */
+  .placeholder-board {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px 16px;
+    overflow: hidden;
+    animation: fade-in 220ms ease-out 250ms backwards;
+  }
+
+  .ph-column {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 8px;
+    width: 288px;
+    padding: 0 8px 12px;
+    border-radius: 12px;
+    background: var(--bg-muted);
+  }
+
+  .placeholder-board .ph-title {
+    width: 35%;
+    margin: 16px 7px 8px;
+    background: var(--border);
+  }
+
+  .ph-card {
+    height: 82px;
+    padding: 16px 13px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+  }
+
+  @media (max-width: 899px) {
+    .placeholder-board {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 16px;
+    }
+
+    .ph-column {
+      width: auto;
+    }
   }
 
   /* The same as the Retry button after "Couldn't save" in the note header. */
