@@ -5,6 +5,7 @@
   import { getAccount, type Account } from '../drive/account';
   import { clearFolderCache } from '../drive/notes';
   import { safeLocalStorage } from '../store/storage';
+  import { fitKeyboard } from './keyboardFit';
   import SessionBanner from './SessionBanner.svelte';
   import SignIn from './SignIn.svelte';
   import Workspace from './Workspace.svelte';
@@ -71,7 +72,7 @@
 {#if $auth.status === 'loading' || $auth.status === 'signed-out'}
   <SignIn onSignIn={handleSignIn} />
 {:else}
-  <div class="shell">
+  <div class="shell" use:fitKeyboard>
     <SessionBanner />
     <Workspace
       bind:this={workspace}
