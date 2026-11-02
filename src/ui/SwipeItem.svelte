@@ -26,6 +26,7 @@
   const REVEAL = 96;
 
   let row = $state<HTMLDivElement>();
+  let deleteButton = $state<HTMLButtonElement>();
   let offset = $state(0);
   let dragging = $state(false);
   let leaving = $state(false);
@@ -43,7 +44,12 @@
   }
 
   function onPointerDown(event: PointerEvent) {
+    // A new touch: a click left over from the last swipe must not be swallowed
+    // now (iPhone Safari sends no click after a swipe).
+    swallowClick = false;
     if (disabled || event.pointerType === 'mouse' || leaving) return;
+    // A tap on the Delete button is for the button, not a tap that closes the row.
+    if (deleteButton?.contains(event.target as Node)) return;
     start = { x: event.clientX, y: event.clientY, id: event.pointerId, offset };
     swiping = false;
   }
@@ -145,6 +151,7 @@
     </div>
   {:else if offset < 0}
     <button
+      bind:this={deleteButton}
       class="action delete"
       style:width={`${Math.max(REVEAL, -offset)}px`}
       tabindex={open ? 0 : -1}
