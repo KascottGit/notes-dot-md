@@ -472,12 +472,21 @@
     transition: background-color 120ms ease;
   }
 
-  .row:hover {
-    background: var(--bg-muted);
+  /* Only with a mouse: phones keep a "hover" on the last tapped row. */
+  @media (hover: hover) and (pointer: fine) {
+    .row:hover {
+      background: var(--bg-muted);
+    }
   }
 
-  .row.selected {
-    background: var(--selection);
+  /*
+   * The open note, beside the list on wider screens. Phones show the list only
+   * when no note is open, so there it would look like a row stuck pressed.
+   */
+  @media (min-width: 900px) {
+    .row.selected {
+      background: var(--selection);
+    }
   }
 
   .item {

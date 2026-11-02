@@ -588,28 +588,31 @@
     }
   }
 
-  /** Scroll the board (and on desktop the column under the pointer) near its edges. */
+  /**
+   * Scroll near the edges while dragging: the board itself (on phones it is
+   * what scrolls, up and down), the row of columns and the column under the
+   * pointer (desktop). Sideways and up/down are checked on their own.
+   */
   function autoScroll() {
     if (!drag || !root) return;
     const { x, y } = drag;
-    const scrollers = [...root.querySelectorAll<HTMLElement>('[data-scroll]')];
+    // The board's own element too: querySelectorAll only finds what is inside it.
+    const scrollers = [root, ...root.querySelectorAll<HTMLElement>('[data-scroll]')];
+    const step = (distance: number) => Math.ceil(((56 - distance) / 56) * 16);
     let scrolled = false;
     for (const el of scrollers) {
       const r = el.getBoundingClientRect();
       if (x < r.left || x > r.right || y < r.top - 40 || y > r.bottom + 40) continue;
-      const step = (distance: number) => Math.ceil(((56 - distance) / 56) * 16);
+      const before = { left: el.scrollLeft, top: el.scrollTop };
       if (el.scrollWidth > el.clientWidth) {
         if (x - r.left < 56) el.scrollLeft -= step(x - r.left);
         else if (r.right - x < 56) el.scrollLeft += step(r.right - x);
-        else continue;
-        scrolled = true;
       }
       if (el.scrollHeight > el.clientHeight) {
         if (y - r.top < 56) el.scrollTop -= step(Math.max(0, y - r.top));
         else if (r.bottom - y < 56) el.scrollTop += step(Math.max(0, r.bottom - y));
-        else continue;
-        scrolled = true;
       }
+      if (el.scrollLeft !== before.left || el.scrollTop !== before.top) scrolled = true;
     }
     if (scrolled) updateDrop();
     drag.frame = requestAnimationFrame(autoScroll);
