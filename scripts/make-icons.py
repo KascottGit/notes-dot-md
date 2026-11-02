@@ -9,6 +9,8 @@ scripts/icon-tile.svg (the same text on a white tile), which the PNGs are
 rendered from: public/favicon-32.png at 32px, and public/apple-touch-icon.png
 at 180px with square corners (iOS rounds them itself and fills transparent
 corners with black), e.g. with rsvg-convert -w 180.
+Then raise the ?v= number on the icon links in index.html: browsers keep tab
+icons by address and won't load the new ones otherwise.
 """
 from pathlib import Path
 
