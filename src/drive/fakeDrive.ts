@@ -15,6 +15,8 @@ export interface FakeFile {
   createdTime: string;
   modifiedTime: string;
   appProperties?: Record<string, string>;
+  /** When it was moved to the trash (Drive's `trashedTime`). */
+  trashedTime?: string;
   /** Binary content (an uploaded image), served instead of `content`. */
   data?: Blob;
 }
@@ -76,6 +78,7 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
       if ((m = c.match(/^name = '(.*)'$/))) return f.name === unquote(m[1]!);
       if ((m = c.match(/^mimeType = '(.*)'$/))) return f.mimeType === m[1];
       if (c === 'trashed = false') return !f.trashed;
+      if (c === 'trashed = true') return f.trashed;
       if ((m = c.match(/^fullText contains '(.*)'$/))) {
         const word = unquote(m[1]!).toLowerCase();
         return `${f.name} ${f.content}`.toLowerCase().includes(word);
@@ -140,7 +143,11 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
           appProperties?: Record<string, string | null>;
         };
         if (patch.name !== undefined) f.name = patch.name;
-        if (patch.trashed !== undefined) f.trashed = patch.trashed;
+        if (patch.trashed !== undefined) {
+          f.trashed = patch.trashed;
+          if (patch.trashed) f.trashedTime = stamp();
+          else delete f.trashedTime;
+        }
         if (patch.appProperties) mergeProperties(f, patch.appProperties);
         const add = url.searchParams.get('addParents');
         const remove = url.searchParams.get('removeParents');

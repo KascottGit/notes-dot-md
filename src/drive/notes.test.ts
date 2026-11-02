@@ -14,6 +14,7 @@ import {
   listCategories,
   listNotes,
   listNotesIn,
+  listTrashedNotes,
   moveNote,
   notePreview,
   readFileBlob,
@@ -24,6 +25,7 @@ import {
   searchNoteText,
   setNoteProperties,
   setPinned,
+  setTrashed,
   trashFolder,
   trashNote,
   untrashNote,
@@ -421,5 +423,26 @@ describe('image attachments', () => {
     expect(file).toMatchObject({ name: 'Photo.png', parents: [folder], mimeType: 'image/png' });
     const back = await readFileBlob(drive, id);
     expect(new Uint8Array(await back.arrayBuffer())).toEqual(bytes);
+  });
+});
+
+describe('recently deleted', () => {
+  it('lists trashed notes from the given folders, last deleted first, until restored', async () => {
+    const { drive, defaultId } = await withFolders();
+    const a = await createNote(drive, defaultId, 'A');
+    const b = await createNote(drive, defaultId, 'B');
+    await createNote(drive, defaultId, 'Kept');
+    await trashNote(drive, a.id);
+    await new Promise((r) => setTimeout(r, 5));
+    await trashNote(drive, b.id);
+
+    const trashed = await listTrashedNotes(drive, [defaultId]);
+    expect(trashed.map((t) => t.note.title)).toEqual(['B', 'A']);
+    expect(trashed[0]!.note.folderId).toBe(defaultId);
+    expect(trashed[0]!.trashedTime).not.toBe('');
+
+    await setTrashed(drive, a.id, false);
+    expect((await listTrashedNotes(drive, [defaultId])).map((t) => t.note.title)).toEqual(['B']);
+    expect((await listNotes(drive, defaultId)).map((n) => n.title).sort()).toEqual(['A', 'Kept']);
   });
 });

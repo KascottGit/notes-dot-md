@@ -69,6 +69,7 @@ interface DriveFile {
   version?: string;
   parents?: string[];
   trashed?: boolean;
+  trashedTime?: string;
   appProperties?: Record<string, string>;
   capabilities?: { canEdit?: boolean };
 }
@@ -313,6 +314,43 @@ export async function searchNoteText(
     }),
   );
   return pages.flat().map((f) => f.id);
+}
+
+/** A note in the Drive trash, with when it was moved there. */
+export interface TrashedNote {
+  note: Note;
+  trashedTime: string;
+}
+
+/**
+ * Notes in the Drive trash that came from the given category folders (a
+ * trashed file keeps its folder), most recently deleted first. Drive empties
+ * its trash after 30 days.
+ */
+export async function listTrashedNotes(
+  drive: DriveClient,
+  folderIds: string[],
+): Promise<TrashedNote[]> {
+  const known = new Set(folderIds);
+  const chunks: string[][] = [];
+  for (let i = 0; i < folderIds.length; i += 25) chunks.push(folderIds.slice(i, i + 25));
+  const pages = await Promise.all(
+    chunks.map((ids) => {
+      const parents = ids.map((id) => `${quoteQuery(id)} in parents`).join(' or ');
+      return listAll(drive, `(${parents}) and trashed = true`, `${NOTE_FIELDS},trashedTime`);
+    }),
+  );
+  return pages
+    .flat()
+    .filter(isNoteFile)
+    .map((f) => ({
+      note: toNote(
+        f,
+        f.parents?.find((p) => known.has(p)),
+      ),
+      trashedTime: f.trashedTime ?? '',
+    }))
+    .sort((a, b) => b.trashedTime.localeCompare(a.trashedTime));
 }
 
 /** Markdown notes in one category folder. */

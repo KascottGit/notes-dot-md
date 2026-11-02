@@ -15,11 +15,14 @@
     DEFAULT_FOLDER_NAME,
     moveNote,
     attachmentsFolder,
+    listTrashedNotes,
     readNote,
     searchNoteText,
     renameFolder,
     renameNote,
     setNoteProperties,
+    setTrashed,
+    type TrashedNote,
     setPinned,
     isBoardNote,
     isPinned,
@@ -43,6 +46,7 @@
     type TagColors,
   } from '../store/tagColors';
   import TagsDialog from './TagsDialog.svelte';
+  import DeletedDialog from './DeletedDialog.svelte';
   import { driveImageLine, imageUrl, uploadImageFile } from './images';
   import { setDriveImageLoader } from '../editor/widgets';
 
@@ -360,6 +364,57 @@
     } finally {
       ed.dropSpot(spot);
     }
+  }
+
+  // ---------------------------------------------------------- Recently deleted
+
+  let deletedOpen = $state(false);
+  let deletedLoading = $state(false);
+  let deletedError = $state<string | null>(null);
+  let deleted = $state<TrashedNote[]>([]);
+  /** Feedback inside the dialog (a toast outside it can't be tapped while it's open). */
+  let deletedToast = $state<string | null>(null);
+
+  async function openDeleted() {
+    deletedOpen = true;
+    deletedToast = null;
+    deletedError = null;
+    deletedLoading = true;
+    try {
+      deleted = await listTrashedNotes(
+        drive,
+        categories.map((c) => c.id),
+      );
+    } catch (err) {
+      deletedError = `Couldn't load the trash: ${message(err)}`;
+    } finally {
+      deletedLoading = false;
+    }
+  }
+
+  /** Take a note back out of the Drive trash, into its category. */
+  async function restoreDeleted(id: string) {
+    const item = deleted.find((d) => d.note.id === id);
+    if (!item) return;
+    deleted = deleted.filter((d) => d.note.id !== id);
+    try {
+      await setTrashed(drive, id, false);
+      notes = [...notes.filter((n) => n.id !== id), item.note];
+      deletedToast = `"${item.note.title}" is back`;
+    } catch (err) {
+      deleted = [item, ...deleted];
+      deletedToast = `Couldn't restore "${item.note.title}": ${message(err)}`;
+    }
+  }
+
+  const deletedDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
+  const deletedTime = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+  function deletedWhen(iso: string): string {
+    if (!iso) return '';
+    const date = new Date(iso);
+    return new Date().toDateString() === date.toDateString()
+      ? `today ${deletedTime.format(date)}`
+      : deletedDate.format(date);
   }
 
   /** Picked tag colors, from the settings file in Drive. */
@@ -1099,6 +1154,12 @@
         }}
       />
       <IconButton
+        icon="deleted"
+        label="Recently deleted"
+        title="Recently deleted notes"
+        onclick={() => void openDeleted()}
+      />
+      <IconButton
         icon="logout"
         label="Sign out"
         title={account ? `Sign out (${account.emailAddress})` : 'Sign out'}
@@ -1257,6 +1318,25 @@
   onSubmit={addTag}
   onClose={() => (addingTag = false)}
 />
+
+<DeletedDialog
+  open={deletedOpen}
+  loading={deletedLoading}
+  error={deletedError}
+  items={deleted.map((d) => ({
+    id: d.note.id,
+    title: d.note.title,
+    category: categories.find((c) => c.id === d.note.folderId)?.name ?? '',
+    when: deletedWhen(d.trashedTime),
+    board: isBoardNote(d.note),
+  }))}
+  onRestore={(id) => void restoreDeleted(id)}
+  onClose={() => (deletedOpen = false)}
+>
+  {#if deletedToast}
+    <Toast message={deletedToast} onClose={() => (deletedToast = null)} />
+  {/if}
+</DeletedDialog>
 
 <NameDialog
   open={creatingCategory}

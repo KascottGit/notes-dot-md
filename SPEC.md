@@ -159,6 +159,7 @@ Categories are Drive folders, so the structure the app shows is the same one the
 - **Note or board:** each note in the list shows an icon for its type, the same icons as the header's switch between board and text: next to the category name under "All notes", before the date in a single category. The type is stored on the file as `appProperties.type = "board"`, so the list doesn't have to read every note. The board marker on the first line is what counts: new boards get the property when they are created, and opening or saving a note in the app corrects it (keeping the note's modified time). A note made a board by another tool shows its icon once it has been opened in the app.
 - **Pinned notes:** `appProperties.pinned = "true"`, shown in a Pinned section above all other notes. Toggle with the pin button in the note header, the pin button that shows when hovering a note in the list (mouse only), or on touch screens by swiping a note left to right and releasing (like Apple Notes).
 - **Delete a note:** the trash button in the note header, the trash button that shows when hovering a note in the list (mouse only), or on touch screens: swipe a note right to left to open a Delete button, then tap it. The swipe alone never deletes (changed 2026-10-30 to avoid accidents); the open button closes on a tap elsewhere or a swipe back. The note moves to the Drive trash, with an Undo toast that takes it back out.
+- **Recently deleted** (added 2026-11-03): a button at the top of the note list (a trash can with an arrow up, next to Tags) opens a dialog of the notes and boards in the Drive trash that came from the categories (a trashed file keeps its folder), most recently deleted first, with type, category and when. Each has a restore `IconButton` that takes it out of the trash and back into the list. Drive empties its trash after 30 days; the dialog says so.
 
 ## Tags
 
@@ -359,7 +360,6 @@ Open questions:
 Open work, roughly in priority order. When an item is done, describe it in the section it belongs to and remove it here.
 
 - [ ] **Due soon view** (added 2026-11-02): a view that collects dated cards (and open tasks with dates) from all boards, soonest first, with overdue ones on top.
-- [ ] **Recently deleted** (added 2026-11-02): a view of the notes in the Drive trash that came from the `Notes/` folders, with Restore, so a note can come back after its Undo toast is gone.
 - [ ] **Merge edits** (added 2026-11-02; also step 3 of sharing): when a save finds a newer version, merge the edits three ways (the text as loaded, mine and theirs, for example with `diff-match-patch`) and save the result when the changes don't overlap. The conflict dialog only shows when they do.
 - [ ] **Image captions** (added 2026-11-02): a short caption under each image on a card's image board, stored as the image's alt text (`![caption](…)`).
 - [ ] **More table editing:** drag rows and columns to reorder them, sort by a column, and keep the pipes aligned in the text.
