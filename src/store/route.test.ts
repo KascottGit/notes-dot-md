@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firstStartInTab, hashForNote, loadLastNote, noteFromHash, saveLastNote } from './route';
-
-function memoryStorage() {
-  const data = new Map<string, string>();
-  return {
-    getItem: (k: string) => data.get(k) ?? null,
-    setItem: (k: string, v: string) => void data.set(k, v),
-    removeItem: (k: string) => void data.delete(k),
-  };
-}
+import { forgetLastNote, hashForNote, noteFromHash } from './route';
 
 describe('note routes', () => {
   it('reads and writes the note id in the fragment', () => {
@@ -24,21 +15,14 @@ describe('note routes', () => {
     expect(noteFromHash('#/n/')).toBeNull();
     expect(noteFromHash('#/n/a/b')).toBeNull();
   });
-});
 
-describe('last note and tab start', () => {
-  it('remembers and forgets the last open note', () => {
-    const storage = memoryStorage();
-    expect(loadLastNote(storage)).toBeNull();
-    saveLastNote('abc', storage);
-    expect(loadLastNote(storage)).toBe('abc');
-    saveLastNote(null, storage);
-    expect(loadLastNote(storage)).toBeNull();
-  });
-
-  it('knows the first start in a tab', () => {
-    const session = memoryStorage();
-    expect(firstStartInTab(session)).toBe(true);
-    expect(firstStartInTab(session)).toBe(false);
+  it('forgets the last note an earlier version kept', () => {
+    const data = new Map([['mdnotes.lastNote', 'abc']]);
+    forgetLastNote({
+      getItem: (k) => data.get(k) ?? null,
+      setItem: (k, v) => void data.set(k, v),
+      removeItem: (k) => void data.delete(k),
+    });
+    expect(data.has('mdnotes.lastNote')).toBe(false);
   });
 });

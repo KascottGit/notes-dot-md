@@ -43,7 +43,7 @@ src/
   editor/cardRules.ts    card editor rules: no # / ## lines, date chips
   store/noteSession.ts   one open note: autosave, conflict check, app properties
   store/noteList.ts      list filtering, search results, sorting
-  store/route.ts         the note in the URL, last open note
+  store/route.ts         the note in the URL
   store/tagColors.ts     tag colors and the settings file
   ui/                    Svelte components (Workspace.svelte ties them together)
   ui/keyboardFit.ts      fitting the app above the iPhone keyboard

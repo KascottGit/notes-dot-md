@@ -69,13 +69,7 @@
   import { clearStash, readStash, saveStash, type Stash } from '../store/stash';
   import { safeLocalStorage } from '../store/storage';
   import { loadListCache, saveListCache } from '../store/listCache';
-  import {
-    firstStartInTab,
-    hashForNote,
-    loadLastNote,
-    noteFromHash,
-    saveLastNote,
-  } from '../store/route';
+  import { hashForNote, noteFromHash, forgetLastNote } from '../store/route';
   import type { Account } from '../drive/account';
   import Board from './Board.svelte';
   import ConflictDialog from './ConflictDialog.svelte';
@@ -194,7 +188,6 @@
     if (!routeReady || goingBack) return;
     const id = routeNoteId;
     const wanted = id && (view === 'editor' || !narrow()) ? hashForNote(id) : '';
-    if (id) saveLastNote(id);
     if (window.location.hash === wanted) return;
     const pushed = window.history.state?.mdnotesNote === true;
     if (!wanted && pushed) {
@@ -230,7 +223,7 @@
    * URL, else (in a new tab) the last open note. A note that is gone is skipped.
    */
   async function reopenOnStart() {
-    const newTab = firstStartInTab();
+    forgetLastNote(); // Kept by an earlier version, which reopened it in a new tab.
     if (listError) return;
     // On phones, put the list under the note, so Back goes there (after a
     // reload, the note's own entry is still there).
@@ -241,10 +234,7 @@
       await restoreStash();
       return;
     }
-    const last = loadLastNote();
-    const id = startRoute ?? (newTab ? last : null);
-    const note = id ? notes.find((n) => n.id === id) : undefined;
-    if (id && !note && id === last) saveLastNote(null);
+    const note = startRoute ? notes.find((n) => n.id === startRoute) : undefined;
     routeReady = true;
     if (note) await openNote(note);
   }
@@ -973,7 +963,6 @@
   /** Move a note to the Drive trash, with Undo. */
   async function deleteNote(note: Note) {
     recent.delete(note.id);
-    if (loadLastNote() === note.id) saveLastNote(null);
     if (opening?.id === note.id) {
       cancelOpening();
       openError = null;
