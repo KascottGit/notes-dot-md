@@ -15,6 +15,11 @@ const LOADABLE = /^https?:/i;
 export const isOpenable = (url: string | null): url is string => !!url && OPENABLE.test(url);
 export const isLoadable = (url: string | null): url is string => !!url && LOADABLE.test(url);
 
+/** The file id in a Drive file link (`https://drive.google.com/file/d/<id>/view`), or null. */
+export function driveFileId(url: string): string | null {
+  return /^https:\/\/drive\.google\.com\/file\/d\/([\w-]+)\/view$/.exec(url)?.[1] ?? null;
+}
+
 /** A bare URL as typed (GFM autolinks): `www.` links get https, emails get mailto. */
 export function autolinkHref(text: string): string {
   if (/^www\./i.test(text)) return `https://${text}`;

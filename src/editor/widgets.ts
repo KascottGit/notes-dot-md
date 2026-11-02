@@ -5,7 +5,7 @@
 import { foldEffect, foldedRanges, unfoldEffect } from '@codemirror/language';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { toggleTaskAt } from './lists';
-import { isLoadable, isOpenable, type Inline } from './markdown';
+import { driveFileId, isLoadable, isOpenable, type Inline } from './markdown';
 
 /** Replaces a `-`, `*` or `+` list marker. */
 export class BulletWidget extends WidgetType {
@@ -148,16 +148,25 @@ function decodeEntity(entity: string): string {
   return doc.documentElement.textContent ?? entity;
 }
 
-/** An image, or its alt text when it has no loadable source or fails to load. */
+/**
+ * An image, or its alt text when it has no loadable source or fails to load.
+ * Card images in Drive aren't public, so they show as a label here (the
+ * board's image board shows them).
+ */
 function imageElement(src: string | null, alt: string, view: EditorView): HTMLElement {
-  const placeholder = () => {
+  const placeholder = (text = alt || src || 'Image') => {
     const el = document.createElement('span');
     el.className = 'cm-md-image-missing';
-    el.textContent = alt || src || 'Image';
+    el.textContent = text;
     if (src) el.title = src;
     return el;
   };
+  if (src && driveFileId(src)) return placeholder(alt || 'Image in Drive');
   if (!isLoadable(src)) return placeholder();
+  // The img sits in a wrapper that stays: swapping the widget's own outer
+  // element would look like typing to the editor and change the text.
+  const wrap = document.createElement('span');
+  wrap.className = 'cm-md-image-wrap';
   const img = document.createElement('img');
   img.className = 'cm-md-image';
   img.src = src;
@@ -172,7 +181,8 @@ function imageElement(src: string | null, alt: string, view: EditorView): HTMLEl
     img.replaceWith(placeholder());
     view.requestMeasure();
   });
-  return img;
+  wrap.append(img);
+  return wrap;
 }
 
 /** Draw inline content as elements. Text always goes in as text, never as HTML. */

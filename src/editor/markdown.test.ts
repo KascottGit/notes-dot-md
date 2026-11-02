@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { markdownSupport } from './language';
 import {
   autolinkHref,
+  driveFileId,
   imageMarkdown,
   linkParts,
   linkReferences,
@@ -231,5 +232,13 @@ describe('previewText', () => {
   it('is empty for an empty note', () => {
     expect(previewText('')).toBe('');
     expect(previewText('\n\n# \n- [ ]\n')).toBe('');
+  });
+});
+
+describe('driveFileId', () => {
+  it('finds the id in a Drive file link only', () => {
+    expect(driveFileId('https://drive.google.com/file/d/1aB_c-9/view')).toBe('1aB_c-9');
+    expect(driveFileId('https://example.com/file/d/1aB/view')).toBeNull();
+    expect(driveFileId('https://drive.google.com/file/d/1aB/edit')).toBeNull();
   });
 });
