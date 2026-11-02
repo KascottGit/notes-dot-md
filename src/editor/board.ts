@@ -296,6 +296,18 @@ export function doneColumnIndex(board: Board): number {
 const DUE = /^\u{1F4C5}️?$/u;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Today's date as `YYYY-MM-DD`, in local time (as due dates are written). */
+export function localDate(now = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** A due date compared with today (both `YYYY-MM-DD`). */
+export function dueStatus(due: string, today: string): 'overdue' | 'today' | 'later' {
+  if (due < today) return 'overdue';
+  return due === today ? 'today' : 'later';
+}
+
 /** The tokens of a metadata line, or null if the line is something else. */
 function metaTokens(line: string): CardMeta | null {
   const words = line.trim().split(/\s+/);

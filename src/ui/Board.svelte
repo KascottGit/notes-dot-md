@@ -13,6 +13,7 @@
     archiveCard,
     boardTags,
     deleteColumn,
+    doneColumnIndex,
     hasTag,
     isReservedTitle,
     moveCard,
@@ -695,6 +696,7 @@
                 {card}
                 index={i}
                 body={splitAttachments(slice(card.body)).text}
+                done={ci === doneColumnIndex(board)}
                 {readOnly}
                 dragging={dragging?.kind === 'card' &&
                   dragging.ref.column === ci &&

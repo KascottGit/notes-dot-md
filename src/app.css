@@ -12,6 +12,8 @@
   --on-accent: #ffffff;
   --danger: #c62828;
   --warning-bg: #fff4d6;
+  /* Amber, e.g. a card due today. */
+  --warning: #a65f00;
   --selection: #cfdcff;
   --pin: #e8930c;
   --danger-strong: #e5484d;
@@ -56,6 +58,7 @@
     --on-accent: #10131f;
     --danger: #ff8a80;
     --warning-bg: #3a3220;
+    --warning: #f2b25c;
     --selection: #34406a;
     --pin: #c97a08;
     --danger-strong: #c9363b;

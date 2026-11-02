@@ -19,6 +19,8 @@
     readOnly: boolean;
     /** Being dragged: dimmed in place. */
     dragging: boolean;
+    /** In the done column: its due date no longer shows as overdue or due today. */
+    done?: boolean;
     /** Start with the title field focused (a new card). */
     focusTitle: boolean;
     onBody: (text: string) => void;
@@ -40,6 +42,7 @@
     body,
     readOnly,
     dragging,
+    done = false,
     focusTitle,
     onBody,
     onRename,
@@ -68,7 +71,7 @@
   });
 </script>
 
-<article class="card reveal-host" class:dragging bind:this={el} data-card={index}>
+<article class="card reveal-host" class:dragging class:done bind:this={el} data-card={index}>
   <div
     class="title-row"
     class:editing
@@ -199,6 +202,12 @@
 
   .progress.complete {
     color: var(--accent);
+  }
+
+  /* A finished card's date is just a date. */
+  .card.done :global(.cm-board-chip) {
+    background-color: var(--bg-muted);
+    color: var(--text-muted);
   }
 
   .card :global(.cm-editor) {

@@ -8,7 +8,7 @@
  */
 import { EditorState, RangeSetBuilder, StateField, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, placeholder, type DecorationSet } from '@codemirror/view';
-import { headingFixes, metaLineSpan } from './board';
+import { dueStatus, headingFixes, localDate, metaLineSpan } from './board';
 
 /** The one place the app changes text as it is entered (SPEC "No headings that split a card"). */
 export const noBoardHeadings = EditorState.transactionFilter.of((tr) => {
@@ -19,17 +19,23 @@ export const noBoardHeadings = EditorState.transactionFilter.of((tr) => {
   return [tr, { changes: fixes, sequential: true }];
 });
 
-const chip = Decoration.mark({ class: 'cm-board-chip' });
-const CHIP = /\u{1F4C5}️?\s+\d{4}-\d{2}-\d{2}/gu;
+/** Due date chips, red when overdue and amber when due today (not in the done column: see BoardCard). */
+const chip = {
+  overdue: Decoration.mark({ class: 'cm-board-chip cm-due-overdue' }),
+  today: Decoration.mark({ class: 'cm-board-chip cm-due-today' }),
+  later: Decoration.mark({ class: 'cm-board-chip' }),
+};
+const CHIP = /\u{1F4C5}️?\s+(\d{4}-\d{2}-\d{2})/gu;
 
 function chips(state: EditorState): DecorationSet {
   const text = state.doc.toString();
   const span = metaLineSpan(text);
   if (!span) return Decoration.none;
+  const today = localDate();
   const builder = new RangeSetBuilder<Decoration>();
   for (const m of text.slice(span.from, span.to).matchAll(CHIP)) {
     const from = span.from + m.index;
-    builder.add(from, from + m[0].length, chip);
+    builder.add(from, from + m[0].length, chip[dueStatus(m[1]!, today)]);
   }
   return builder.finish();
 }
@@ -49,6 +55,14 @@ const chipTheme = EditorView.baseTheme({
     fontFamily: 'var(--font-ui)',
     fontSize: '0.8125em',
     fontWeight: '500',
+  },
+  '.cm-board-chip.cm-due-overdue': {
+    backgroundColor: 'color-mix(in srgb, var(--danger) 14%, transparent)',
+    color: 'var(--danger)',
+  },
+  '.cm-board-chip.cm-due-today': {
+    backgroundColor: 'color-mix(in srgb, var(--warning) 16%, transparent)',
+    color: 'var(--warning)',
   },
 });
 

@@ -235,7 +235,7 @@ More details.
 - **Columns** = `# ` headings, in file order. Empty columns are allowed. A space must follow the hashes (as in `# Todo`), so `#tag` is never a column or card.
 - **Cards** = `## ` headings under a column. The card title is the heading text.
 - **Card body** = every line after the card heading up to the next `#` or `##` heading. Any markdown is allowed, with no indentation needed. Headings inside a card start at `###`.
-- **Metadata line (optional):** the first non-empty line of the body, if it holds only `#tag` labels and a due date `📅 YYYY-MM-DD`. Tags get the accent tag style (as everywhere); the due date shows as a gray chip. The date picker in the app inserts the `📅` date, so nobody has to type the emoji.
+- **Metadata line (optional):** the first non-empty line of the body, if it holds only `#tag` labels and a due date `📅 YYYY-MM-DD`. Tags get the tag style (as everywhere); the due date shows as a chip: red when overdue, amber when due today (by the device's date), gray otherwise and for cards in the done column (added 2026-11-03). The date picker in the app inserts the `📅` date, so nobody has to type the emoji.
 - **Done** = the card is in the board's last column (not counting `# Archive`). Cards have no checkbox of their own; task items inside the body are normal checkboxes. The card shows their progress, e.g. "1/2".
 - **Text outside cards** (between the marker and the first column, or between a column heading and its first card) is kept as it is and shown at the top of the board or column.
 - **New board** (Board in the New button's menu) creates a file with Todo / Ongoing / Done columns.
@@ -357,7 +357,7 @@ Open questions:
 
 Open work, roughly in priority order. When an item is done, describe it in the section it belongs to and remove it here.
 
-- [ ] **Due dates that stand out** (added 2026-11-02): a card's due date chip turns red when overdue and amber when due today. Later, a "Due soon" view collects dated cards (and open tasks with dates) from all boards.
+- [ ] **Due soon view** (added 2026-11-02): a view that collects dated cards (and open tasks with dates) from all boards, soonest first, with overdue ones on top.
 - [ ] **Archive view on boards** (added 2026-11-02): an "Archive (n)" button on a board shows its archived cards, each with a Restore action that moves the card's lines back to a column; no need to open the text view.
 - [ ] **Recently deleted** (added 2026-11-02): a view of the notes in the Drive trash that came from the `Notes/` folders, with Restore, so a note can come back after its Undo toast is gone.
 - [ ] **Merge edits** (added 2026-11-02; also step 3 of sharing): when a save finds a newer version, merge the edits three ways (the text as loaded, mine and theirs, for example with `diff-match-patch`) and save the result when the changes don't overlap. The conflict dialog only shows when they do.

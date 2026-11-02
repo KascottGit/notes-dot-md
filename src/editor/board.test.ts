@@ -13,6 +13,8 @@ import {
   bodyForFile,
   countTasks,
   doneColumnIndex,
+  dueStatus,
+  localDate,
   headingFixes,
   isBoard,
   moveCard,
@@ -434,5 +436,17 @@ describe('card attachments', () => {
     ]);
     expect(twice).toContain(`Text\n\n${img('y')}\n${img('x')}\n\n## B`);
     expect(setAttachments(twice, { column: 0, card: 0 }, [])).toBe(board);
+  });
+});
+
+describe('due dates', () => {
+  it('compares with today', () => {
+    expect(dueStatus('2026-11-02', '2026-11-03')).toBe('overdue');
+    expect(dueStatus('2026-11-03', '2026-11-03')).toBe('today');
+    expect(dueStatus('2026-12-01', '2026-11-03')).toBe('later');
+  });
+
+  it("writes today's date in local time", () => {
+    expect(localDate(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05');
   });
 });
