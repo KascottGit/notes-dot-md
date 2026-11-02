@@ -15,6 +15,7 @@
     DEFAULT_FOLDER_NAME,
     moveNote,
     readNote,
+    searchNoteText,
     renameFolder,
     renameNote,
     setNoteProperties,
@@ -30,7 +31,13 @@
   } from '../drive/notes';
   import { isBoard, NEW_BOARD_TEXT } from '../editor/board';
   import { createEditor, type Editor } from '../editor/setup';
-  import { loadSort, saveSort, sortCategories, type SortOrder } from '../store/noteList';
+  import {
+    loadSort,
+    matchesText,
+    saveSort,
+    sortCategories,
+    type SortOrder,
+  } from '../store/noteList';
   import {
     NoteSession,
     propertyChanges,
@@ -67,6 +74,13 @@
   let selectedCategory = $state<string | null>(null);
   let sort = $state<SortOrder>(loadSort());
   let query = $state('');
+  /** Notes whose text matches the query, from Drive's full-text search. */
+  let textMatches = $state<string[]>([]);
+  let searching = $state(false);
+  let searchFailed = $state(false);
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let searchSeq = 0;
+  const SEARCH_DELAY_MS = 300;
   let lastListLoad = 0;
   /** The new-category dialog is open. */
   let creatingCategory = $state(false);
@@ -129,6 +143,7 @@
     window.removeEventListener('beforeunload', onBeforeUnload);
     document.removeEventListener('visibilitychange', onVisibilityChange);
     stopStashOnRedirect?.();
+    clearTimeout(searchTimer);
     session?.dispose();
     editor?.destroy();
   });
@@ -233,6 +248,44 @@
     recent.delete(note.id);
     recent.set(note.id, { note, text });
     if (recent.size > RECENT_MAX) recent.delete(recent.keys().next().value!);
+  }
+
+  /**
+   * Titles filter as you type; the note text is searched on Drive once typing
+   * pauses. Notes kept in memory are matched here too, since Drive takes a
+   * moment to index new text.
+   */
+  function search(q: string) {
+    query = q;
+    clearTimeout(searchTimer);
+    const seq = ++searchSeq;
+    searchFailed = false;
+    if (!q.trim()) {
+      textMatches = [];
+      searching = false;
+      return;
+    }
+    searching = true;
+    searchTimer = setTimeout(async () => {
+      const local = [...recent.values()]
+        .filter((r) => matchesText(r.text, q))
+        .map((r) => r.note.id);
+      const open = sessionState?.note.id;
+      if (open && editor && matchesText(editor.getText(), q)) local.push(open);
+      let found: string[] = [];
+      try {
+        found = await searchNoteText(
+          drive,
+          categories.map((c) => c.id),
+          q,
+        );
+      } catch {
+        if (seq === searchSeq) searchFailed = true;
+      }
+      if (seq !== searchSeq) return;
+      textMatches = [...new Set([...found, ...local])];
+      searching = false;
+    }, SEARCH_DELAY_MS);
   }
 
   /** Stop showing a note that is still loading (its result is dropped). */
@@ -635,6 +688,9 @@
       selectedNoteId={opening?.id ?? sessionState?.note.id ?? null}
       {sort}
       {query}
+      {textMatches}
+      {searching}
+      {searchFailed}
       {loading}
       error={listError}
       onOpen={(note) => openNote(note)}
@@ -642,7 +698,7 @@
       onNewBoard={() => newNote('board')}
       onSelectCategory={(id) => (selectedCategory = id)}
       onSort={selectSort}
-      onQuery={(q) => (query = q)}
+      onQuery={search}
       onNewCategory={() => (creatingCategory = true)}
       onRenameCategory={renameCategory}
       onDeleteCategory={deleteCategory}

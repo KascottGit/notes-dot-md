@@ -73,6 +73,10 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
       if ((m = c.match(/^name = '(.*)'$/))) return f.name === unquote(m[1]!);
       if ((m = c.match(/^mimeType = '(.*)'$/))) return f.mimeType === m[1];
       if (c === 'trashed = false') return !f.trashed;
+      if ((m = c.match(/^fullText contains '(.*)'$/))) {
+        const word = unquote(m[1]!).toLowerCase();
+        return `${f.name} ${f.content}`.toLowerCase().includes(word);
+      }
       throw new Error(`fakeDrive: unsupported query clause: ${c}`);
     });
   }

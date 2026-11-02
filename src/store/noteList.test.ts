@@ -4,7 +4,9 @@ import {
   countByCategory,
   filterNotes,
   loadSort,
+  matchesText,
   saveSort,
+  searchResults,
   sortCategories,
   sortNotes,
   splitPinned,
@@ -44,6 +46,28 @@ describe('filterNotes', () => {
     expect(titles(filterNotes(notes, null, 'cafe'))).toEqual(['Café list']);
     expect(titles(filterNotes(notes, null, 'PLAN week'))).toEqual(['Week 10 plan', 'Week 9 plan']);
     expect(filterNotes(notes, 'inbox', 'plan')).toEqual([]);
+  });
+});
+
+describe('searchResults', () => {
+  it('lists title matches first, then notes found only in their text', () => {
+    // 'Week 9 plan' matches by title and text: listed once, with the titles.
+    const found = searchResults(notes, null, 'plan', ['Café list', 'Week 9 plan'], 'title');
+    expect(titles(found.titles)).toEqual(['Week 9 plan', 'Week 10 plan']);
+    expect(titles(found.text)).toEqual(['Café list']);
+  });
+
+  it('keeps to the category', () => {
+    const found = searchResults(notes, 'school', 'milk', ['Café list', 'Week 9 plan'], 'title');
+    expect(titles(found.titles)).toEqual([]);
+    expect(titles(found.text)).toEqual(['Week 9 plan']);
+  });
+});
+
+describe('matchesText', () => {
+  it('needs every word, in any case, with or without accents', () => {
+    expect(matchesText('Buy milk at the Café', 'cafe MILK')).toBe(true);
+    expect(matchesText('Buy milk', 'milk bread')).toBe(false);
   });
 });
 

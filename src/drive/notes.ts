@@ -287,6 +287,30 @@ export async function listNotesIn(drive: DriveClient, folderIds: string[]): Prom
     );
 }
 
+/**
+ * Ids of notes in the given folders whose text (or name) has every word of
+ * `query`, using Drive's full-text search. Drive matches whole words and
+ * word starts, and indexes new text after a short delay.
+ */
+export async function searchNoteText(
+  drive: DriveClient,
+  folderIds: string[],
+  query: string,
+): Promise<string[]> {
+  const words = query.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || folderIds.length === 0) return [];
+  const text = words.map((w) => `fullText contains ${quoteQuery(w)}`).join(' and ');
+  const chunks: string[][] = [];
+  for (let i = 0; i < folderIds.length; i += 25) chunks.push(folderIds.slice(i, i + 25));
+  const pages = await Promise.all(
+    chunks.map((ids) => {
+      const parents = ids.map((id) => `${quoteQuery(id)} in parents`).join(' or ');
+      return listAll(drive, `(${parents}) and trashed = false and ${text}`, 'id');
+    }),
+  );
+  return pages.flat().map((f) => f.id);
+}
+
 /** Markdown notes in one category folder. */
 export async function listNotes(drive: DriveClient, folderId: string): Promise<Note[]> {
   const q = `${quoteQuery(folderId)} in parents and trashed = false`;

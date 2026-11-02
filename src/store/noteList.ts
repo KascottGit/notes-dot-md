@@ -20,14 +20,42 @@ function fold(text: string): string {
   return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 }
 
+function words(query: string): string[] {
+  return fold(query).split(/\s+/).filter(Boolean);
+}
+
+/** The text has every word of the query (any case or accents). */
+export function matchesText(text: string, query: string): boolean {
+  const folded = fold(text);
+  return words(query).every((w) => folded.includes(w));
+}
+
 /** Notes in a category (null = all notes) whose title contains `query`. */
 export function filterNotes(notes: Note[], folderId: string | null, query: string): Note[] {
-  const words = fold(query).split(/\s+/).filter(Boolean);
   return notes.filter((note) => {
     if (folderId && note.folderId !== folderId) return false;
-    const title = fold(note.title);
-    return words.every((w) => title.includes(w));
+    return matchesText(note.title, query);
   });
+}
+
+/**
+ * Search results in a category: notes whose title matches, then notes found
+ * only in their text (ids from the full-text search). Both sorted.
+ */
+export function searchResults(
+  notes: Note[],
+  folderId: string | null,
+  query: string,
+  textMatches: readonly string[],
+  order: SortOrder,
+): { titles: Note[]; text: Note[] } {
+  const titles = filterNotes(notes, folderId, query);
+  const byTitle = new Set(titles.map((n) => n.id));
+  const inText = new Set(textMatches);
+  const text = notes.filter(
+    (n) => (!folderId || n.folderId === folderId) && inText.has(n.id) && !byTitle.has(n.id),
+  );
+  return { titles: sortNotes(titles, order), text: sortNotes(text, order) };
 }
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });

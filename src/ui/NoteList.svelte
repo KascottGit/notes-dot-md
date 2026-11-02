@@ -4,6 +4,7 @@
   import {
     countByCategory,
     filterNotes,
+    searchResults,
     SORT_LABELS,
     sortNotes,
     splitPinned,
@@ -27,6 +28,12 @@
     selectedNoteId: string | null;
     sort: SortOrder;
     query: string;
+    /** Ids of notes whose text matches the query (full-text search). */
+    textMatches: string[];
+    /** The full-text search is running. */
+    searching: boolean;
+    /** The full-text search failed (titles still work). */
+    searchFailed: boolean;
     loading: boolean;
     error: string | null;
     onOpen: (note: Note) => void;
@@ -51,6 +58,9 @@
     selectedNoteId,
     sort,
     query,
+    textMatches,
+    searching,
+    searchFailed,
     loading,
     error,
     onOpen,
@@ -69,6 +79,8 @@
   const counts = $derived(countByCategory(notes));
   const shown = $derived(sortNotes(filterNotes(notes, selectedCategory, query), sort));
   const groups = $derived(splitPinned(shown));
+  const searchingNow = $derived(query.trim() !== '');
+  const found = $derived(searchResults(notes, selectedCategory, query, textMatches, sort));
   const current = $derived(categories.find((c) => c.id === selectedCategory) ?? null);
   const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? '';
 
@@ -159,8 +171,8 @@
     <input
       class="search"
       type="search"
-      placeholder="Search titles"
-      aria-label="Search note titles"
+      placeholder="Search"
+      aria-label="Search notes"
       value={query}
       oninput={(e) => onQuery(e.currentTarget.value)}
     />
@@ -262,10 +274,34 @@
         {/each}
       </ul>
     </div>
+  {:else if searchingNow}
+    <!-- Title matches first, then notes found only in their text. -->
+    <div class="notes">
+      {#if found.titles.length}
+        <ul>
+          {#each found.titles as note (note.id)}
+            <li>{@render row(note)}</li>
+          {/each}
+        </ul>
+      {/if}
+      {#if found.text.length}
+        <h3>In note text</h3>
+        <ul>
+          {#each found.text as note (note.id)}
+            <li>{@render row(note)}</li>
+          {/each}
+        </ul>
+      {/if}
+      {#if searching}
+        <p class="message">Searching note text…</p>
+      {:else if searchFailed}
+        <p class="message">Couldn't search note text. Only titles are shown.</p>
+      {:else if !found.titles.length && !found.text.length}
+        <p class="message">No notes match your search.</p>
+      {/if}
+    </div>
   {:else if shown.length === 0}
-    <p class="message">
-      {query ? 'No titles match your search.' : 'No notes here yet. Create one to get started.'}
-    </p>
+    <p class="message">No notes here yet. Create one to get started.</p>
   {:else}
     <div class="notes">
       {#if groups.pinned.length}

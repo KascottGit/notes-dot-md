@@ -19,6 +19,7 @@ import {
   renameNote,
   renameFolder,
   saveNote,
+  searchNoteText,
   setNoteProperties,
   setPinned,
   trashFolder,
@@ -194,6 +195,21 @@ describe('notes', () => {
     expect(await readNote(drive, note.id)).toBe('two');
     expect(notePreview(saved)).toBe('two');
     expect(files.get(note.id)!.appProperties).toEqual({ ...APP_PROPERTIES, preview: 'two' });
+  });
+
+  it('finds notes by their text, in the given folders only', async () => {
+    const { drive, defaultId, rootId } = await withFolders();
+    const school = await createFolder(drive, rootId, 'School');
+    const a = await createNote(drive, defaultId, 'A', 'Buy milk and bread');
+    await createNote(drive, defaultId, 'B', 'Only bread');
+    const c = await createNote(drive, school.id, 'C', "Milk, the teacher's favourite");
+
+    expect((await searchNoteText(drive, [defaultId, school.id], 'milk')).sort()).toEqual(
+      [a.id, c.id].sort(),
+    );
+    expect(await searchNoteText(drive, [defaultId], 'milk bread')).toEqual([a.id]);
+    expect(await searchNoteText(drive, [school.id], "teacher's")).toEqual([c.id]);
+    expect(await searchNoteText(drive, [defaultId], '  ')).toEqual([]);
   });
 
   it('lists only markdown notes in a folder', async () => {
