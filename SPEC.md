@@ -359,6 +359,18 @@ Open questions:
 
 Open work, roughly in priority order. When an item is done, describe it in the section it belongs to and remove it here.
 
+- [ ] **Import from the device** (added 2026-11-03): bring markdown files from the phone or computer into the app.
+  - **How:** the New menu gets "Import files…" (a file picker for `.md`, `.markdown` and `.txt`, several at once; on iPhone it opens the Files app, iCloud included) and, where the browser can pick folders (desktop Chromium, Firefox, Safari; not iPhone), "Import folder…". Dropping such files on the note list does the same.
+  - **Each file becomes a note** with its text exactly as it is (golden rule 1), titled after the file name without the extension (sanitized, ` (2)` on clashes like any note), in the selected category (General under "All notes"). A file whose first line is the board marker becomes a board. Its preview line and board mark are set when it is created.
+  - **Folders** (e.g. an Obsidian vault): each top-level subfolder becomes a category (an existing one with the same name, any case, is used); files in deeper folders go into their top-level folder's category; files at the folder's root go to the selected category. Hidden folders (`.obsidian`, `.git`) and other files (images, PDFs) are skipped, so relative image links in imported notes won't show; `[[wiki links]]` stay plain text.
+  - **Progress and undo:** a toast counts "Importing 12 of 40…", then says "Imported 40 notes" with Undo, which moves them all to the Drive trash (new categories too, if empty). Files are created a few at a time; one that fails is reported by name, the rest carry on. Files over 1 MB are skipped and named.
+- [ ] **Import a Trello board** (added 2026-11-03): in Trello, Menu → Print, export and share → Export as JSON; pick that `.json` file with "Import files…" (recognized by its contents) to make a board note in the selected category, titled with the board's name. It is converted once; nothing stays linked to Trello.
+  - Open lists, in Trello's order → `# ` columns; open cards, in order → `## ` cards.
+  - Card description → the card body (its `#` / `##` headings moved down to `###`, as for any card body).
+  - Labels → `#tags` on the metadata line (name in lower case, spaces as `-`; a label without a name uses its color); due date → `📅 YYYY-MM-DD`.
+  - Checklists → task items (`- [ ]` / `- [x]`), under a `### <checklist name>` heading when a card has more than one.
+  - Archived cards, and the cards of archived lists → the `# Archive` column.
+  - Attachments → markdown links (Trello's own files need a Trello login to open). Comments, members, covers and stickers are left out.
 - [ ] **Due soon view** (added 2026-11-02): a view that collects dated cards (and open tasks with dates) from all boards, soonest first, with overdue ones on top.
 - [ ] **Merge edits** (added 2026-11-02; also step 3 of sharing): when a save finds a newer version, merge the edits three ways (the text as loaded, mine and theirs, for example with `diff-match-patch`) and save the result when the changes don't overlap. The conflict dialog only shows when they do.
 - [ ] **Image captions** (added 2026-11-02): a short caption under each image on a card's image board, stored as the image's alt text (`![caption](…)`).
