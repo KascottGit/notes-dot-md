@@ -13,7 +13,7 @@ import {
 import { syntaxTree } from '@codemirror/language';
 import type { Extension } from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
-import { EditorView } from '@codemirror/view';
+import { EditorView, tooltips } from '@codemirror/view';
 import { NO_TAGS } from './livePreview';
 
 export interface TagSuggestion {
@@ -131,6 +131,9 @@ export function tagCompletion(tags: () => readonly TagSuggestion[]): Extension {
       maxRenderedOptions: 8,
       addToOptions: [{ render: colorDot, position: 20 }],
     }),
+    // Drawn on the page, not in the editor, so a board card (which clips
+    // what sticks out of it) doesn't cut the suggestions off.
+    typeof document === 'undefined' ? [] : tooltips({ parent: document.body }),
     theme,
   ];
 }
