@@ -10,6 +10,7 @@ import {
   Compartment,
   EditorState,
   Prec,
+  Transaction,
   type Extension,
   type StateCommand,
 } from '@codemirror/state';
@@ -40,6 +41,7 @@ import {
   shorthandInput,
 } from './lists';
 import { livePreview } from './livePreview';
+import { textEdits } from './merge';
 import { dropSpot, imageFiles, imageSpots, insertAtSpot, markSpot, pasteImages } from './paste';
 import { tagCompletion, type TagSuggestion } from './tagComplete';
 
@@ -69,8 +71,11 @@ export interface EditorOptions {
 
 export interface Editor {
   getText(): string;
-  /** Replace the whole text without counting as a user edit. Undo still works. */
-  setText(text: string): void;
+  /**
+   * Replace the text without counting as a user edit. Undo keeps working on
+   * the user's own edits and doesn't take this change back, unless `undoable`.
+   */
+  setText(text: string, undoable?: boolean): void;
   /** Replace the whole text as a user edit (saved, undoable), changing only what differs. */
   edit(text: string): void;
   /** The first line, without reading the whole text. */
@@ -291,10 +296,15 @@ export function createEditor(options: EditorOptions): Editor {
 
   return {
     getText: () => view.state.doc.toString(),
-    setText(text) {
+    setText(text, undoable = false) {
       const doc = view.state.doc.toString();
       if (text === doc) return;
-      view.dispatch({ changes: minimalChange(doc, text), annotations: external.of(true) });
+      // Text from elsewhere (another device, a reload): only the changed words
+      // are replaced, so the cursor stays put.
+      view.dispatch({
+        changes: textEdits(doc, text),
+        annotations: [external.of(true), Transaction.addToHistory.of(undoable)],
+      });
     },
     edit(text) {
       const doc = view.state.doc.toString();

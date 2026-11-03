@@ -35,6 +35,7 @@ src/
   editor/tableEdit.ts    table cells, rows and columns as text changes (no DOM)
   editor/tableWidget.ts  the editable table widget
   editor/markdown.ts     markdown helpers: links, inline content, tables, previews (no DOM)
+  editor/merge.ts        three-way merge of note text, small text edits (no DOM)
   editor/commands.ts     format commands, shared by toolbar and shortcuts
   editor/lists.ts        moving and indenting list items
   editor/tags.ts         finding #tags in text
@@ -52,7 +53,7 @@ src/
 scripts/make-icons.py    draws the app icons
 ```
 
-Markdown and board logic (`editor/commands.ts`, `editor/markdown.ts`, `editor/board.ts`, `editor/tags.ts`, `editor/tableEdit.ts`) stays free of Svelte and DOM code, so it can be unit-tested and reused.
+Markdown, board and merge logic (`editor/commands.ts`, `editor/markdown.ts`, `editor/board.ts`, `editor/merge.ts`, `editor/tags.ts`, `editor/tableEdit.ts`) stays free of Svelte and DOM code, so it can be unit-tested and reused.
 
 ## Conventions
 

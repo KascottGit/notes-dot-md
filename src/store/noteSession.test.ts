@@ -208,6 +208,76 @@ describe('conflicts', () => {
   });
 });
 
+describe('merging edits from another device', () => {
+  const start = '# List\n\n- [ ] milk\n- [ ] eggs\n- [ ] bread';
+
+  it('saves both edits when they touch different lines', async () => {
+    const { session, edit, remoteSave, drive, note, editor, states } = await setup(start);
+    await remoteSave(start.replace('[ ] bread', '[x] bread'));
+    edit(start.replace('[ ] milk', '[x] milk'));
+
+    await expect(session.save()).resolves.toBe(true);
+
+    const merged = '# List\n\n- [x] milk\n- [ ] eggs\n- [x] bread';
+    expect(await readNote(drive, note.id)).toBe(merged);
+    expect(editor.text).toBe(merged);
+    expect(session.state.conflict).toBe(false);
+    expect(lastStatus(states)).toBe('saved');
+    expect(session.baseText).toBe(merged);
+  });
+
+  it('saves normally after a merge', async () => {
+    const { session, edit, remoteSave, drive, note, editor } = await setup(start);
+    await remoteSave(start + '\n\nfrom phone');
+    edit(start.replace('milk', 'oat milk'));
+    await session.save();
+
+    edit(editor.text + '\nmore');
+    await expect(session.save()).resolves.toBe(true);
+    expect(await readNote(drive, note.id)).toBe(
+      start.replace('milk', 'oat milk') + '\n\nfrom phone\nmore',
+    );
+  });
+
+  it('keeps text typed while their version was loading', async () => {
+    const { session, edit, remoteSave, drive, note, editor } = await setup(start);
+    await remoteSave(start.replace('bread', 'rye bread'));
+    edit(start.replace('milk', 'oat milk'));
+    const saving = session.save();
+    // Typed after the save started, before the merge.
+    editor.type(start.replace('milk', 'oat milk').replace('# List', '# Shopping list'));
+    session.edited();
+    await saving;
+    await session.flush();
+
+    const all = '# Shopping list\n\n- [ ] oat milk\n- [ ] eggs\n- [ ] rye bread';
+    expect(editor.text).toBe(all);
+    expect(await readNote(drive, note.id)).toBe(all);
+  });
+
+  it('shows the conflict only when the edits overlap', async () => {
+    const { session, edit, remoteSave, drive, note, editor } = await setup(start);
+    await remoteSave(start.replace('milk', 'soy milk'));
+    edit(start.replace('milk', 'oat milk'));
+
+    await expect(session.save()).resolves.toBe(false);
+
+    expect(session.state.conflict).toBe(true);
+    expect(editor.text).toBe(start.replace('milk', 'oat milk'));
+    expect(await readNote(drive, note.id)).toBe(start.replace('milk', 'soy milk'));
+  });
+
+  it('keeps a line added at the end when the other device edited one above', async () => {
+    const { session, edit, remoteSave, drive, note } = await setup(start);
+    await remoteSave(start.replace('eggs', 'six eggs'));
+    edit(start + '\n- [ ] tea');
+
+    await session.save();
+
+    expect(await readNote(drive, note.id)).toBe(start.replace('eggs', 'six eggs') + '\n- [ ] tea');
+  });
+});
+
 describe('remote changes on focus', () => {
   it('loads a newer version silently when there are no local edits', async () => {
     const { session, remoteSave, editor } = await setup();
@@ -219,7 +289,7 @@ describe('remote changes on focus', () => {
     expect(session.state.status).toBe('saved');
   });
 
-  it('leaves local edits alone (the next save shows the conflict)', async () => {
+  it('leaves local edits alone (the next save merges them)', async () => {
     const { session, remoteSave, edit, editor } = await setup();
     await remoteSave('from phone');
     edit('local');

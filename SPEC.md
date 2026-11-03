@@ -187,7 +187,9 @@ The app autosaves. These rules carry out golden rule 3 (never lose text, never s
 
 - **Autosave** 2 seconds after the last keystroke, plus on Ctrl+S, on editor blur, and when the page becomes hidden (`visibilitychange`).
 - **Save status** in the note header, under the title next to the category: Saved · Saving… · Unsaved changes · Couldn't save.
-- **Conflict check:** store the file's `version` from the last load or save. Before each save, fetch `fields=version,modifiedTime`. If the version changed, do not save. Open a dialog with three choices: Load theirs, Keep mine (overwrite), Save mine as a copy.
+- **Conflict check:** store the file's `version` from the last load or save, and the text as loaded or saved (the base). Before each save, fetch `fields=version,modifiedTime`. If the version changed and the content did too (a rename alone also bumps it), merge the edits before saving.
+- **Merging edits** (added 2026-11-03; step 3 of sharing): a three-way merge of the base, mine and theirs (`editor/merge.ts`, no library), line by line. Edits to different lines are both kept, even on neighboring lines (two devices ticking off two tasks next to each other). Where both changed the same lines, it compares the words in them: edits to different words with at least one unchanged word or space between them are both kept. The editor then shows the merged text, changing only the words that differ, so the cursor stays where it was and Undo doesn't take the other device's edits back. The version is checked once more and the merged text saved. The same applies to boards (two devices moving different cards).
+- **Conflict dialog:** only when the edits overlap (the same word, words right next to each other, both adding text at the same place, or one deleting a line the other edited), nothing is saved and a dialog says both changed the same lines and offers three choices: Load theirs (Undo brings mine back), Keep mine (overwrite), Save mine as a copy.
 - **On window focus,** re-check the open note. If it changed elsewhere and there are no unsaved local edits, reload it silently.
 - **Network errors:** retry with backoff (2 s, 5 s, 15 s), then show "Couldn't save" with a retry button.
 - **Leaving the page** with unsaved changes triggers the browser's `beforeunload` warning.
@@ -319,14 +321,14 @@ Sharing can stay clean because Drive already handles it; real-time co-editing ca
 | --- | --- | --- | --- |
 | 1. Drive-native sharing | Share a note or category with someone by email, as viewer or editor | Drive `permissions.create`. How a shared note shows up in the recipient's notes.md is decided when this is built | No |
 | 2. Read-only public link | A URL anyone can open to read a note | Set the file to "anyone with the link" and open it on a `/view/<fileId>` route, read with an API key | No |
-| 3. Take-turns collaboration | Two people edit the same note at different times, and non-overlapping edits merge automatically | See "Merge edits" in To do | No |
+| 3. Take-turns collaboration | Two people edit the same note at different times, and non-overlapping edits merge automatically | Done (2026-11-03): see "Merging edits" in "Saving and conflict handling" | No |
 | 4. Real-time co-editing | Live cursors and simultaneous typing, like Google Docs | Yjs CRDT with the `y-codemirror.next` binding and a WebSocket relay (self-hosted `y-websocket` or a hosted service). Drive keeps the saved `.md` snapshot | Yes |
 
 Recommendation: steps 1–3 fit the no-backend design. Step 4 is only worth it if live co-editing turns out to be a real need.
 
 What v1 should already do so this stays easy:
 
-- Keep the text as loaded from Drive (the base) next to the edited text. Step 3 needs it.
+- Keep the text as loaded from Drive (the base) next to the edited text. Merging edits uses it.
 - Do not assume the user owns every file. Read `capabilities.canEdit` and show a read-only mode when it is false.
 - Keep sharing out of the note text. Permissions live in Drive, not in the markdown.
 
@@ -337,7 +339,7 @@ Built in this order. Each milestone ends with a working deployed app and its acc
 - [x] **M0 Project setup:** Vite + Svelte + TypeScript, ESLint and Prettier, GitHub Actions deploy to GitHub Pages under /notes-dot-md/. *Done when* an empty app shell is live at the Pages URL.
 - [x] **M1 Sign-in:** redirect sign-in, sign in and sign out, token renewal. *Done when* sign-in works on desktop and mobile, and a save made more than an hour after sign-in still succeeds.
 - [x] **M2 Drive layer:** `drive/notes.ts` with list, read, create, save, rename, move and trash; `Notes/` and the default category folder created on first run. *Done when* a note created in the app appears in Drive as a `.md` file and survives a round trip.
-- [x] **M3 Plain editor and saving:** CodeMirror without rendering rules, autosave, save status, conflict dialog. *Done when* edits reach Drive within 3 seconds, and editing the same note on two devices shows the conflict dialog.
+- [x] **M3 Plain editor and saving:** CodeMirror without rendering rules, autosave, save status, conflict dialog. *Done when* edits reach Drive within 3 seconds, and editing the same note on two devices shows the conflict dialog (since 2026-11-03 only when the edits overlap; otherwise they merge).
 - [x] **M4 Live preview:** every rendering rule in the editor table, checkbox widgets, list continuation, the `[]` shorthand. *Done when* all rules render, markers reappear on the active line, checkboxes toggle, and a copied checklist pastes into GitHub as `- [ ]` lines. Tested on a phone.
 - [x] **M5 Format bar:** all buttons and shortcuts with toggle behavior. *Done when* each button applies and removes its format and the selection survives a tap.
 - [x] **M6 Organization:** category filter and management, move note, sort, title search. *Done when* folders in Drive match categories in the app and the sort choice survives a reload.
@@ -372,6 +374,5 @@ Open work, roughly in priority order. When an item is done, describe it in the s
   - Archived cards, and the cards of archived lists → the `# Archive` column.
   - Attachments → markdown links (Trello's own files need a Trello login to open). Comments, members, covers and stickers are left out.
 - [ ] **Due soon view** (added 2026-11-02): a view that collects dated cards (and open tasks with dates) from all boards, soonest first, with overdue ones on top.
-- [ ] **Merge edits** (added 2026-11-02; also step 3 of sharing): when a save finds a newer version, merge the edits three ways (the text as loaded, mine and theirs, for example with `diff-match-patch`) and save the result when the changes don't overlap. The conflict dialog only shows when they do.
 - [ ] **Image captions** (added 2026-11-02): a short caption under each image on a card's image board, stored as the image's alt text (`![caption](…)`).
 - [ ] **More table editing:** drag rows and columns to reorder them, sort by a column, and keep the pipes aligned in the text.

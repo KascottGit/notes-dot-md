@@ -19,6 +19,7 @@ import {
 } from '../drive/notes';
 import { isBoard } from '../editor/board';
 import { previewText } from '../editor/markdown';
+import { mergeText } from '../editor/merge';
 
 /**
  * App properties that follow from a note's text and differ from what the file
@@ -42,6 +43,8 @@ export function propertyChanges(note: Note, text: string): PropertyChanges {
 
 export const AUTOSAVE_DELAY_MS = 2000;
 export const RETRY_DELAYS_MS = [2000, 5000, 15000];
+/** Merges in one save before waiting for the other device to stop saving. */
+const MAX_MERGE_ROUNDS = 3;
 
 export type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'error';
 export type ConflictChoice = 'theirs' | 'mine' | 'copy';
@@ -51,7 +54,7 @@ export interface SessionState {
   status: SaveStatus;
   /** Shown with the "Couldn't save" status. */
   error: string | null;
-  /** The note changed on Drive since it was loaded, and there are local edits. */
+  /** The note changed on Drive since it was loaded, and its edits overlap mine. */
   conflict: boolean;
   readOnly: boolean;
 }
@@ -59,7 +62,8 @@ export interface SessionState {
 /** The editor, as the session sees it. */
 export interface TextPort {
   getText(): string;
-  setText(text: string): void;
+  /** Show `text`; with `undoable`, Undo brings back what was there. */
+  setText(text: string, undoable?: boolean): void;
 }
 
 export class NoteSession {
@@ -99,7 +103,7 @@ export class NoteSession {
     };
   }
 
-  /** The text as last loaded from or saved to Drive. Kept for three-way merges later. */
+  /** The text as last loaded from or saved to Drive: the base for merges. */
   get baseText(): string {
     return this.base;
   }
@@ -236,30 +240,58 @@ export class NoteSession {
 
   private async runSave(): Promise<boolean> {
     if (this.readOnly || this.conflict) return !this.isDirty();
-    const text = this.port.getText();
-    if (text === this.base) {
-      this.error = null;
-      this.setStatus('saved');
-      return true;
-    }
-    this.setStatus('saving');
     try {
-      const remote = await getNoteVersion(this.drive, this.note.id);
-      if (remote.version !== this.note.version) {
-        // Drive bumps the version for metadata changes too (a rename on another
-        // device), so only call it a conflict if the content really changed.
-        const theirs = await readNote(this.drive, this.note.id);
-        if (theirs !== this.base) {
-          this.conflict = true;
-          this.setStatus('unsaved');
-          return false;
+      // After a merge, check the version again right before uploading.
+      for (let round = 0; round < MAX_MERGE_ROUNDS; round++) {
+        const text = this.port.getText();
+        if (text === this.base) {
+          this.error = null;
+          this.setStatus('saved');
+          return true;
         }
+        this.setStatus('saving');
+        const remote = await getNoteVersion(this.drive, this.note.id);
+        if (remote.version === this.note.version) {
+          await this.write(text);
+          return true;
+        }
+        if (!(await this.mergeRemote(remote.version))) return false;
       }
-      await this.write(text);
-      return true;
+      // Another device keeps saving; try again later.
+      this.setStatus('unsaved');
+      this.edited();
+      return false;
     } catch (err) {
       return this.handleError(err);
     }
+  }
+
+  /**
+   * The note changed on Drive: put their edits into the editor next to mine
+   * (SPEC "Saving and conflict handling"). False, and a conflict, when the
+   * edits overlap.
+   */
+  private async mergeRemote(version: string): Promise<boolean> {
+    const [note, theirs] = await Promise.all([
+      getNote(this.drive, this.note.id),
+      readNote(this.drive, this.note.id),
+    ]);
+    // Nothing awaits from here on, so the editor text can't change under the merge.
+    const mine = this.port.getText();
+    // Drive bumps the version for metadata changes too (a rename on another
+    // device); then there is nothing to merge.
+    const merged = mergeText(this.base, mine, theirs);
+    if (merged === null) {
+      this.conflict = true;
+      this.setStatus('unsaved');
+      return false;
+    }
+    // Now based on their version, with my edits on top. The version is the
+    // one checked before reading, so a save in between is noticed next time.
+    this.note = { ...note, folderId: this.note.folderId, version };
+    this.base = theirs;
+    if (merged !== mine) this.port.setText(merged);
+    return true;
   }
 
   /** Upload `text` without a version check. */
@@ -284,7 +316,7 @@ export class NoteSession {
     this.base = text;
     this.conflict = false;
     this.error = null;
-    this.port.setText(text);
+    this.port.setText(text, true); // Undo brings my version back.
     this.setStatus('saved');
   }
 

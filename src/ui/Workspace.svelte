@@ -765,7 +765,7 @@
   function attachSession(note: Note, text: string) {
     const port = {
       getText: () => editor?.getText() ?? text,
-      setText: (t: string) => editor?.setText(t),
+      setText: (t: string, undoable?: boolean) => editor?.setText(t, undoable),
     };
     session = new NoteSession(drive, note, text, port, onSessionState);
     sessionState = session.state;

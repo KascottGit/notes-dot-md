@@ -32,8 +32,8 @@
 <dialog bind:this={dialog} oncancel={(e) => e.preventDefault()} aria-labelledby="conflict-title">
   <h2 id="conflict-title">This note changed on another device</h2>
   <p>
-    "{title}" was saved somewhere else after you opened it. Your changes have not been saved yet.
-    What should happen?
+    "{title}" was saved somewhere else after you opened it, and both versions changed the same
+    lines, so they can't be merged. Your changes have not been saved yet. What should happen?
   </p>
   <div class="choices">
     <button disabled={busy} onclick={() => choose('theirs')}>
