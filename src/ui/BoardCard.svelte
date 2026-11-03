@@ -10,6 +10,7 @@
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
   import InlineName from './InlineName.svelte';
+  import SwipeItem from './SwipeItem.svelte';
 
   interface Props {
     card: BoardCard;
@@ -71,79 +72,82 @@
   });
 </script>
 
-<article class="card reveal-host" class:dragging class:done bind:this={el} data-card={index}>
-  <div
-    class="title-row"
-    class:editing
-    role="presentation"
-    onpointerdown={(e) => {
-      if (!editing && el && !(e.target as Element).closest('button')) onPress(e, el, editTitle);
-    }}
-    onmousedown={(e) => {
-      // After a tap, the browser's own mousedown must not take focus away from the title.
-      if (!(e.target as Element).closest('input, button')) e.preventDefault();
-    }}
-  >
+<!-- Touch screens: swipe left for Delete (to the Archive), as in the note list; not while dragging. -->
+<SwipeItem disabled={readOnly || dragging} {onDelete}>
+  <article class="card reveal-host" class:dragging class:done bind:this={el} data-card={index}>
     <div
-      class="title"
-      onfocusin={() => (editing = true)}
-      onfocusout={() => {
-        editing = false;
-        onTitleDone();
+      class="title-row"
+      class:editing
+      role="presentation"
+      onpointerdown={(e) => {
+        if (!editing && el && !(e.target as Element).closest('button')) onPress(e, el, editTitle);
+      }}
+      onmousedown={(e) => {
+        // After a tap, the browser's own mousedown must not take focus away from the title.
+        if (!(e.target as Element).closest('input, button')) e.preventDefault();
       }}
     >
-      <InlineName
-        bind:this={name}
-        value={card.title}
-        label="Card title"
-        readonly={readOnly}
-        wrap
-        onCommit={onRename}
-      />
-    </div>
-    {#if card.tasks.total > 0}
-      <span
-        class="progress"
-        class:complete={card.tasks.done === card.tasks.total}
-        title={`${card.tasks.done} of ${card.tasks.total} tasks done`}
+      <div
+        class="title"
+        onfocusin={() => (editing = true)}
+        onfocusout={() => {
+          editing = false;
+          onTitleDone();
+        }}
       >
-        <Icon name="task" size={16} />
-        {card.tasks.done}/{card.tasks.total}
-      </span>
-    {/if}
-    {#if !readOnly || card.attachments.length > 0}
-      <!-- Always shown once the card has images (with their count), else on hover like delete. -->
-      <span class="attach" class:reveal={card.attachments.length === 0}>
-        <IconButton
-          icon="attach"
-          label={`Images on ${card.title}`}
-          title={card.attachments.length > 0 ? 'Images' : 'Add images'}
-          count={card.attachments.length}
-          onclick={onAttach}
+        <InlineName
+          bind:this={name}
+          value={card.title}
+          label="Card title"
+          readonly={readOnly}
+          wrap
+          onCommit={onRename}
         />
-      </span>
-    {/if}
-    {#if !readOnly}
-      <span class="delete reveal">
-        <IconButton
-          icon="trash"
-          label={`Delete card ${card.title}`}
-          title="Delete card"
-          onclick={onDelete}
-        />
-      </span>
-    {/if}
-  </div>
-  <CardBody
-    text={body}
-    {readOnly}
-    hint="Add details…"
-    onChange={onBody}
-    {onFocus}
-    {onDestroyed}
-    {onSave}
-  />
-</article>
+      </div>
+      {#if card.tasks.total > 0}
+        <span
+          class="progress"
+          class:complete={card.tasks.done === card.tasks.total}
+          title={`${card.tasks.done} of ${card.tasks.total} tasks done`}
+        >
+          <Icon name="task" size={16} />
+          {card.tasks.done}/{card.tasks.total}
+        </span>
+      {/if}
+      {#if !readOnly || card.attachments.length > 0}
+        <!-- Always shown once the card has images (with their count), else on hover like delete. -->
+        <span class="attach" class:reveal={card.attachments.length === 0}>
+          <IconButton
+            icon="attach"
+            label={`Images on ${card.title}`}
+            title={card.attachments.length > 0 ? 'Images' : 'Add images'}
+            count={card.attachments.length}
+            onclick={onAttach}
+          />
+        </span>
+      {/if}
+      {#if !readOnly}
+        <span class="delete reveal mouse-only">
+          <IconButton
+            icon="trash"
+            label={`Delete card ${card.title}`}
+            title="Delete card"
+            onclick={onDelete}
+          />
+        </span>
+      {/if}
+    </div>
+    <CardBody
+      text={body}
+      {readOnly}
+      hint="Add details…"
+      onChange={onBody}
+      {onFocus}
+      {onDestroyed}
+      {onSave}
+    />
+  </article>
+</SwipeItem>
 
 <style>
   .card {
@@ -208,6 +212,15 @@
   .card.done :global(.cm-board-chip) {
     background-color: var(--bg-muted);
     color: var(--text-muted);
+  }
+
+  /*
+   * The text never scrolls sideways (it wraps), so a sideways finger move is
+   * a swipe of the card (SwipeItem), not the browser's. A wide table keeps
+   * its own sideways scrolling.
+   */
+  .card :global(.cm-scroller) {
+    touch-action: pan-y;
   }
 
   .card :global(.cm-editor) {

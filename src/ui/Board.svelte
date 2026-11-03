@@ -1020,6 +1020,8 @@
   }
 
   .cards {
+    /* Cards' corners, for the swipe-to-delete strip behind them (SwipeItem). */
+    --swipe-radius: 10px;
     display: flex;
     flex-direction: column;
     gap: 8px;

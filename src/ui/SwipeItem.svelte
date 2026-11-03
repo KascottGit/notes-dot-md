@@ -57,6 +57,11 @@
 
   function onPointerMove(event: PointerEvent) {
     if (!start || event.pointerId !== start.id) return;
+    // Turned off meanwhile, e.g. a board card that is now being dragged: let go.
+    if (disabled && !swiping) {
+      start = null;
+      return;
+    }
     const dx = event.clientX - start.x;
     const dy = event.clientY - start.y;
     if (!swiping) {
@@ -172,7 +177,13 @@
   .swipe {
     position: relative;
     overflow: hidden;
-    border-radius: 8px;
+    /*
+     * Never squeezed in a flex column (a board column that scrolls): with
+     * overflow hidden it could shrink below its content and cut it off.
+     */
+    flex-shrink: 0;
+    /* Matches the item's corners (board cards are rounder), so the action doesn't peek out. */
+    border-radius: var(--swipe-radius, 8px);
     /* Vertical scrolling stays native; horizontal moves come to us. */
     touch-action: pan-y;
   }
