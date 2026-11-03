@@ -320,6 +320,21 @@
     });
   }
 
+  /** Touch screens, swipe right: move a card to the top of the last column (Done), with Undo. */
+  function moveToDone(ref: CardRef) {
+    const target = doneColumnIndex(board);
+    if (target < 0 || ref.column === target) return;
+    const before = text;
+    const after = moveCard(text, ref, { column: target, card: 0 });
+    if (after === before) return;
+    onEdit(after);
+    onSave();
+    onToast(`Moved to ${board.columns[target]?.title ?? 'Done'}`, () => {
+      if (text === after) onEdit(before);
+      else onToast('The board changed since, so the card stays where it is.');
+    });
+  }
+
   // ---------------------------------------------------------- Archive
 
   let archiveOpen = $state(false);
@@ -785,6 +800,12 @@
                 }}
                 onDelete={() => remove(ref)}
                 onAttach={() => openImages(ref)}
+                toDone={ci === doneColumnIndex(board)
+                  ? null
+                  : {
+                      title: board.columns[doneColumnIndex(board)]?.title ?? '',
+                      run: () => moveToDone(ref),
+                    }}
                 onPress={(e, el, onTap) => startPress(e, { kind: 'card', ref }, el, onTap)}
                 onFocus={(e) => focused(e, { kind: 'card', ...ref })}
                 onDestroyed={destroyed}

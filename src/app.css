@@ -17,6 +17,8 @@
   --selection: #cfdcff;
   --pin: #e8930c;
   --danger-strong: #e5484d;
+  /* Behind white text on a swipe action (a card moving to Done). */
+  --done-strong: #2b8a46;
   --code-keyword: #8b2fc9;
   --code-string: #237a3b;
   --code-comment: #7a7a85;
@@ -62,6 +64,7 @@
     --selection: #34406a;
     --pin: #c97a08;
     --danger-strong: #c9363b;
+    --done-strong: #2a7a42;
     --code-keyword: #c792ea;
     --code-string: #a5d6a7;
     --code-comment: #8a8a96;

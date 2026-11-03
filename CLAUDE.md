@@ -77,7 +77,7 @@ The UI must look and behave the same everywhere. Before adding any control, look
 | Confirm a choice with consequences | `confirm()` only for bulk or hard-to-undo actions (e.g. moving all of a category's notes). |
 | Feedback after an action | `Toast`, with Undo for anything undoable. Inside an open dialog, render it in the dialog (the rest of the page can't be tapped then). |
 | Pick one filter from a row (categories, board tags) | `Chip` inside a `ChipRow` (wraps on desktop, scrolls sideways on phones). |
-| Swipe actions on a touch screen row | `SwipeItem`: swipe left opens a Delete button to tap (never delete on release); swipe right pins, where pinning exists. |
+| Swipe actions on a touch screen row | `SwipeItem`: swipe left opens a Delete button to tap (never delete on release); swipe right runs the row's quick action on release: pin in the note list, move to Done on board cards. |
 
 **Same action, same control.** Delete is always the trash `IconButton` (plus `SwipeItem` on touch screens) and offers Undo, or confirms as above. Pin is always the pin icon. If two places do the same thing, they use the same component, icon, wording and order.
 

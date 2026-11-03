@@ -30,6 +30,8 @@
     onDelete: () => void;
     /** Open the card's image board. */
     onAttach: () => void;
+    /** Touch screens, swipe left to right: move the card to the top of this column (Done). */
+    toDone?: { title: string; run: () => void } | null;
     /** Pointer down on the title row: the board decides between a tap (rename) and a drag. */
     onPress: (event: PointerEvent, cardEl: HTMLElement, onTap: () => void) => void;
     onFocus: (editor: Editor) => void;
@@ -50,6 +52,7 @@
     onTitleDone,
     onDelete,
     onAttach,
+    toDone = null,
     onPress,
     onFocus,
     onDestroyed,
@@ -73,7 +76,13 @@
 </script>
 
 <!-- Touch screens: swipe left for Delete (to the Archive), as in the note list; not while dragging. -->
-<SwipeItem disabled={readOnly || dragging} {onDelete}>
+<SwipeItem
+  disabled={readOnly || dragging}
+  {onDelete}
+  right={toDone
+    ? { icon: 'check', label: toDone.title, color: 'var(--done-strong)', run: toDone.run }
+    : null}
+>
   <article class="card reveal-host" class:dragging class:done bind:this={el} data-card={index}>
     <div
       class="title-row"

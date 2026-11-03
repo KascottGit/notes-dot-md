@@ -1,6 +1,7 @@
 <!--
   A list row you can swipe on touch screens, like Apple Notes:
-  - left to right pins (or unpins) when released past the threshold;
+  - left to right runs its action when released past the threshold: pin (or
+    unpin) by default, or another one (a board card moves to Done);
   - right to left opens a Delete button that stays until it is tapped, the
     row is swiped or tapped closed, or another place is tapped. Nothing is
     deleted by the swipe alone.
@@ -9,17 +10,33 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
+
+  /** What a left-to-right swipe does. */
+  interface RightAction {
+    icon: IconName;
+    label: string;
+    /** The action's background (a token); the pin color when left out. */
+    color?: string;
+    run: () => void;
+  }
 
   interface Props {
     pinned?: boolean;
     disabled?: boolean;
-    /** Left to right pins; without it, that swipe does nothing (e.g. tags). */
+    /** Left to right pins; without it (or `right`), that swipe does nothing (e.g. tags). */
     onPin?: () => void;
+    /** Left to right does this instead of pinning. */
+    right?: RightAction | null;
     onDelete: () => void;
     children: Snippet;
   }
 
-  let { pinned = false, disabled = false, onPin, onDelete, children }: Props = $props();
+  let { pinned = false, disabled = false, onPin, right, onDelete, children }: Props = $props();
+
+  const rightAction = $derived<RightAction | null>(
+    right ?? (onPin ? { icon: 'pin', label: pinned ? 'Unpin' : 'Pin', run: onPin } : null),
+  );
 
   /** How far to swipe right before releasing pins. */
   const THRESHOLD = 80;
@@ -77,7 +94,7 @@
     }
     let next = start.offset + dx;
     // An open row only swipes closed, not on to pinning (nor rows that can't pin).
-    if (start.offset < 0 || !onPin) next = Math.min(0, next);
+    if (start.offset < 0 || !rightAction) next = Math.min(0, next);
     // Past the usual distance, it keeps following but more slowly.
     const limit = next > 0 ? THRESHOLD * 1.5 : REVEAL;
     const beyond = Math.max(0, Math.abs(next) - limit);
@@ -98,9 +115,10 @@
     }
     swiping = false;
     swallowClick = true; // The release must not also open the note.
-    if (offset >= THRESHOLD && onPin) {
+    if (offset >= THRESHOLD && rightAction) {
+      const action = rightAction;
       close();
-      onPin();
+      action.run();
     } else if (offset <= -REVEAL / 2) {
       open = true;
       offset = -REVEAL;
@@ -151,9 +169,14 @@
   onclickcapture={onClickCapture}
 >
   {#if offset > 0}
-    <div class="action pin" class:armed aria-hidden="true">
-      <span class="glyph"><Icon name="pin" /></span>
-      <span>{pinned ? 'Unpin' : 'Pin'}</span>
+    <div
+      class="action pin"
+      class:armed
+      aria-hidden="true"
+      style:background={rightAction?.color ?? 'var(--pin)'}
+    >
+      <span class="glyph"><Icon name={rightAction?.icon ?? 'pin'} /></span>
+      <span class="label">{rightAction?.label ?? ''}</span>
     </div>
   {:else if offset < 0}
     <button
@@ -230,7 +253,14 @@
 
   .action.pin {
     justify-content: flex-start;
-    background: var(--pin);
+  }
+
+  /* A long label (a column's name) stays on one line. */
+  .label {
+    max-width: 60vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .glyph {
