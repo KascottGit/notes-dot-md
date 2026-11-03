@@ -26,7 +26,7 @@ How to work in this repo. **What to build is in `SPEC.md`: read the relevant sec
 src/
   auth/google.ts         redirect sign-in, getToken(), renewal
   drive/client.ts        fetch wrapper: auth header, retries, 401 handling
-  drive/notes.ts         notes, categories, settings file and images in Drive; folder bootstrap
+  drive/notes.ts         notes, categories and images in Drive; folder bootstrap
   drive/names.ts         file names and query quoting
   drive/fakeDrive.ts     an in-memory Drive for tests (and visual checks)
   editor/setup.ts        CodeMirror configuration and keymaps
@@ -45,7 +45,7 @@ src/
   store/noteSession.ts   one open note: autosave, conflict check, app properties
   store/noteList.ts      list filtering, search results, sorting
   store/route.ts         the note in the URL
-  store/tagColors.ts     tag colors and the settings file
+  store/tagColors.ts     each document's saved tags and their colors (app properties)
   ui/                    Svelte components (Workspace.svelte ties them together)
   ui/keyboardFit.ts      fitting the app above the iPhone keyboard
   ui/images.ts           preparing and showing card images
@@ -74,7 +74,7 @@ The UI must look and behave the same everywhere. Before adding any control, look
 | Rename something (note title, category name) | `InlineName`: edit in place; Enter or leaving saves, Escape cancels. Never a dialog or a "Rename" button. With `wrap`, long names wrap instead of being cut off (board card titles). Non-editable names (General, All notes, read-only notes) use it with `readonly` so they line up. |
 | An icon action (pin, delete, back, sort...) | `IconButton` (44×44). Icons come only from `ICONS` in `ui/icons.ts` (drawn by `Icon.svelte`, or `iconSvg()` in editor widgets); add new icons there. No inline `<svg>` anywhere else. |
 | Ask for a new name | `NameDialog` (creating things only). |
-| A short list of choices under a button (heading levels, New note or board) | `Menu`: opens under its button, closes on a tap outside or Escape. |
+| A short list of choices under a button (heading levels, New note or board, the phone header's more menu) | `Menu`: opens under its button, closes on a tap outside or Escape. |
 | Confirm a choice with consequences | `confirm()` only for bulk or hard-to-undo actions (e.g. moving all of a category's notes). |
 | Feedback after an action | `Toast`, with Undo for anything undoable. Inside an open dialog, render it in the dialog (the rest of the page can't be tapped then). |
 | Pick one filter from a row (categories, board tags) | `Chip` inside a `ChipRow` (wraps on desktop, scrolls sideways on phones). |

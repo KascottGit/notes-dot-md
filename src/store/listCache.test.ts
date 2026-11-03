@@ -28,7 +28,6 @@ const cache: ListCache = {
   folders: { rootId: 'root', defaultId: 'gen' },
   categories: [{ id: 'gen', name: 'General' }],
   notes: [note],
-  tagColors: { school: 'green' },
 };
 
 describe('list cache', () => {

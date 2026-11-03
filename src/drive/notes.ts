@@ -590,61 +590,6 @@ export async function readFileBlob(drive: DriveClient, id: string): Promise<Blob
   return res.blob();
 }
 
-/** The app's settings file in `Notes/` (tag colors). Not a note: notes live in categories. */
-export const SETTINGS_FILE = '.notes-md.json';
-
-/** The settings file's id and text, or null id and '' when there is none yet. */
-export async function readSettings(
-  drive: DriveClient,
-  rootId: string,
-): Promise<{ id: string | null; text: string }> {
-  const q = [
-    `name = ${quoteQuery(SETTINGS_FILE)}`,
-    `${quoteQuery(rootId)} in parents`,
-    'trashed = false',
-  ].join(' and ');
-  const params = new URLSearchParams({
-    q,
-    fields: 'files(id)',
-    orderBy: 'createdTime',
-    pageSize: '1',
-    spaces: 'drive',
-  });
-  const { files } = await drive.json<FileList>(`${FILES}?${params}`);
-  const id = files[0]?.id ?? null;
-  if (!id) return { id: null, text: '' };
-  const res = await drive.request(`${FILES}/${id}?alt=media`);
-  return { id, text: await res.text() };
-}
-
-/** Write the settings file, creating it the first time. Returns its id. */
-export async function writeSettings(
-  drive: DriveClient,
-  rootId: string,
-  id: string | null,
-  text: string,
-): Promise<string> {
-  if (id) {
-    await drive.request(`${UPLOAD}/${id}?uploadType=media&fields=id`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-      body: text,
-    });
-    return id;
-  }
-  const metadata = {
-    name: SETTINGS_FILE,
-    mimeType: 'application/json',
-    parents: [rootId],
-    appProperties: APP_PROPERTIES,
-  };
-  const file = await drive.json<DriveFile>(
-    `${UPLOAD}?uploadType=multipart&fields=id`,
-    multipart('POST', metadata, text, 'application/json'),
-  );
-  return file.id;
-}
-
 /** Take a note back out of the Drive trash (the Undo after deleting). */
 export async function untrashNote(drive: DriveClient, note: Note): Promise<Note> {
   const file = await drive.json<DriveFile>(`${FILES}/${note.id}?fields=${NOTE_FIELDS}`, {

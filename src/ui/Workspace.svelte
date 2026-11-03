@@ -37,11 +37,12 @@
   import type { TagSuggestion } from '../editor/tagComplete';
   import {
     checkTagName,
-    loadTagColors,
     nextTagColor,
+    noteTagColors,
     savedTags,
-    saveTagColor,
     tagColorCss,
+    tagColorProperty,
+    TAG_PROPERTY,
     type TagColor,
     type TagColors,
   } from '../store/tagColors';
@@ -250,7 +251,6 @@
       folders = cached.folders;
       categories = cached.categories;
       notes = cached.notes;
-      tagColors = cached.tagColors;
       loading = false;
     }
     const loaded = loadList(cached !== null);
@@ -282,7 +282,6 @@
     listError = null;
     try {
       folders = await ensureFolders(drive, safeLocalStorage());
-      void loadColors(folders.rootId);
       await refreshList();
     } catch (err) {
       if (background) toast = { message: `Couldn't refresh your notes: ${message(err)}` };
@@ -301,7 +300,6 @@
       folders: $state.snapshot(folders),
       categories: $state.snapshot(categories),
       notes: $state.snapshot(notes),
-      tagColors: $state.snapshot(tagColors),
     });
   });
 
@@ -407,19 +405,13 @@
       : deletedDate.format(date);
   }
 
-  /** Picked tag colors, from the settings file in Drive. */
-  let tagColors = $state<TagColors>({});
+  /** The open note's or board's saved tags and their colors (on its file). */
+  const tagColors = $derived<TagColors>(
+    headerState ? noteTagColors(headerState.note.appProperties) : {},
+  );
   let tagsOpen = $state(false);
 
-  async function loadColors(rootId: string) {
-    try {
-      tagColors = await loadTagColors(drive, rootId);
-    } catch {
-      // Tags keep the accent color; the next start tries again.
-    }
-  }
-
-  /** One style sheet gives every colored tag its color, wherever it shows. */
+  /** One style sheet gives the open document's saved tags their colors, wherever they show. */
   $effect(() => {
     const css = tagColorCss(tagColors);
     let sheet = document.getElementById('mdnotes-tag-colors');
@@ -471,45 +463,80 @@
     };
   }
 
-  /** Color changes shown already but not yet in Drive (lower-case tag → color, null: removed). */
-  // Not shown directly (tagColors is), so a plain Map.
+  /**
+   * Color changes shown already but not yet in Drive: note id → lower-case
+   * tag → color (null: removed).
+   */
+  // Not shown directly (the notes are), so plain Maps.
   // eslint-disable-next-line svelte/prefer-svelte-reactivity
-  const unsavedColors = new Map<string, TagColor | null>();
-  /** Saves run one after another, so each reads what the one before wrote. */
+  const unsavedColors = new Map<string, Map<string, TagColor | null>>();
+  /** Saves run one after another, so a quick change isn't overtaken by an earlier one. */
   let colorSaves: Promise<void> = Promise.resolve();
 
-  /** Colors as saved, with the changes still on their way on top. */
-  function withUnsaved(colors: TagColors): TagColors {
-    const next = { ...colors };
-    for (const [tag, color] of unsavedColors) {
-      if (color) next[tag] = color;
-      else delete next[tag];
+  /** The note as saved, with its color changes still on their way on top. */
+  function withUnsaved(note: Note): Note {
+    const pending = unsavedColors.get(note.id);
+    if (!pending?.size) return note;
+    return { ...note, appProperties: withColor(note.appProperties, pending) };
+  }
+
+  function withColor(
+    appProperties: Record<string, string>,
+    colors: Map<string, TagColor | null>,
+  ): Record<string, string> {
+    const next = { ...appProperties };
+    for (const [tag, color] of colors) {
+      if (color) next[TAG_PROPERTY + tag] = color;
+      else delete next[TAG_PROPERTY + tag];
     }
     return next;
   }
 
+  /** The newest metadata of a note: the open one's session, else the list. */
+  function latestNote(id: string): Note | undefined {
+    const open = session?.state.note;
+    return open?.id === id ? open : notes.find((n) => n.id === id);
+  }
+
   /**
-   * Set a saved tag's color, or remove the tag (null). Shows everywhere at
-   * once; Drive is updated in the background.
+   * Set a saved tag's color in the open note or board, or remove the tag
+   * (null). Shows at once; Drive is updated in the background.
    */
   function pickTagColor(tag: string, color: TagColor | null): Promise<void> {
-    const rootId = folders?.rootId;
-    if (!rootId) return Promise.resolve();
+    const note = session?.state.note;
+    if (!note || session?.state.readOnly) return Promise.resolve();
     const key = tag.toLowerCase();
-    const before = tagColors[key] ?? null;
-    unsavedColors.set(key, color);
-    tagColors = withUnsaved(tagColors);
+    const before = noteTagColors(note.appProperties)[key] ?? null;
+    let pending = unsavedColors.get(note.id);
+    if (!pending) {
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- not shown directly, as above
+      pending = new Map();
+      unsavedColors.set(note.id, pending);
+    }
+    const queue = pending;
+    queue.set(key, color);
+    replaceNote(withUnsaved(note));
+    const settle = () => {
+      if (queue.get(key) === color) queue.delete(key);
+    };
     colorSaves = colorSaves.then(async () => {
       try {
-        const saved = await saveTagColor(drive, rootId, key, color);
-        if (unsavedColors.get(key) === color) unsavedColors.delete(key);
-        tagColors = withUnsaved(saved);
+        const saved = await setNoteProperties(
+          drive,
+          latestNote(note.id) ?? note,
+          tagColorProperty(key, color),
+        );
+        settle();
+        replaceNote(withUnsaved(saved));
       } catch (err) {
-        if (unsavedColors.get(key) === color) unsavedColors.delete(key);
-        const back = { ...tagColors };
-        if (before) back[key] = before;
-        else delete back[key];
-        tagColors = withUnsaved(back);
+        settle();
+        const latest = latestNote(note.id) ?? note;
+        replaceNote(
+          withUnsaved({
+            ...latest,
+            appProperties: withColor(latest.appProperties, new Map([[key, before]])),
+          }),
+        );
         toast = { message: `Couldn't save the color for #${key}: ${message(err)}` };
       }
     });
@@ -1134,15 +1161,6 @@
         <IconButton icon="expire" label="Expire token (dev)" onclick={onExpireToken} />
       {/if}
       <IconButton
-        icon="tag"
-        label="Tags"
-        title="Tags and their colors"
-        onclick={() => {
-          expandedTag = null;
-          tagsOpen = true;
-        }}
-      />
-      <IconButton
         icon="deleted"
         label="Recently deleted"
         title="Recently deleted notes"
@@ -1199,6 +1217,10 @@
         onExport={exportNote}
         onTogglePin={() => sessionState && void togglePin(sessionState.note)}
         onDelete={() => sessionState && void deleteNote(sessionState.note)}
+        onTags={() => {
+          expandedTag = null;
+          tagsOpen = true;
+        }}
         boardView={boardFile ? (boardMode ? 'board' : 'text') : null}
         onToggleBoard={opening ? undefined : toggleBoard}
       />
@@ -1290,6 +1312,7 @@
 <TagsDialog
   open={tagsOpen}
   colors={tagColors}
+  kind={boardFile ? 'board' : 'note'}
   bind:expanded={expandedTag}
   onPick={pickTagColor}
   onAdd={() => (addingTag = true)}

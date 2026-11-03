@@ -5,7 +5,6 @@
  * account, and cleared on sign-out.
  */
 import type { Category, Folders, Note } from '../drive/notes';
-import type { TagColors } from './tagColors';
 import { safeLocalStorage, type StorageLike } from './storage';
 
 const KEY = 'mdnotes.listCache';
@@ -17,7 +16,6 @@ export interface ListCache {
   folders: Folders;
   categories: Category[];
   notes: Note[];
-  tagColors: TagColors;
 }
 
 /** The saved list for this account, or null. */
@@ -39,7 +37,6 @@ export function loadListCache(
       folders: value.folders,
       categories: value.categories,
       notes: value.notes,
-      tagColors: value.tagColors ?? {},
     };
   } catch {
     return null;

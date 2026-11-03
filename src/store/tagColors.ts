@@ -1,11 +1,10 @@
 /**
- * Tag colors: picked per tag in the Tags list, the same everywhere, stored
- * in the settings file in Drive (SPEC "Tags"). The markdown never changes.
- * Elements that show a tag carry `data-tag="<tag in lower case>"`; one
- * generated style sheet gives each colored tag its `--tag-color`.
+ * Saved tags: each note or board has its own, with a color each, picked in
+ * its Tags list and stored as app properties on its file (SPEC "Tags"). The
+ * markdown never changes. Elements that show a tag carry
+ * `data-tag="<tag in lower case>"`; one generated style sheet gives each of
+ * the open document's saved tags its `--tag-color`.
  */
-import type { DriveClient } from '../drive/client';
-import { readSettings, writeSettings } from '../drive/notes';
 import { TAG_WORD } from '../editor/tags';
 
 export const TAG_COLORS = [
@@ -38,42 +37,36 @@ export const TAG_COLOR_LABELS: Record<TagColor, string> = {
 const isTagColor = (value: unknown): value is TagColor =>
   typeof value === 'string' && (TAG_COLORS as readonly string[]).includes(value);
 
-type SettingsJson = Record<string, unknown> & { tagColors?: unknown };
+/** App property key prefix for a saved tag: `tag.school` = `green`. */
+export const TAG_PROPERTY = 'tag.';
 
-function parse(text: string): SettingsJson {
-  try {
-    const value: unknown = JSON.parse(text);
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as SettingsJson)
-      : {};
-  } catch {
-    return {}; // Empty or broken: start over rather than fail.
-  }
-}
+/**
+ * At most this many saved tags per document. Drive allows 30 app properties
+ * per file, and the app uses a few itself (pin, preview, board mark).
+ */
+export const MAX_SAVED_TAGS = 24;
 
-/** The tag colors in a settings file's text; unknown entries are skipped. */
-export function parseTagColors(text: string): TagColors {
-  const raw = parse(text).tagColors;
+/** Drive's limit for an app property's key and value together, in bytes. */
+const MAX_PROPERTY_BYTES = 124;
+
+/** A document's saved tags and their colors, from its file's app properties. */
+export function noteTagColors(appProperties: Record<string, string>): TagColors {
   const colors: TagColors = {};
-  if (raw && typeof raw === 'object') {
-    for (const [tag, color] of Object.entries(raw)) {
-      if (isTagColor(color)) colors[tag.toLowerCase()] = color;
+  for (const [key, value] of Object.entries(appProperties)) {
+    if (key.startsWith(TAG_PROPERTY) && isTagColor(value)) {
+      colors[key.slice(TAG_PROPERTY.length).toLowerCase()] = value;
     }
   }
   return colors;
 }
 
-/** The settings text with one tag's color set (or removed), keeping everything else. */
-export function setTagColorIn(text: string, tag: string, color: TagColor | null): string {
-  const settings = parse(text);
-  const colors: Record<string, unknown> =
-    settings.tagColors && typeof settings.tagColors === 'object'
-      ? { ...(settings.tagColors as Record<string, unknown>) }
-      : {};
-  if (color) colors[tag.toLowerCase()] = color;
-  else delete colors[tag.toLowerCase()];
-  return `${JSON.stringify({ ...settings, tagColors: colors }, null, 2)}\n`;
-}
+/** The app property change that sets a saved tag's color, or removes the tag (null). */
+export const tagColorProperty = (
+  tag: string,
+  color: TagColor | null,
+): Record<string, string | null> => ({
+  [TAG_PROPERTY + tag.toLowerCase()]: color,
+});
 
 /** The style sheet that colors tags: one rule per colored tag. */
 export function tagColorCss(colors: TagColors): string {
@@ -83,27 +76,6 @@ export function tagColorCss(colors: TagColors): string {
       return `[data-tag="${value}"] { --tag-color: var(--tag-${color}); }`;
     })
     .join('\n');
-}
-
-export async function loadTagColors(drive: DriveClient, rootId: string): Promise<TagColors> {
-  return parseTagColors((await readSettings(drive, rootId)).text);
-}
-
-/**
- * Set one tag's color in Drive. Reads the file first and changes only that
- * tag, so colors picked on another device in the meantime are kept.
- * Returns all colors as now stored.
- */
-export async function saveTagColor(
-  drive: DriveClient,
-  rootId: string,
-  tag: string,
-  color: TagColor | null,
-): Promise<TagColors> {
-  const { id, text } = await readSettings(drive, rootId);
-  const next = setTagColorIn(text, tag, color);
-  await writeSettings(drive, rootId, id, next);
-  return parseTagColors(next);
 }
 
 /** The saved tags (the ones with a color), A–Z. */
@@ -128,5 +100,10 @@ export function checkTagName(raw: string, colors: TagColors): { tag: string } | 
     return { error: 'Use letters, digits, - _ and /, without spaces (not only digits).' };
   }
   if (tag in colors) return { error: `#${tag} is already saved.` };
+  const bytes = new TextEncoder().encode(TAG_PROPERTY + tag + 'yellow').length;
+  if (bytes > MAX_PROPERTY_BYTES) return { error: 'That tag is too long to save.' };
+  if (Object.keys(colors).length >= MAX_SAVED_TAGS) {
+    return { error: `A note can have up to ${MAX_SAVED_TAGS} saved tags.` };
+  }
   return { tag };
 }

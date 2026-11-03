@@ -1,62 +1,49 @@
 import { describe, expect, it } from 'vitest';
 import { fakeDrive } from '../drive/fakeDrive';
-import { ensureFolders, readSettings, SETTINGS_FILE } from '../drive/notes';
+import { createNote, ensureFolders, getNote, setNoteProperties } from '../drive/notes';
 import {
   checkTagName,
-  loadTagColors,
+  MAX_SAVED_TAGS,
   nextTagColor,
-  parseTagColors,
+  noteTagColors,
   savedTags,
-  saveTagColor,
-  setTagColorIn,
   tagColorCss,
+  tagColorProperty,
+  type TagColors,
 } from './tagColors';
 
-describe('settings text', () => {
-  it('reads known colors and skips the rest', () => {
-    expect(parseTagColors('{"tagColors":{"School":"green","x":"plaid","y":3}}')).toEqual({
-      school: 'green',
-    });
-    expect(parseTagColors('')).toEqual({});
-    expect(parseTagColors('not json')).toEqual({});
+describe('on the file', () => {
+  it('reads a document’s saved tags from its app properties, skipping the rest', () => {
+    expect(
+      noteTagColors({ pinned: 'true', 'tag.school': 'green', 'tag.Work': 'blue', 'tag.x': 'neon' }),
+    ).toEqual({ school: 'green', work: 'blue' });
   });
 
-  it('sets and removes one color, keeping other settings', () => {
-    const text = '{"other":1,"tagColors":{"work":"blue"}}';
-    const set = setTagColorIn(text, 'School', 'green');
-    expect(JSON.parse(set)).toEqual({ other: 1, tagColors: { work: 'blue', school: 'green' } });
-    expect(JSON.parse(setTagColorIn(set, 'work', null))).toEqual({
-      other: 1,
-      tagColors: { school: 'green' },
-    });
+  it('stores one property per tag, in lower case, and removes it with null', () => {
+    expect(tagColorProperty('School', 'green')).toEqual({ 'tag.school': 'green' });
+    expect(tagColorProperty('school', null)).toEqual({ 'tag.school': null });
+  });
+
+  it('keeps each document’s tags apart in Drive', async () => {
+    const { drive } = fakeDrive();
+    const { defaultId } = await ensureFolders(drive);
+    const a = await createNote(drive, defaultId, 'A', 'text #school');
+    const b = await createNote(drive, defaultId, 'B', 'text #school');
+
+    let saved = await setNoteProperties(drive, a, tagColorProperty('school', 'green'));
+    saved = await setNoteProperties(drive, saved, tagColorProperty('work', 'blue'));
+    expect(noteTagColors(saved.appProperties)).toEqual({ school: 'green', work: 'blue' });
+
+    await setNoteProperties(drive, saved, tagColorProperty('school', null));
+    expect(noteTagColors((await getNote(drive, a.id)).appProperties)).toEqual({ work: 'blue' });
+    expect(noteTagColors((await getNote(drive, b.id)).appProperties)).toEqual({});
   });
 
   it('makes one style rule per colored tag', () => {
-    expect(tagColorCss({ school: 'green', 'work/notes': 'blue' })).toBe(
+    expect(tagColorCss({ school: 'green', 'a"b': 'red' })).toBe(
       '[data-tag="school"] { --tag-color: var(--tag-green); }\n' +
-        '[data-tag="work/notes"] { --tag-color: var(--tag-blue); }',
+        '[data-tag="a\\"b"] { --tag-color: var(--tag-red); }',
     );
-  });
-});
-
-describe('in Drive', () => {
-  it('creates the settings file once, then merges changes into it', async () => {
-    const { drive, files } = fakeDrive();
-    const { rootId } = await ensureFolders(drive);
-    expect(await loadTagColors(drive, rootId)).toEqual({});
-
-    await saveTagColor(drive, rootId, 'school', 'green');
-    // Another device adds a color in the meantime.
-    const settings = [...files.values()].find((f) => f.name === SETTINGS_FILE)!;
-    settings.content = setTagColorIn(settings.content, 'work', 'blue');
-
-    expect(await saveTagColor(drive, rootId, 'home', 'red')).toEqual({
-      school: 'green',
-      work: 'blue',
-      home: 'red',
-    });
-    expect([...files.values()].filter((f) => f.name === SETTINGS_FILE)).toHaveLength(1);
-    expect((await readSettings(drive, rootId)).id).toBe(settings.id);
   });
 });
 
@@ -77,5 +64,16 @@ describe('saved tags', () => {
     expect(checkTagName('two words', {})).toHaveProperty('error');
     expect(checkTagName('123', {})).toHaveProperty('error');
     expect(checkTagName('home', { home: 'red' })).toEqual({ error: '#home is already saved.' });
+  });
+
+  it('keeps within what Drive can store on a file', () => {
+    expect(checkTagName('a'.repeat(115), {})).toHaveProperty('error');
+    expect(checkTagName('a'.repeat(110), {})).toEqual({ tag: 'a'.repeat(110) });
+    const full: TagColors = Object.fromEntries(
+      Array.from({ length: MAX_SAVED_TAGS }, (_, i) => [`t${i}`, 'red' as const]),
+    );
+    expect(checkTagName('one-more', full)).toEqual({
+      error: `A note can have up to ${MAX_SAVED_TAGS} saved tags.`,
+    });
   });
 });

@@ -1,6 +1,6 @@
 <!--
   Note header: editable title (renames the file), category picker (moves the
-  file), save status, and export / pin / delete.
+  file), save status, and tags / export / pin / delete.
 -->
 <script lang="ts">
   import { isPinned, type Category } from '../drive/notes';
@@ -8,6 +8,7 @@
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
   import InlineName from './InlineName.svelte';
+  import Menu from './Menu.svelte';
 
   interface Props {
     sessionState: SessionState;
@@ -23,6 +24,8 @@
     onExport: () => void;
     onTogglePin: () => void;
     onDelete: () => void;
+    /** Open this note's Tags list (its saved tags and their colors). */
+    onTags?: () => void;
     /** Board files: shown as a board, or as text. Null for other notes. */
     boardView?: 'board' | 'text' | null;
     onToggleBoard?: () => void;
@@ -49,6 +52,7 @@
     onExport,
     onTogglePin,
     onDelete,
+    onTags,
     boardView = null,
     onToggleBoard,
     sidebarOpen = true,
@@ -82,6 +86,14 @@
                 error: "Couldn't save",
               }[sessionState.status],
   );
+
+  /** Phones: Export and Delete sit in the "more" menu, so the title keeps its room. */
+  const MORE_ITEMS = [
+    { id: 'export', label: 'Export as .md', icon: 'download' },
+    { id: 'delete', label: 'Move to trash', icon: 'trash' },
+  ] as const;
+  let moreOpen = $state(false);
+  let moreButton = $state<HTMLElement>();
 
   /** Put the cursor in the title with all of it selected (for new notes). */
   export function focusTitle() {
@@ -154,7 +166,12 @@
           onclick={onToggleBoard}
         />
       {/if}
-      <IconButton icon="download" label="Export as .md" onclick={onExport} />
+      {#if !sessionState.readOnly && onTags}
+        <IconButton icon="tag" label="Tags" title="Saved tags and their colors" onclick={onTags} />
+      {/if}
+      <span class="wide">
+        <IconButton icon="download" label="Export as .md" onclick={onExport} />
+      </span>
       {#if !sessionState.readOnly}
         <IconButton
           icon="pin"
@@ -162,16 +179,74 @@
           pressed={pinned}
           onclick={onTogglePin}
         />
-        <IconButton icon="trash" label="Delete note" title="Move to trash" onclick={onDelete} />
+        <span class="wide">
+          <IconButton icon="trash" label="Delete note" title="Move to trash" onclick={onDelete} />
+        </span>
+        <span class="narrow" bind:this={moreButton}>
+          <IconButton icon="more" label="More" onclick={() => (moreOpen = !moreOpen)} />
+        </span>
+      {:else}
+        <!-- Read-only: Export is the only one, so it stays in the header. -->
+        <span class="narrow">
+          <IconButton icon="download" label="Export as .md" onclick={onExport} />
+        </span>
       {/if}
     </span>
   </div>
 </div>
+{#if moreOpen}
+  <!-- Outside the header, which cuts off whatever sticks out of it. -->
+  <div class="more-menu">
+    <Menu
+      items={[...MORE_ITEMS]}
+      label="More"
+      anchor={moreButton}
+      onSelect={(item) => (item.id === 'export' ? onExport() : onDelete())}
+      onClose={() => (moreOpen = false)}
+    >
+      {#snippet item(it)}
+        <span class="more-item"><Icon name={it.icon} />{it.label}</span>
+      {/snippet}
+    </Menu>
+  </div>
+{/if}
 {#if sessionState.status === 'error' && sessionState.error}
   <p class="detail" role="alert">{sessionState.error} Your text is still here.</p>
 {/if}
 
 <style>
+  .wide {
+    display: inline-flex;
+  }
+
+  /* Phones show the "more" menu instead of Export and Delete. */
+  .narrow,
+  .more-menu {
+    display: none;
+  }
+
+  @media (max-width: 599px) {
+    .wide {
+      display: none;
+    }
+
+    .narrow {
+      display: inline-flex;
+    }
+
+    .more-menu {
+      position: relative;
+      display: block;
+      margin-right: 6px;
+    }
+  }
+
+  .more-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+  }
+
   .header {
     /* The same scrollbar space as the editor, so both center the same column. */
     overflow: hidden;

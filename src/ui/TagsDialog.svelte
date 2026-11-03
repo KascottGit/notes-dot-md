@@ -1,6 +1,6 @@
 <!--
-  The Tags list (SPEC "Tags"): the saved tags, each with its color. Saved
-  tags are suggested while typing everywhere. Tapping a tag shows the color
+  The Tags list (SPEC "Tags"): the open note's or board's saved tags, each
+  with its color. They are suggested while typing in it. Tapping a tag shows the color
   swatches; a pick applies at once. Add and remove are here too.
 -->
 <script lang="ts">
@@ -19,6 +19,8 @@
   interface Props {
     open: boolean;
     colors: TagColors;
+    /** What is open, for the wording. */
+    kind?: 'note' | 'board';
     /** The tag whose swatches show, or null. */
     expanded?: string | null;
     onPick: (tag: string, color: TagColor) => void;
@@ -32,6 +34,7 @@
   let {
     open,
     colors,
+    kind = 'note',
     expanded = $bindable(null),
     onPick,
     onAdd,
@@ -58,7 +61,8 @@
   </div>
   {#if tags.length === 0}
     <p class="empty">
-      No saved tags yet. Add one to give it a color and have it suggested in every note and board.
+      No saved tags in this {kind} yet. Add one to give it a color and have it suggested while you type
+      here.
     </p>
   {:else}
     <ul>
