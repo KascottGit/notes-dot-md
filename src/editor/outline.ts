@@ -19,8 +19,10 @@ export interface Heading {
   level: number;
   /** Plain text, without markers. */
   text: string;
-  /** Where the heading's line starts. */
+  /** Where the heading's line starts (board columns: the column's index). */
   from: number;
+  /** Board columns: the number of cards shown. */
+  cards?: number;
 }
 
 /** The headings, and the one whose section is at the top of the screen (-1: above the first). */

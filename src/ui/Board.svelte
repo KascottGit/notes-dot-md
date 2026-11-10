@@ -36,6 +36,7 @@
     type KeyedCard,
     type Span,
   } from '../editor/board';
+  import type { Heading, Outline } from '../editor/outline';
   import type { Editor } from '../editor/setup';
   import { drive } from '../drive/client';
   import { setTrashed } from '../drive/notes';
@@ -714,6 +715,65 @@
   onDestroy(cancel);
 
   const desktop = () => window.matchMedia('(min-width: 900px)').matches;
+
+  // ---------------------------------------------------------- Outline
+
+  let columnsEl = $state<HTMLDivElement>();
+  /** The column just jumped to, lit up for a moment. */
+  let lit = $state<number | null>(null);
+  let litTimer: ReturnType<typeof setTimeout> | undefined;
+  const LIT_MS = 1600;
+
+  /** The columns, for the note header's outline; the current one is the first one in view. */
+  export function outline(): Outline {
+    const headings: Heading[] = columns.map(({ column, index }) => ({
+      level: 1,
+      text: column.title || 'Untitled',
+      from: index,
+      cards: column.cards.filter(shown).length,
+    }));
+    return { headings, current: columnInView() };
+  }
+
+  /** The first column not scrolled past: sideways on desktop, down on phones. */
+  function columnInView(): number {
+    const els = columnEls();
+    if (desktop()) {
+      const left = (columnsEl?.getBoundingClientRect().left ?? 0) + 40;
+      return els.findIndex((el) => el.getBoundingClientRect().right > left);
+    }
+    const top = (root?.getBoundingClientRect().top ?? 0) + 40;
+    return els.findIndex((el) => el.getBoundingClientRect().bottom > top);
+  }
+
+  /** Scroll a column to the start of the board and light it up. */
+  export function jumpTo(heading: Heading) {
+    // The board may have changed since the outline was read: then find the column by its name.
+    let ci = heading.from;
+    if ((board.columns[ci]?.title || 'Untitled') !== heading.text) {
+      const found = columns.find(({ column }) => (column.title || 'Untitled') === heading.text);
+      if (!found) return;
+      ci = found.index;
+    }
+    const el = root?.querySelector<HTMLElement>(`[data-column="${ci}"]`);
+    if (!el || !root || !columnsEl) return;
+    if (desktop()) {
+      // Lined up with the row's left padding.
+      const box = columnsEl.getBoundingClientRect();
+      columnsEl.scrollLeft += el.getBoundingClientRect().left - box.left - 16;
+    } else {
+      root.scrollTop += el.getBoundingClientRect().top - root.getBoundingClientRect().top - 8;
+    }
+    // Off and on again, so jumping to the same column twice lights it again.
+    lit = null;
+    clearTimeout(litTimer);
+    requestAnimationFrame(() => {
+      lit = ci;
+      litTimer = setTimeout(() => (lit = null), LIT_MS);
+    });
+  }
+
+  onDestroy(() => clearTimeout(litTimer));
 </script>
 
 <div class="board" bind:this={root} data-scroll>
@@ -748,12 +808,13 @@
     </div>
   {/if}
 
-  <div class="columns" data-scroll>
+  <div class="columns" data-scroll bind:this={columnsEl}>
     {#each columns as { column, index: ci } (`${ci}:${column.title}`)}
       {@const count = column.cards.filter(shown).length}
       <section
         class="column"
         class:dragging={dragging?.kind === 'column' && dragging.column === ci}
+        class:jumped={lit === ci}
         data-column={ci}
         aria-label={column.title}
       >
@@ -984,6 +1045,25 @@
     border-radius: 12px;
     background: var(--bg-muted);
     transition: opacity 120ms ease;
+  }
+
+  /* Lit up for a moment after a jump from the outline. */
+  .column.jumped {
+    animation: column-jumped 1600ms ease-out;
+  }
+
+  @keyframes column-jumped {
+    from {
+      box-shadow:
+        0 0 0 2px var(--accent),
+        0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent);
+    }
+
+    to {
+      box-shadow:
+        0 0 0 2px transparent,
+        0 0 0 6px transparent;
+    }
   }
 
   .column.dragging {

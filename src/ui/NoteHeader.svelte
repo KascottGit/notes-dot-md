@@ -163,6 +163,9 @@
   let outlineButton = $state<HTMLElement>();
   /** Indent each heading by its level, from the highest level in the note. */
   const topLevel = $derived(Math.min(...(outlineItems ?? []).map((h) => h.level)));
+  /** Bold the highest level only when there are others (not for a board's columns). */
+  const mixedLevels = $derived((outlineItems ?? []).some((h) => h.level !== topLevel));
+  const boardShown = $derived(boardView === 'board');
 
   /** The note the outline was read from. */
   let outlineNote = '';
@@ -261,8 +264,8 @@
         <span class="outline" bind:this={outlineButton}>
           <IconButton
             icon="outline"
-            label="Outline"
-            title="Outline: jump to a heading"
+            label={boardShown ? 'Columns' : 'Outline'}
+            title={boardShown ? 'Jump to a column' : 'Outline: jump to a heading'}
             onclick={() => (outlineItems ? (outlineItems = null) : openOutline())}
           />
         </span>
@@ -315,7 +318,7 @@
   <div class="more-menu">
     <Menu
       items={outlineItems}
-      label="Outline"
+      label={boardShown ? 'Columns' : 'Outline'}
       anchor={outlineButton}
       current={outlineCurrent}
       focusOnOpen
@@ -328,10 +331,11 @@
       {#snippet item(h)}
         <span
           class="heading"
-          class:top={h.level === topLevel}
+          class:top={mixedLevels && h.level === topLevel}
           style:padding-left="{(h.level - topLevel) * 16}px"
           title={h.text}>{h.text}</span
         >
+        {#if h.cards !== undefined}<span class="cards">{h.cards}</span>{/if}
       {/snippet}
     </Menu>
   </div>
@@ -367,6 +371,14 @@
 
   .heading.top {
     font-weight: 600;
+  }
+
+  /* A board column's number of cards, as in its header. */
+  .cards {
+    flex: none;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
   }
 
   .more-menu {

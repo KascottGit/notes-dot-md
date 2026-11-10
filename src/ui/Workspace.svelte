@@ -37,7 +37,13 @@
     type Folders,
     type Note,
   } from '../drive/notes';
-  import { documentTags, isBoard, NEW_BOARD_TEXT } from '../editor/board';
+  import {
+    documentTags,
+    isBoard,
+    NEW_BOARD_TEXT,
+    parseBoard,
+    visibleColumns,
+  } from '../editor/board';
   import { countWords, driveImageIds } from '../editor/markdown';
   import type { TagSuggestion } from '../editor/tagComplete';
   import {
@@ -149,6 +155,8 @@
   const boardMode = $derived(boardFile && !boardAsText);
   /** The board's text, kept in step with the (hidden) editor, which stays the source of truth. */
   let boardText = $state('');
+  /** The board's columns (the Archive left out), for the outline button. */
+  const boardColumns = $derived(boardMode ? visibleColumns(parseBoard(boardText)).length : 0);
   /** Wider screens: the note list was hidden (remembered on this device). */
   const SIDEBAR_KEY = 'mdnotes.sidebarHidden';
   let sidebarHidden = $state(safeLocalStorage()?.getItem(SIDEBAR_KEY) === '1');
@@ -486,10 +494,18 @@
     else board?.run(command);
   }
 
-  /** Undo keys on a board while no text field has the cursor (e.g. right after a drag). */
+  /**
+   * Board keys: Ctrl+Shift+O opens the columns outline (also from a card), and the undo keys
+   * while no text field has the cursor (e.g. right after a drag).
+   */
   function onKeydown(event: KeyboardEvent) {
     if (!boardMode || !(event.ctrlKey || event.metaKey) || event.altKey) return;
     const key = event.key.toLowerCase();
+    if (key === 'o' && event.shiftKey) {
+      event.preventDefault();
+      header?.openOutline();
+      return;
+    }
     if (key !== 'z' && key !== 'y') return;
     const target = event.target as Element | null;
     if (target?.closest?.('input, textarea, select, [contenteditable], dialog')) return;
@@ -1404,11 +1420,13 @@
         onDuplicate={opening || creating ? undefined : () => void duplicateOpenNote()}
         words={boardFile ? null : words}
         onFind={opening || creating || boardMode ? undefined : () => editor?.find()}
-        headings={headingCount}
-        readOutline={opening || creating || boardMode
+        headings={boardMode ? boardColumns : headingCount}
+        readOutline={opening || creating
           ? undefined
-          : () => editor?.outline() ?? { headings: [], current: -1 }}
-        onJump={(heading) => editor?.jumpTo(heading, finePointer.matches)}
+          : () =>
+              (boardMode ? board?.outline() : editor?.outline()) ?? { headings: [], current: -1 }}
+        onJump={(heading) =>
+          boardMode ? board?.jumpTo(heading) : editor?.jumpTo(heading, finePointer.matches)}
         onTags={() => {
           expandedTag = null;
           tagsOpen = true;
