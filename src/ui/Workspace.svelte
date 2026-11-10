@@ -35,6 +35,7 @@
     type Note,
   } from '../drive/notes';
   import { documentTags, isBoard, NEW_BOARD_TEXT } from '../editor/board';
+  import { countWords } from '../editor/markdown';
   import type { TagSuggestion } from '../editor/tagComplete';
   import {
     checkTagName,
@@ -275,6 +276,7 @@
     document.removeEventListener('visibilitychange', onVisibilityChange);
     stopStashOnRedirect?.();
     clearTimeout(searchTimer);
+    clearTimeout(wordsTimer);
     session?.dispose();
     editor?.destroy();
   });
@@ -853,6 +855,8 @@
     boardAsText = false;
     boardFile = isBoard(text);
     boardText = text;
+    clearTimeout(wordsTimer);
+    words = countWords(text);
   }
 
   /** Save the editor's text to this note from now on. `text` is what Drive has. */
@@ -865,9 +869,22 @@
     sessionState = session.state;
   }
 
+  /** The open note's number of words, for the header. Counted once typing pauses. */
+  let words = $state(0);
+  let wordsTimer: ReturnType<typeof setTimeout> | undefined;
+  const WORDS_DELAY_MS = 300;
+  function countSoon() {
+    clearTimeout(wordsTimer);
+    wordsTimer = setTimeout(
+      () => (words = editor ? countWords(editor.getText()) : 0),
+      WORDS_DELAY_MS,
+    );
+  }
+
   /** After any change to the text: is it (still) a board, and what does the board show. */
   function syncBoard() {
     if (!editor) return;
+    countSoon();
     boardFile = isBoard(editor.firstLine());
     if (boardFile && !boardAsText) boardText = editor.getText();
   }
@@ -1291,6 +1308,7 @@
         onExport={exportNote}
         onTogglePin={() => sessionState && void togglePin(sessionState.note)}
         onDelete={() => sessionState && void deleteNote(sessionState.note)}
+        words={boardFile ? null : words}
         onFind={opening || creating || boardMode ? undefined : () => editor?.find()}
         onTags={() => {
           expandedTag = null;

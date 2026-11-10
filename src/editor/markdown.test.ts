@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { markdownSupport } from './language';
 import {
   autolinkHref,
+  countWords,
   driveFileId,
   imageMarkdown,
   linkParts,
@@ -240,5 +241,24 @@ describe('driveFileId', () => {
     expect(driveFileId('https://drive.google.com/file/d/1aB_c-9/view')).toBe('1aB_c-9');
     expect(driveFileId('https://example.com/file/d/1aB/view')).toBeNull();
     expect(driveFileId('https://drive.google.com/file/d/1aB/edit')).toBeNull();
+  });
+});
+
+describe('countWords', () => {
+  it('counts words, not markdown markers', () => {
+    expect(countWords('')).toBe(0);
+    expect(countWords('# Title\n\n- [ ] **Buy** milk\n- [x] _Bread_\n\n> Done.')).toBe(5);
+    expect(countWords('Don’t split well-known words or 3.5 litres')).toBe(7);
+    expect(countWords('Smør og brød på ét bord')).toBe(6);
+  });
+
+  it('leaves out addresses and comments, but counts link text', () => {
+    expect(countWords('See [the docs](https://example.com/a/b) now')).toBe(4);
+    expect(
+      countWords(
+        '![](https://drive.google.com/file/d/x/view)\nhttps://example.com www.example.com',
+      ),
+    ).toBe(0);
+    expect(countWords('<!-- notes.md:board -->\n\n# Todo')).toBe(1);
   });
 });

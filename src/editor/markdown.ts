@@ -324,3 +324,18 @@ function cutToBytes(text: string, maxBytes: number): string {
   }
   return out.trimEnd();
 }
+
+/**
+ * The number of words in a note: runs of letters and digits (joined by an
+ * apostrophe, hyphen or point, as in "don't" or "3.5"). Link and image
+ * addresses, bare addresses, checkboxes and comments (the board marker) aren't
+ * counted.
+ */
+export function countWords(markdown: string): number {
+  const text = markdown
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]/gm, ' ') // checkboxes: the x is no word
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1 ')
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, ' ');
+  return text.match(/[\p{L}\p{N}]+(?:['’.-][\p{L}\p{N}]+)*/gu)?.length ?? 0;
+}

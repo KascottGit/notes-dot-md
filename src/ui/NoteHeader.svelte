@@ -25,6 +25,8 @@
     onExport: () => void;
     onTogglePin: () => void;
     onDelete: () => void;
+    /** The number of words in the note, shown after the save status. Null: not shown (boards). */
+    words?: number | null;
     /** Open the find bar (notes shown as text; not on boards). */
     onFind?: (() => void) | undefined;
     /** Open this note's Tags list (its saved tags and their colors). */
@@ -55,6 +57,7 @@
     onExport,
     onTogglePin,
     onDelete,
+    words = null,
     onFind,
     onTags,
     boardView = null,
@@ -179,6 +182,12 @@
           role="status"
         >
           <span>{renaming ? 'Renaming…' : label}</span>
+          {#if words !== null && !loading}
+            <span class="words" aria-label={`${words} ${words === 1 ? 'word' : 'words'}`}>
+              · {words.toLocaleString()}
+              {words === 1 ? 'word' : 'words'}
+            </span>
+          {/if}
           {#if sessionState.status === 'error'}
             <button class="retry" onclick={onRetry}>Retry</button>
           {/if}
