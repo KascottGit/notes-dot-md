@@ -14,7 +14,7 @@ How to work in this repo. **What to build is in `SPEC.md`: read the relevant sec
 ## Workflow
 
 - Build **one milestone or to-do item at a time**, in the order listed in SPEC.md.
-- When it is done: run `npm run check`, `npm run lint` and `npm test`, commit, then **stop**. Summarize what changed and list the manual test steps for its acceptance criteria. Do not start the next one until asked.
+- When it is done: run `npm run check`, `npm run lint` and `npm test`, commit, push, and merge into `main` (fast-forward) so it deploys and the owner can test it (owner decision, 2026-11-10). Then **stop**. Summarize what changed and list the manual test steps for its acceptance criteria. Do not start the next one until asked.
 - Update SPEC.md in the same commit when behavior changes: describe it in the section it belongs to, and tick it off in the milestones or to-do list.
 - If the spec is unclear or seems wrong, ask instead of guessing. Do not add features that are not in the spec; suggest them instead.
 - Keep changes small and focused. Prefer editing existing modules over adding new layers of abstraction.
