@@ -38,6 +38,7 @@ import {
   toggleQuote,
   toggleStrikethrough,
 } from './commands';
+import { findInNote, openFind } from './find';
 import { codeHighlight } from './highlight';
 import { markdownSupport } from './language';
 import {
@@ -73,6 +74,8 @@ export interface EditorOptions {
   extensions?: Extension[];
   /** Every tag in use, for tag autocomplete; none without it. */
   tags?: () => readonly TagSuggestion[];
+  /** Find in note (Ctrl+F): for a whole note, not the small editor on a card. */
+  find?: boolean;
   /**
    * Undo and redo that belong to something bigger than this editor (a board
    * card: the whole board's history). The undo keys call these instead.
@@ -91,6 +94,11 @@ export interface Editor {
   setText(text: string, undoable?: boolean): void;
   /** Replace the whole text as a user edit (saved, undoable), changing only what differs. */
   edit(text: string): void;
+  /**
+   * Open the find bar (needs the `find` option). With `text`: look for that
+   * and go to its first match, without taking focus.
+   */
+  find(text?: string): void;
   /** Undo or redo the last edit, without taking focus. */
   undo(): void;
   redo(): void;
@@ -316,6 +324,7 @@ export function createEditor(options: EditorOptions): Editor {
         options.extensions ?? [],
         options.tags ? tagCompletion(options.tags) : [],
         options.history ? outerHistory(options.history) : [],
+        options.find ? findInNote() : [],
         imageSpots,
         options.onImages ? imageFiles(options.onImages) : [],
       ],
@@ -351,6 +360,9 @@ export function createEditor(options: EditorOptions): Editor {
         // Anything else (a card moved, archived, renamed) is an Undo step of its own.
         ...(userEvent === 'input' ? { annotations: isolateHistory.of('full') } : {}),
       });
+    },
+    find(text) {
+      if (options.find) openFind(view, text);
     },
     undo: () => void undo(view),
     redo: () => void redo(view),

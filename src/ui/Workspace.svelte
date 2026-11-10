@@ -732,7 +732,7 @@
    * Open a note: its screen (title, category) shows at once, and the text
    * follows when Drive has sent it.
    */
-  async function openNote(note: Note, focus = false) {
+  async function openNote(note: Note, focus = false, hit = false) {
     if (session && note.id === session.state.note.id) {
       // Back to the note that is already open, from a slow load or the list.
       if (opening) openError = null;
@@ -776,6 +776,7 @@
       const meta = newer ? note : cached.note;
       show({ ...meta, version: cached.note.version, folderId: note.folderId }, cached.text);
       if (focus) editor?.focus();
+      if (hit) showSearchHit();
       void session?.checkRemote();
       return;
     }
@@ -791,10 +792,25 @@
       show({ ...fresh, folderId: note.folderId }, text, true);
       if (stay) view = 'list';
       else if (focus) editor?.focus();
+      if (hit) showSearchHit();
     } catch (err) {
       if (seq !== openSeq) return;
       openError = `Couldn't open "${note.title}": ${message(err)}`;
     }
+  }
+
+  /**
+   * A note opened from the search results: show where the searched text is
+   * (the find bar, at its first match). Drive finds notes with every word
+   * somewhere in them, so when the words aren't together, look for the first
+   * one that is there. Not on boards, and not when only the title matched.
+   */
+  function showSearchHit() {
+    const q = query.trim();
+    if (!q || !editor || boardMode) return;
+    const text = editor.getText().toLowerCase();
+    const found = [q, ...q.split(/\s+/)].find((part) => text.includes(part.toLowerCase()));
+    if (found) editor.find(found);
   }
 
   /** Try a note that failed to load again. */
@@ -829,6 +845,7 @@
         onBlur: () => void session?.save(),
         tags: tagSuggestions,
         onImages: (files, spot) => void addNoteImages(files, spot),
+        find: true,
       });
     } else {
       editor?.load(text, readOnly);
@@ -1243,7 +1260,7 @@
       {searchFailed}
       {loading}
       error={listError}
-      onOpen={(note) => openNote(note)}
+      onOpen={(note) => openNote(note, false, true)}
       onNew={() => newNote()}
       onNewBoard={() => newNote('board')}
       onSelectCategory={(id) => (selectedCategory = id)}
@@ -1274,6 +1291,7 @@
         onExport={exportNote}
         onTogglePin={() => sessionState && void togglePin(sessionState.note)}
         onDelete={() => sessionState && void deleteNote(sessionState.note)}
+        onFind={opening || creating || boardMode ? undefined : () => editor?.find()}
         onTags={() => {
           expandedTag = null;
           tagsOpen = true;

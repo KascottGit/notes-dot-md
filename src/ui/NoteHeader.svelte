@@ -6,6 +6,7 @@
   import { isPinned, type Category } from '../drive/notes';
   import type { SessionState } from '../store/noteSession';
   import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
   import IconButton from './IconButton.svelte';
   import InlineName from './InlineName.svelte';
   import Menu from './Menu.svelte';
@@ -24,6 +25,8 @@
     onExport: () => void;
     onTogglePin: () => void;
     onDelete: () => void;
+    /** Open the find bar (notes shown as text; not on boards). */
+    onFind?: (() => void) | undefined;
     /** Open this note's Tags list (its saved tags and their colors). */
     onTags?: () => void;
     /** Board files: shown as a board, or as text. Null for other notes. */
@@ -52,6 +55,7 @@
     onExport,
     onTogglePin,
     onDelete,
+    onFind,
     onTags,
     boardView = null,
     onToggleBoard,
@@ -87,11 +91,34 @@
               }[sessionState.status],
   );
 
-  /** Phones: Export and Delete sit in the "more" menu, so the title keeps its room. */
-  const MORE_ITEMS = [
-    { id: 'export', label: 'Export as .md', icon: 'download' },
-    { id: 'delete', label: 'Move to trash', icon: 'trash' },
-  ] as const;
+  /** Phones (under 600px wide), where the header has less room. */
+  const phone = window.matchMedia('(max-width: 599px)');
+  let narrow = $state(phone.matches);
+  $effect(() => {
+    const update = () => (narrow = phone.matches);
+    phone.addEventListener('change', update);
+    return () => phone.removeEventListener('change', update);
+  });
+
+  interface MoreItem {
+    id: 'find' | 'export' | 'delete';
+    label: string;
+    icon: IconName;
+    run: () => void;
+  }
+  /**
+   * The "more" menu: what has no button of its own. On phones Export and
+   * Delete sit here too, so the title keeps its room.
+   */
+  const moreItems = $derived.by(() => {
+    const items: MoreItem[] = [];
+    if (onFind) items.push({ id: 'find', label: 'Find in note', icon: 'search', run: onFind });
+    if (narrow && !sessionState.readOnly) {
+      items.push({ id: 'export', label: 'Export as .md', icon: 'download', run: onExport });
+      items.push({ id: 'delete', label: 'Move to trash', icon: 'trash', run: onDelete });
+    }
+    return items;
+  });
   let moreOpen = $state(false);
   let moreButton = $state<HTMLElement>();
 
@@ -182,26 +209,31 @@
         <span class="wide">
           <IconButton icon="trash" label="Delete note" title="Move to trash" onclick={onDelete} />
         </span>
-        <span class="narrow" bind:this={moreButton}>
-          <IconButton icon="more" label="More" onclick={() => (moreOpen = !moreOpen)} />
-        </span>
       {:else}
         <!-- Read-only: Export is the only one, so it stays in the header. -->
         <span class="narrow">
           <IconButton icon="download" label="Export as .md" onclick={onExport} />
         </span>
       {/if}
+      {#if moreItems.length > 0}
+        <span class="more" bind:this={moreButton}>
+          <IconButton icon="more" label="More" onclick={() => (moreOpen = !moreOpen)} />
+        </span>
+      {/if}
     </span>
   </div>
 </div>
-{#if moreOpen}
+{#if moreOpen && moreItems.length > 0}
   <!-- Outside the header, which cuts off whatever sticks out of it. -->
   <div class="more-menu">
     <Menu
-      items={[...MORE_ITEMS]}
+      items={moreItems}
       label="More"
       anchor={moreButton}
-      onSelect={(item) => (item.id === 'export' ? onExport() : onDelete())}
+      onSelect={(item) => {
+        moreOpen = false;
+        item.run();
+      }}
       onClose={() => (moreOpen = false)}
     >
       {#snippet item(it)}
@@ -219,10 +251,18 @@
     display: inline-flex;
   }
 
-  /* Phones show the "more" menu instead of Export and Delete. */
-  .narrow,
-  .more-menu {
+  /* Phones have Export and Delete in the "more" menu instead. */
+  .narrow {
     display: none;
+  }
+
+  .more {
+    display: inline-flex;
+  }
+
+  .more-menu {
+    position: relative;
+    margin-right: 6px;
   }
 
   @media (max-width: 599px) {
@@ -232,12 +272,6 @@
 
     .narrow {
       display: inline-flex;
-    }
-
-    .more-menu {
-      position: relative;
-      display: block;
-      margin-right: 6px;
     }
   }
 
