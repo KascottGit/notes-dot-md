@@ -49,7 +49,7 @@ Storage rules:
 Token handling:
 
 - Sign in by redirecting to Google's OAuth page (`response_type=token`). Google sends the user back with the token in the URL fragment; read it, check the `state` value, and remove it from the URL right away. Tokens last about an hour.
-- A returning user (remembered login hint) is signed in automatically on page load with one `prompt=none` redirect, which has no UI. If Google needs a click, show the sign-in button.
+- A returning user (remembered login hint) is signed in automatically on page load with one `prompt=none` redirect, which has no UI. If Google needs a click, show the sign-in button. That first page load only fetches a small entry script (a few kB) that starts the redirect; the app itself is loaded when the page stays (after Google sends the user back, or when there is no remembered account).
 - On a 401 or an expired token, requests wait and a "Session expired · Continue" banner appears. Renewing is a `prompt=none` redirect; it also happens on its own when the user returns to the app with less than 5 minutes left on the token.
 - Before any redirect, keep the open note and unsaved text in `sessionStorage` and restore it afterwards (also done when the page is hidden, since iOS may discard background tabs).
 
