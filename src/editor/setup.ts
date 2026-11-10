@@ -39,6 +39,7 @@ import {
   toggleStrikethrough,
 } from './commands';
 import { findInNote, openFind } from './find';
+import { headingJumps, jumpToHeading, readOutline, type Heading, type Outline } from './outline';
 import { codeHighlight } from './highlight';
 import { markdownSupport } from './language';
 import {
@@ -84,6 +85,8 @@ export interface EditorOptions {
   tags?: () => readonly TagSuggestion[];
   /** Find in note (Ctrl+F): for a whole note, not the small editor on a card. */
   find?: boolean;
+  /** Ctrl+Shift+O (⌘⇧O): open the note's outline. */
+  onOutline?: () => void;
   /**
    * Undo and redo that belong to something bigger than this editor (a board
    * card: the whole board's history). The undo keys call these instead.
@@ -107,6 +110,10 @@ export interface Editor {
    * and go to its first match, without taking focus.
    */
   find(text?: string): void;
+  /** The note's headings, and the one whose section is at the top of the screen. */
+  outline(): Outline;
+  /** Scroll a heading to the top; with `focus`, the cursor goes to its end (see outline.ts). */
+  jumpTo(heading: Heading, focus: boolean): void;
   /** Undo or redo the last edit, without taking focus. */
   undo(): void;
   redo(): void;
@@ -237,6 +244,20 @@ const cardTheme = Prec.high(
   }),
 );
 
+/** Ctrl+Shift+O opens the outline (Firefox and Chromium would open the bookmarks). */
+function outlineKey(open: () => void): Extension {
+  return keymap.of([
+    {
+      key: 'Mod-Shift-o',
+      preventDefault: true,
+      run: () => {
+        open();
+        return true;
+      },
+    },
+  ]);
+}
+
 /** The undo keys, handed to a history outside this editor. */
 function outerHistory(outer: { undo: () => void; redo: () => void }): Extension {
   const run = (fn: () => void) => () => {
@@ -334,6 +355,8 @@ export function createEditor(options: EditorOptions): Editor {
         options.tags ? tagCompletion(options.tags) : [],
         options.history ? outerHistory(options.history) : [],
         options.find ? findInNote() : [],
+        headingJumps(),
+        options.onOutline ? outlineKey(options.onOutline) : [],
         imageSpots,
         options.onImages ? imageFiles(options.onImages) : [],
       ],
@@ -373,6 +396,8 @@ export function createEditor(options: EditorOptions): Editor {
     find(text) {
       if (options.find) openFind(view, text);
     },
+    outline: () => readOutline(view),
+    jumpTo: (heading, focus) => jumpToHeading(view, heading, focus),
     undo: () => void undo(view),
     redo: () => void redo(view),
     firstLine: () => view.state.doc.line(1).text,

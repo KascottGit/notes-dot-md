@@ -23,6 +23,7 @@ export const ICONS = {
   expire: '<path d="M7 4h10M7 20h10M8 4c0 5 8 5 8 8s-8 3-8 8M16 4c0 5-8 5-8 8s8 3 8 8"/>',
   chevronDown: '<path d="M7 10l5 5 5-5"/>',
   chevronUp: '<path d="M7 14l5-5 5 5"/>',
+  outline: '<path d="M4 6h16M10 12h10M10 18h10M5.5 9v9h2M5.5 12h2"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',

@@ -187,6 +187,8 @@
   /** history.back() was called; its popstate hasn't arrived yet. */
   let goingBack = false;
   const narrow = () => window.matchMedia('(max-width: 899px)').matches;
+  /** A mouse: jumping to a heading also puts the cursor there (on phones it would open the keyboard). */
+  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
   const urlWith = (hash: string) => window.location.pathname + window.location.search + hash;
   const routeNoteId = $derived(opening?.id ?? sessionState?.note.id ?? null);
 
@@ -855,6 +857,7 @@
         tags: tagSuggestions,
         onImages: (files, spot) => void addNoteImages(files, spot),
         find: true,
+        onOutline: () => header?.openOutline(),
       });
     } else {
       editor?.load(text, readOnly);
@@ -864,6 +867,7 @@
     boardText = text;
     clearTimeout(wordsTimer);
     words = countWords(text);
+    headingCount = editor?.outline().headings.length ?? 0;
   }
 
   /** Save the editor's text to this note from now on. `text` is what Drive has. */
@@ -876,16 +880,17 @@
     sessionState = session.state;
   }
 
-  /** The open note's number of words, for the header. Counted once typing pauses. */
+  /** The open note's number of words and headings, for the header. Counted once typing pauses. */
   let words = $state(0);
+  let headingCount = $state(0);
   let wordsTimer: ReturnType<typeof setTimeout> | undefined;
   const WORDS_DELAY_MS = 300;
   function countSoon() {
     clearTimeout(wordsTimer);
-    wordsTimer = setTimeout(
-      () => (words = editor ? countWords(editor.getText()) : 0),
-      WORDS_DELAY_MS,
-    );
+    wordsTimer = setTimeout(() => {
+      words = editor ? countWords(editor.getText()) : 0;
+      headingCount = editor?.outline().headings.length ?? 0;
+    }, WORDS_DELAY_MS);
   }
 
   /** After any change to the text: is it (still) a board, and what does the board show. */
@@ -1399,6 +1404,11 @@
         onDuplicate={opening || creating ? undefined : () => void duplicateOpenNote()}
         words={boardFile ? null : words}
         onFind={opening || creating || boardMode ? undefined : () => editor?.find()}
+        headings={headingCount}
+        readOutline={opening || creating || boardMode
+          ? undefined
+          : () => editor?.outline() ?? { headings: [], current: -1 }}
+        onJump={(heading) => editor?.jumpTo(heading, finePointer.matches)}
         onTags={() => {
           expandedTag = null;
           tagsOpen = true;

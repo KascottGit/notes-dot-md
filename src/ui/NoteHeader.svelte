@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { isPinned, type Category } from '../drive/notes';
+  import type { Heading, Outline } from '../editor/outline';
   import type { SessionState } from '../store/noteSession';
   import Icon from './Icon.svelte';
   import type { IconName } from './icons';
@@ -31,6 +32,12 @@
     onDuplicate?: (() => void) | undefined;
     /** Open the find bar (notes shown as text; not on boards). */
     onFind?: (() => void) | undefined;
+    /** The number of headings in the note: the outline shows from two on. */
+    headings?: number;
+    /** The note's outline, read when it opens. Undefined where there is none (board view). */
+    readOutline?: (() => Outline) | undefined;
+    /** Go to a heading picked in the outline. */
+    onJump?: (heading: Heading) => void;
     /** Open this note's Tags list (its saved tags and their colors). */
     onTags?: () => void;
     /** Board files: shown as a board, or as text. Null for other notes. */
@@ -62,6 +69,9 @@
     words = null,
     onFind,
     onDuplicate,
+    headings = 0,
+    readOutline,
+    onJump,
     onTags,
     boardView = null,
     onToggleBoard,
@@ -106,18 +116,23 @@
     return () => phone.removeEventListener('change', update);
   });
 
+  const hasOutline = $derived(!!readOutline && !!onJump && headings >= 2 && !loading);
+
   interface MoreItem {
-    id: 'find' | 'duplicate' | 'export' | 'delete';
+    id: 'outline' | 'find' | 'duplicate' | 'export' | 'delete';
     label: string;
     icon: IconName;
     run: () => void;
   }
   /**
-   * The "more" menu: what has no button of its own (Find in note, Duplicate). On phones Export and
-   * Delete sit here too, so the title keeps its room.
+   * The "more" menu: what has no button of its own (Find in note, Duplicate). On phones Outline,
+   * Export and Delete sit here too, so the title keeps its room.
    */
   const moreItems = $derived.by(() => {
     const items: MoreItem[] = [];
+    if (narrow && hasOutline) {
+      items.push({ id: 'outline', label: 'Outline', icon: 'outline', run: openOutline });
+    }
     if (onFind) items.push({ id: 'find', label: 'Find in note', icon: 'search', run: onFind });
     if (onDuplicate) {
       items.push({ id: 'duplicate', label: 'Duplicate', icon: 'copy', run: onDuplicate });
@@ -130,6 +145,30 @@
   });
   let moreOpen = $state(false);
   let moreButton = $state<HTMLElement>();
+
+  /** The outline as it was when it opened: its headings, as menu items. */
+  let outlineItems = $state<(Heading & { id: string; label: string })[] | null>(null);
+  let outlineCurrent = $state<string | undefined>();
+  let outlineButton = $state<HTMLElement>();
+  /** Indent each heading by its level, from the highest level in the note. */
+  const topLevel = $derived(Math.min(...(outlineItems ?? []).map((h) => h.level)));
+
+  /** The note the outline was read from. */
+  let outlineNote = '';
+  // Gone when another note opens, or this one shows as a board.
+  $effect(() => {
+    if (outlineItems && (!hasOutline || sessionState.note.id !== outlineNote)) outlineItems = null;
+  });
+
+  /** Show the note's headings to jump to (also Ctrl+Shift+O in the editor). */
+  export function openOutline() {
+    if (!hasOutline || !readOutline) return;
+    const { headings: list, current } = readOutline();
+    moreOpen = false;
+    outlineNote = sessionState.note.id;
+    outlineItems = list.map((h) => ({ ...h, id: String(h.from), label: h.text }));
+    outlineCurrent = current >= 0 ? String(list[current]!.from) : undefined;
+  }
 
   /** Put the cursor in the title with all of it selected (for new notes). */
   export function focusTitle() {
@@ -208,6 +247,16 @@
           onclick={onToggleBoard}
         />
       {/if}
+      {#if hasOutline && !narrow}
+        <span class="outline" bind:this={outlineButton}>
+          <IconButton
+            icon="outline"
+            label="Outline"
+            title="Outline: jump to a heading"
+            onclick={() => (outlineItems ? (outlineItems = null) : openOutline())}
+          />
+        </span>
+      {/if}
       {#if !sessionState.readOnly && onTags}
         <IconButton icon="tag" label="Tags" title="Saved tags and their colors" onclick={onTags} />
       {/if}
@@ -232,7 +281,14 @@
       {/if}
       {#if moreItems.length > 0}
         <span class="more" bind:this={moreButton}>
-          <IconButton icon="more" label="More" onclick={() => (moreOpen = !moreOpen)} />
+          <IconButton
+            icon="more"
+            label="More"
+            onclick={() => {
+              outlineItems = null;
+              moreOpen = !moreOpen;
+            }}
+          />
         </span>
       {/if}
     </span>
@@ -257,6 +313,31 @@
     </Menu>
   </div>
 {/if}
+{#if outlineItems}
+  <div class="more-menu">
+    <Menu
+      items={outlineItems}
+      label="Outline"
+      anchor={narrow ? moreButton : outlineButton}
+      current={outlineCurrent}
+      focusOnOpen
+      onSelect={(heading) => {
+        outlineItems = null;
+        onJump?.(heading);
+      }}
+      onClose={() => (outlineItems = null)}
+    >
+      {#snippet item(h)}
+        <span
+          class="heading"
+          class:top={h.level === topLevel}
+          style:padding-left="{(h.level - topLevel) * 16}px"
+          title={h.text}>{h.text}</span
+        >
+      {/snippet}
+    </Menu>
+  </div>
+{/if}
 {#if sessionState.status === 'error' && sessionState.error}
   <p class="detail" role="alert">{sessionState.error} Your text is still here.</p>
 {/if}
@@ -271,8 +352,23 @@
     display: none;
   }
 
-  .more {
+  .more,
+  .outline {
     display: inline-flex;
+  }
+
+  /* An outline row: one line, cut off with an ellipsis (the whole heading in the tooltip). */
+  .heading {
+    flex: 1;
+    min-width: 0;
+    max-width: 22em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .heading.top {
+    font-weight: 600;
   }
 
   .more-menu {

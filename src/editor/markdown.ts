@@ -288,6 +288,18 @@ export function previewText(markdown: string, title = '', maxBytes = 117): strin
   return cutToBytes(words.join(' ').replace(/\s+/g, ' ').trim(), maxBytes);
 }
 
+/**
+ * A heading as plain text, for the outline: `#` markers (also closing ones,
+ * as in `## Plan ##`), links, emphasis and escapes left out.
+ */
+export function headingText(line: string): string {
+  const text = line
+    .trim()
+    .replace(/^#{1,6}(\s+|$)/, '')
+    .replace(/(^|\s+)#+$/, '');
+  return plainInline(text);
+}
+
 /** One line without its markdown markers; '' for lines with nothing to read. */
 function previewLine(line: string): string {
   const t = line.trim();
@@ -301,10 +313,16 @@ function previewLine(line: string): string {
   ) {
     return '';
   }
-  return t
+  const text = t
     .replace(/^(>\s?)+/, '') // quotes
     .replace(/^#{1,6}(\s+|$)/, '') // headings
-    .replace(/^([-*+]|\d+[.)])(\s+|$)(\[[ xX]\](\s+|$))?/, '') // list items and checkboxes
+    .replace(/^([-*+]|\d+[.)])(\s+|$)(\[[ xX]\](\s+|$))?/, ''); // list items and checkboxes
+  return plainInline(text);
+}
+
+/** Inline text without its markdown markers: links, emphasis, code, escapes. */
+function plainInline(text: string): string {
+  return text
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '') // images
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links
     .replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1') // reference links
