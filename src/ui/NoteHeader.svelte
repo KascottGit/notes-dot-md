@@ -119,18 +119,27 @@
   const hasOutline = $derived(!!readOutline && !!onJump && headings >= 2 && !loading);
 
   interface MoreItem {
-    id: 'find' | 'duplicate' | 'pin' | 'export' | 'delete';
+    id: 'board' | 'find' | 'duplicate' | 'pin' | 'export' | 'delete';
     label: string;
     icon: IconName;
     run: () => void;
   }
   /**
-   * The "more" menu: what has no button of its own (Find in note, Duplicate), and pinning, which
-   * is mostly done from the note list. On phones Export and Delete sit here too, so the title
-   * keeps its room.
+   * The "more" menu: what has no button of its own (Find in note, Duplicate), pinning, which is
+   * mostly done from the note list, and a board's switch to text, which is seldom needed. On
+   * phones Export and Delete sit here too, so the title keeps its room.
    */
   const moreItems = $derived.by(() => {
     const items: MoreItem[] = [];
+    if (boardView && onToggleBoard) {
+      const board = boardView === 'board';
+      items.push({
+        id: 'board',
+        label: board ? 'Open as text' : 'Open as board',
+        icon: board ? 'text' : 'board',
+        run: onToggleBoard,
+      });
+    }
     if (onFind) items.push({ id: 'find', label: 'Find in note', icon: 'search', run: onFind });
     if (onDuplicate) {
       items.push({ id: 'duplicate', label: 'Duplicate', icon: 'copy', run: onDuplicate });
@@ -242,13 +251,6 @@
       </div>
     </div>
     <span class="actions" class:loading inert={loading}>
-      {#if boardView && onToggleBoard}
-        <IconButton
-          icon={boardView === 'board' ? 'text' : 'board'}
-          label={boardView === 'board' ? 'Open as text' : 'Open as board'}
-          onclick={onToggleBoard}
-        />
-      {/if}
       {#if !sessionState.readOnly && onTags}
         <IconButton icon="tag" label="Tags" title="Saved tags and their colors" onclick={onTags} />
       {/if}
