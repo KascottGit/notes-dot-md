@@ -16,7 +16,9 @@
     DEFAULT_FOLDER_NAME,
     moveNote,
     attachmentsFolder,
+    copyNoteImages,
     noteImages,
+    saveNote,
     listTrashedNotes,
     readNote,
     searchNoteText,
@@ -51,7 +53,7 @@
   } from '../store/tagColors';
   import TagsDialog from './TagsDialog.svelte';
   import DeletedDialog from './DeletedDialog.svelte';
-  import { driveImageLine, imageUrl, uploadImageFile } from './images';
+  import { aliasImage, driveImageLine, imageUrl, uploadImageFile } from './images';
   import { setDriveImageLoader } from '../editor/widgets';
 
   // Drive images in notes are loaded through the API (they aren't public).
@@ -1060,6 +1062,50 @@
     }
   }
 
+  /**
+   * Duplicate the open note or board: a new file next to it, "<title> copy",
+   * with the text as it is in the editor and the same saved tags (not the
+   * pin). Its images are copied too, so each note has its own. Opens the copy.
+   */
+  let duplicating = false;
+  async function duplicateOpenNote() {
+    if (!session || !editor || !folders || duplicating) return;
+    const { note } = session.state;
+    let text = editor.getText();
+    // A note shared with me sits in no category of mine: its copy goes to General.
+    const folderId = categories.some((c) => c.id === note.folderId)
+      ? note.folderId
+      : folders.defaultId;
+    duplicating = true;
+    toast = { message: `Duplicating "${note.title}"…` };
+    try {
+      const tags = Object.entries(note.appProperties).filter(([key]) =>
+        key.startsWith(TAG_PROPERTY),
+      );
+      let copy = await createNote(drive, folderId, `${note.title} copy`, text, {
+        ...Object.fromEntries(tags),
+        ...(isBoard(text) ? { type: 'board' } : {}),
+      });
+      const images = await copyNoteImages(drive, folders.rootId, driveImageIds(text), copy.id);
+      if (images.size > 0) {
+        for (const [from, to] of images) {
+          text = text.replaceAll(`/file/d/${from}/view`, `/file/d/${to}/view`);
+          aliasImage(to, from);
+        }
+        copy = { ...(await saveNote(drive, copy.id, text)), folderId };
+      }
+      notes = [...notes, copy];
+      createdHere.add(copy.id);
+      remember(copy, text);
+      toast = { message: `Duplicated as "${copy.title}"` };
+      await openNote(copy);
+    } catch (err) {
+      toast = { message: `Couldn't duplicate "${note.title}": ${message(err)}` };
+    } finally {
+      duplicating = false;
+    }
+  }
+
   /** Download the open note's text, exactly as it is in the editor, as `<title>.md`. */
   function exportNote() {
     if (!sessionState || !editor) return;
@@ -1350,6 +1396,7 @@
         onExport={exportNote}
         onTogglePin={() => sessionState && void togglePin(sessionState.note)}
         onDelete={() => sessionState && void deleteNote(sessionState.note)}
+        onDuplicate={opening || creating ? undefined : () => void duplicateOpenNote()}
         words={boardFile ? null : words}
         onFind={opening || creating || boardMode ? undefined : () => editor?.find()}
         onTags={() => {

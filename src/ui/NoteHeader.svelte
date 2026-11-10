@@ -27,6 +27,8 @@
     onDelete: () => void;
     /** The number of words in the note, shown after the save status. Null: not shown (boards). */
     words?: number | null;
+    /** Make a copy of the note next to it, and open that. */
+    onDuplicate?: (() => void) | undefined;
     /** Open the find bar (notes shown as text; not on boards). */
     onFind?: (() => void) | undefined;
     /** Open this note's Tags list (its saved tags and their colors). */
@@ -59,6 +61,7 @@
     onDelete,
     words = null,
     onFind,
+    onDuplicate,
     onTags,
     boardView = null,
     onToggleBoard,
@@ -104,18 +107,21 @@
   });
 
   interface MoreItem {
-    id: 'find' | 'export' | 'delete';
+    id: 'find' | 'duplicate' | 'export' | 'delete';
     label: string;
     icon: IconName;
     run: () => void;
   }
   /**
-   * The "more" menu: what has no button of its own. On phones Export and
+   * The "more" menu: what has no button of its own (Find in note, Duplicate). On phones Export and
    * Delete sit here too, so the title keeps its room.
    */
   const moreItems = $derived.by(() => {
     const items: MoreItem[] = [];
     if (onFind) items.push({ id: 'find', label: 'Find in note', icon: 'search', run: onFind });
+    if (onDuplicate) {
+      items.push({ id: 'duplicate', label: 'Duplicate', icon: 'copy', run: onDuplicate });
+    }
     if (narrow && !sessionState.readOnly) {
       items.push({ id: 'export', label: 'Export as .md', icon: 'download', run: onExport });
       items.push({ id: 'delete', label: 'Move to trash', icon: 'trash', run: onDelete });
@@ -181,13 +187,13 @@
           class:error={sessionState.status === 'error' || opening === 'failed'}
           role="status"
         >
-          <span>{renaming ? 'Renaming…' : label}</span>
-          {#if words !== null && !loading}
-            <span class="words" aria-label={`${words} ${words === 1 ? 'word' : 'words'}`}>
-              · {words.toLocaleString()}
-              {words === 1 ? 'word' : 'words'}
-            </span>
-          {/if}
+          <!-- The word count shows only when all of it fits (see .text). -->
+          <span class="text">
+            <span>{renaming ? 'Renaming…' : label}</span>
+            {#if words !== null && !loading}
+              <span class="words">· {words.toLocaleString()} {words === 1 ? 'word' : 'words'}</span>
+            {/if}
+          </span>
           {#if sessionState.status === 'error'}
             <button class="retry" onclick={onRetry}>Retry</button>
           {/if}
@@ -398,6 +404,29 @@
   .status > span {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /*
+   * The save status and the word count. The count shows only when all of it
+   * fits: the row wraps and its second line is cut off, so the status keeps
+   * the room.
+   */
+  .status > .text {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 4px;
+    max-height: 1.5em;
+    line-height: 1.5;
+  }
+
+  .text > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .text > .words {
+    flex: none;
   }
 
   .status::before {
