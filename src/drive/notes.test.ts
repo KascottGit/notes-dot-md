@@ -12,6 +12,7 @@ import {
   isBoardNote,
   isPinned,
   listCategories,
+  listCategoriesAndNotes,
   listNotes,
   listNotesIn,
   listTrashedNotes,
@@ -444,5 +445,41 @@ describe('recently deleted', () => {
     await setTrashed(drive, a.id, false);
     expect((await listTrashedNotes(drive, [defaultId])).map((t) => t.note.title)).toEqual(['B']);
     expect((await listNotes(drive, defaultId)).map((n) => n.title).sort()).toEqual(['A', 'Kept']);
+  });
+});
+
+describe('listCategoriesAndNotes', () => {
+  it('asks for categories and notes at once when the categories are known', async () => {
+    const { drive, calls, rootId, defaultId } = await withFolders();
+    await createNote(drive, defaultId, 'One');
+    calls.length = 0;
+
+    const { categories, notes } = await listCategoriesAndNotes(drive, rootId, [defaultId]);
+
+    expect(categories.map((c) => c.id)).toEqual([defaultId]);
+    expect(notes.map((n) => n.title)).toEqual(['One']);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('fetches the notes of categories that are new, and drops those of deleted ones', async () => {
+    const { drive, rootId, defaultId } = await withFolders();
+    const old = await createFolder(drive, rootId, 'Old');
+    const added = await createFolder(drive, rootId, 'New');
+    await createNote(drive, defaultId, 'Kept');
+    await createNote(drive, old.id, 'Gone');
+    await createNote(drive, added.id, 'Found');
+    await trashFolder(drive, old.id);
+
+    const { categories, notes } = await listCategoriesAndNotes(drive, rootId, [defaultId, old.id]);
+
+    expect(categories.map((c) => c.name)).toEqual(['General', 'New']);
+    expect(notes.map((n) => n.title).sort()).toEqual(['Found', 'Kept']);
+  });
+
+  it('without known categories, lists them first', async () => {
+    const { drive, rootId, defaultId } = await withFolders();
+    await createNote(drive, defaultId, 'One');
+    const { notes } = await listCategoriesAndNotes(drive, rootId);
+    expect(notes.map((n) => n.title)).toEqual(['One']);
   });
 });

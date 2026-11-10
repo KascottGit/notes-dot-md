@@ -10,8 +10,7 @@
     ensureFolders,
     folderContents,
     getNote,
-    listCategories,
-    listNotesIn,
+    listCategoriesAndNotes,
     DEFAULT_FOLDER_NAME,
     moveNote,
     attachmentsFolder,
@@ -281,8 +280,12 @@
     if (!background) loading = true;
     listError = null;
     try {
-      folders = await ensureFolders(drive, safeLocalStorage());
-      await refreshList();
+      // With the folders known from last time, go straight to the list: it
+      // shows whether they are still there (General is always among them).
+      if (!(background && folders && (await refreshList()))) {
+        folders = await ensureFolders(drive, safeLocalStorage());
+        await refreshList();
+      }
     } catch (err) {
       if (background) toast = { message: `Couldn't refresh your notes: ${message(err)}` };
       else listError = `Couldn't load your notes: ${message(err)}`;
@@ -554,15 +557,19 @@
     return colorSaves;
   }
 
-  /** Re-read categories and notes from Drive, so changes made there show up. */
-  async function refreshList() {
-    if (!folders) return;
+  /**
+   * Re-read categories and notes from Drive, so changes made there show up.
+   * False (and nothing changed) if the known folders are no longer there.
+   */
+  async function refreshList(): Promise<boolean> {
+    if (!folders) return false;
     lastListLoad = Date.now();
-    const found = await listCategories(drive, folders.rootId);
-    const loaded = await listNotesIn(
+    const { categories: found, notes: loaded } = await listCategoriesAndNotes(
       drive,
-      found.map((c) => c.id),
+      folders.rootId,
+      categories.map((c) => c.id),
     );
+    if (!found.some((c) => c.id === folders?.defaultId)) return false;
     categories = sortCategories(found, folders.defaultId);
     // The open note's metadata comes from its session, which is newer.
     const open = session?.state.note;
@@ -572,6 +579,7 @@
     if (selectedCategory && !found.some((c) => c.id === selectedCategory)) {
       selectedCategory = null;
     }
+    return true;
   }
 
   /**

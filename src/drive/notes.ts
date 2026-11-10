@@ -293,6 +293,33 @@ export async function listNotesIn(drive: DriveClient, folderIds: string[]): Prom
 }
 
 /**
+ * Categories and their notes. With the category ids known from last time
+ * (the saved list), both are asked for at once; only categories that are new
+ * since then cost another request.
+ */
+export async function listCategoriesAndNotes(
+  drive: DriveClient,
+  rootId: string,
+  knownIds: string[] = [],
+): Promise<{ categories: Category[]; notes: Note[] }> {
+  const [categories, guessed] = await Promise.all([
+    listCategories(drive, rootId),
+    // A folder that is gone may fail the request; then ask again below.
+    knownIds.length ? listNotesIn(drive, knownIds).catch(() => null) : null,
+  ]);
+  const ids = categories.map((c) => c.id);
+  if (!guessed) return { categories, notes: await listNotesIn(drive, ids) };
+  const current = new Set(ids);
+  const known = new Set(knownIds);
+  const added = ids.filter((id) => !known.has(id));
+  const more = added.length ? await listNotesIn(drive, added) : [];
+  return {
+    categories,
+    notes: [...guessed.filter((n) => current.has(n.folderId)), ...more],
+  };
+}
+
+/**
  * Ids of notes in the given folders whose text (or name) has every word of
  * `query`, using Drive's full-text search. Drive matches whole words and
  * word starts, and indexes new text after a short delay.
