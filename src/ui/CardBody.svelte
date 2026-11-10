@@ -27,6 +27,9 @@
   /** Every tag in use, for autocomplete (from the workspace). */
   const tags = getContext<(() => TagSuggestion[]) | undefined>('tags');
 
+  /** The board's undo and redo: one history for the whole file (from the workspace). */
+  const history = getContext<{ undo: () => void; redo: () => void } | undefined>('history');
+
   let el = $state<HTMLDivElement>();
   let editor: Editor | null = null;
   /** The body as last sent to the file, so our own edits coming back are not reloaded. */
@@ -71,6 +74,7 @@
       variant: 'card',
       extensions: [cardRules(readOnly ? '' : hint)],
       ...(tags ? { tags } : {}),
+      ...(history ? { history } : {}),
       onChange: () => {
         const current = ed.getText();
         sent = bodyForFile(current);

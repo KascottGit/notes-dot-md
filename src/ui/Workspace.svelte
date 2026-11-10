@@ -1,6 +1,8 @@
 <!-- The signed-in app: note list and editor. -->
 <script lang="ts">
   import { onDestroy, onMount, setContext, tick } from 'svelte';
+  import { redo, undo } from '@codemirror/commands';
+  import type { StateCommand } from '@codemirror/state';
   import { auth } from '../auth/google';
   import { drive } from '../drive/client';
   import { sanitizeCategoryName } from '../drive/names';
@@ -260,6 +262,7 @@
     });
     window.addEventListener('focus', onWindowFocus);
     window.addEventListener('popstate', onPopState);
+    window.addEventListener('keydown', onKeydown);
     window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('visibilitychange', onVisibilityChange);
   });
@@ -267,6 +270,7 @@
   onDestroy(() => {
     window.removeEventListener('focus', onWindowFocus);
     window.removeEventListener('popstate', onPopState);
+    window.removeEventListener('keydown', onKeydown);
     window.removeEventListener('beforeunload', onBeforeUnload);
     document.removeEventListener('visibilitychange', onVisibilityChange);
     stopStashOnRedirect?.();
@@ -455,6 +459,33 @@
   }
   // Board cards have their own small editors; they get the tags from here.
   setContext('tags', tagSuggestions);
+
+  /**
+   * Boards: one undo history for the whole file (the hidden editor's), so
+   * Undo also takes back a drag, an archive or a rename, not only typing in
+   * the card that has the cursor.
+   */
+  const boardHistory = { undo: () => editor?.undo(), redo: () => editor?.redo() };
+  setContext('history', boardHistory);
+
+  /** The format bar on a board: Undo and Redo are the board's, the rest the card's. */
+  function runOnBoard(command: StateCommand) {
+    if (command === undo) boardHistory.undo();
+    else if (command === redo) boardHistory.redo();
+    else board?.run(command);
+  }
+
+  /** Undo keys on a board while no text field has the cursor (e.g. right after a drag). */
+  function onKeydown(event: KeyboardEvent) {
+    if (!boardMode || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+    const key = event.key.toLowerCase();
+    if (key !== 'z' && key !== 'y') return;
+    const target = event.target as Element | null;
+    if (target?.closest?.('input, textarea, select, [contenteditable], dialog')) return;
+    event.preventDefault();
+    if (key === 'y' || event.shiftKey) boardHistory.redo();
+    else boardHistory.undo();
+  }
 
   /** Save a new tag with the next free color, and show its swatches. */
   async function addTag(raw: string): Promise<string | null> {
@@ -1262,7 +1293,7 @@
       {:else if !headerState.readOnly}
         {#if boardMode}
           <Toolbar
-            run={(command) => board?.run(command)}
+            run={runOnBoard}
             headingLevels={[3, 4, 5, 6]}
             onDueDate={() => board?.pickDueDate()}
           />

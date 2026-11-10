@@ -2,7 +2,15 @@
  * CodeMirror configuration. The document is plain markdown text; rendering
  * (live preview) only adds decorations and never changes how it is stored.
  */
-import { defaultKeymap, history, historyKeymap, toggleComment } from '@codemirror/commands';
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  isolateHistory,
+  redo,
+  toggleComment,
+  undo,
+} from '@codemirror/commands';
 import { deleteMarkupBackward } from '@codemirror/lang-markdown';
 import { codeFolding, syntaxHighlighting } from '@codemirror/language';
 import {
@@ -65,6 +73,11 @@ export interface EditorOptions {
   extensions?: Extension[];
   /** Every tag in use, for tag autocomplete; none without it. */
   tags?: () => readonly TagSuggestion[];
+  /**
+   * Undo and redo that belong to something bigger than this editor (a board
+   * card: the whole board's history). The undo keys call these instead.
+   */
+  history?: { undo: () => void; redo: () => void };
   /** Pasted or dropped image files, and the spot their image lines go (see paste.ts). */
   onImages?: (files: File[], spot: number) => void;
 }
@@ -78,6 +91,9 @@ export interface Editor {
   setText(text: string, undoable?: boolean): void;
   /** Replace the whole text as a user edit (saved, undoable), changing only what differs. */
   edit(text: string): void;
+  /** Undo or redo the last edit, without taking focus. */
+  undo(): void;
+  redo(): void;
   /** The first line, without reading the whole text. */
   firstLine(): string;
   /** Start over with a new document and an empty undo history. */
@@ -205,6 +221,21 @@ const cardTheme = Prec.high(
   }),
 );
 
+/** The undo keys, handed to a history outside this editor. */
+function outerHistory(outer: { undo: () => void; redo: () => void }): Extension {
+  const run = (fn: () => void) => () => {
+    fn();
+    return true;
+  };
+  return Prec.highest(
+    keymap.of([
+      { key: 'Mod-z', run: run(outer.undo), preventDefault: true },
+      { key: 'Mod-y', mac: 'Mod-Shift-z', run: run(outer.redo), preventDefault: true },
+      { key: 'Mod-Shift-z', run: run(outer.redo), preventDefault: true },
+    ]),
+  );
+}
+
 /** The smallest change that turns the document into `text`. */
 function minimalChange(doc: string, text: string) {
   let from = 0;
@@ -284,6 +315,7 @@ export function createEditor(options: EditorOptions): Editor {
         options.variant === 'card' ? cardTheme : [],
         options.extensions ?? [],
         options.tags ? tagCompletion(options.tags) : [],
+        options.history ? outerHistory(options.history) : [],
         imageSpots,
         options.onImages ? imageFiles(options.onImages) : [],
       ],
@@ -309,8 +341,19 @@ export function createEditor(options: EditorOptions): Editor {
     edit(text) {
       const doc = view.state.doc.toString();
       if (text === doc) return;
-      view.dispatch({ changes: minimalChange(doc, text), userEvent: 'input' });
+      const change = minimalChange(doc, text);
+      // Named like typing and deleting, so Undo takes a run of them back together.
+      const userEvent =
+        change.from === change.to ? 'input.type' : change.insert ? 'input' : 'delete.backward';
+      view.dispatch({
+        changes: change,
+        userEvent,
+        // Anything else (a card moved, archived, renamed) is an Undo step of its own.
+        ...(userEvent === 'input' ? { annotations: isolateHistory.of('full') } : {}),
+      });
     },
+    undo: () => void undo(view),
+    redo: () => void redo(view),
     firstLine: () => view.state.doc.line(1).text,
     load(doc, readOnly) {
       view.setState(makeState(doc, readOnly));
