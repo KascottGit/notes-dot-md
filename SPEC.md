@@ -265,7 +265,7 @@ A board file opens in its own view, not the note editor, with the rules below. T
 - The heading buttons in the card's format bar offer levels 3–6 only.
 - A newline typed or pasted into the title field ends the edit instead of entering the title.
 - This is the one place where the app changes text as it is entered. Rendering still never changes the text (golden rule 1).
-- Other tools editing a board should follow the same rule (see the Claude access phase).
+- Other tools editing a board should follow the same rule (see "Claude access").
 
 **Drag and drop**
 - A card is dragged by its title row (on touch, press and hold for about 300ms, so scrolling still works). The body is for editing, not dragging.
@@ -297,25 +297,68 @@ A board file opens in its own view, not the note editor, with the rules below. T
 - **Desktop (≥ 900px):** like Trello. Columns side by side, about 280px wide, and the board scrolls sideways. Each column scrolls on its own when it is taller than the screen. Cards show their full body.
 - **Phone (< 900px):** vertical. Columns are stacked top to bottom as sections, each with its heading and then its cards, full width. The whole page scrolls as one list.
 
-## Later phase: letting Claude write in the notes
+## Claude access: letting Claude write in the notes
 
-Yes, this is possible, and because notes are plain `.md` files in Drive there are several routes. **Recommendation:** use route B (Claude Code + an rclone mount) now for free, and build route C (your own connector) later, if you want Claude to edit notes from the Claude app on your phone.
+Notes are plain `.md` files in Drive, so there are several routes. **Plan (owner decision, 2026-11-10):** route B now, for free, and route C as the next milestone (M10), so Claude can edit notes from the Claude app on the iPhone.
 
 | Route | How it works | Claude can | Effort |
 | --- | --- | --- | --- |
-| A. Google Drive connector in claude.ai | The built-in connector, already available | Read notes, create new files, rename and move files. Its update tool changes metadata only, so it **cannot edit an existing note's text** | None |
-| B. Claude Code on your Linux machine | `rclone mount` Google Drive to e.g. `~/Notes`; Claude Code edits the `.md` files directly | Full read and edit of any note or board, from the terminal | Low |
-| C. Own MCP server as a custom connector | A small remote server exposing note tools over the Drive API, added in claude.ai under Customize → Connectors | Format-aware edits (add a card, check a task, append to a note) from claude.ai, desktop and the mobile app | Medium–high |
+| A. Google Drive connector in claude.ai | The built-in connector, already available | Read notes, create new files, rename and move files. Its update tool changes metadata only (checked 2026-11-10), so it **cannot edit an existing note's text** | None |
+| B. Claude Code on the Linux machine | `rclone mount` the `Notes` folder to e.g. `~/Notes`; Claude Code edits the `.md` files directly | Full read and edit of any note or board, from the terminal | Low |
+| C. Own MCP server as a custom connector | A small remote server exposing note tools over the Drive API, added in claude.ai under Connectors | Format-aware edits (add a card, check a task, append to a note) from claude.ai, desktop and the mobile app | Medium–high |
 | D. "Ask Claude" inside the app | The app calls the Claude API from the browser with your own API key | Rewrite, summarize or extend the open note in place | Medium; pay per use |
 
-Notes per route:
+So every route works, the note text is all another tool needs: what the app keeps outside it (pins, previews, tag colors, the board type) is optional, and the app merges a change made elsewhere into the open note (see "Merging edits").
 
-- **A:** fine for reading and asking questions about notes.
-- **B:** files changed or created through rclone are ordinary Drive files, so the app sees them.
-- **C:** custom connectors must be reachable from the public internet; they can be authless or use OAuth, and they work on Free (one connector), Pro, Max, Team and Enterprise plans ([Anthropic help article](https://support.anthropic.com/en/articles/11176164-pre-built-connectors-using-remote-mcp), [setup guide](https://help.boomi.com/docs/Atomsphere/Platform/Connect_claude_setup)). The same server also works in Claude Code with `claude mcp add --transport http`. Host it on Cloudflare Workers or similar, using the **same Google Cloud project** as the web app. Suggested tools: `list_notes`, `read_note`, `create_note`, `append_to_note`, `replace_in_note`, `add_card`, `move_card`, `check_task`.
-- **D:** a browser call to the Claude API needs the `anthropic-dangerous-direct-browser-access: true` header. The API key stays in the browser, which is acceptable only for a personal app.
+Route D needs the `anthropic-dangerous-direct-browser-access: true` header for a browser call to the Claude API, and keeps the API key in the browser, which is acceptable only for a personal app. It is not planned.
 
-So every route works, the note text is all another tool needs: what the app keeps outside it (pins, previews, tag colors, the board type) is optional, and the app re-reads a note when it changes elsewhere (the conflict check). Tools that edit boards should be told the board rules (no `#`/`##` lines inside a card body), for example in a format note in the `Notes/` folder.
+### Route B: Claude Code and rclone
+
+- Mount: `rclone mount gdrive:Notes ~/Notes --vfs-cache-mode writes` (remote type `drive`, scope `drive`). rclone writes a changed file back to the same Drive file, so its id, app properties (pin, saved tags) and `#/n/<id>` link stay.
+- A tool that saves by writing a new file and renaming it over the old one makes a new Drive file instead, and those are lost. Claude Code's own edit tools write in place.
+- A format note, `Notes/CLAUDE.md`, tells Claude the board rules (below). Files directly in `Notes/` are not in any category, so the app doesn't list it.
+- New files made through rclone are ordinary Drive files; the app sets their preview and board mark when they are first opened.
+
+### Route C: the notes.md connector (M10)
+
+A remote MCP server that Claude reaches as a custom connector (claude.ai → Settings → Connectors → Add custom connector; it then works in claude.ai, the desktop app and the iPhone app). It is the **one server-side part** of the project: the web app stays backend-free (golden rule 2), and the app does not depend on the connector in any way.
+
+**Hosting and auth**
+- Cloudflare Workers (free tier), MCP over Streamable HTTP, in this repo under `connector/` with its own `package.json` and `wrangler.toml`. Deployed by a GitHub Actions workflow from `main`, like the app.
+- OAuth, never authless (an open URL would let anyone edit the notes). The worker is the OAuth server Claude signs in to (Cloudflare's `workers-oauth-provider`), and itself signs in to Google with a **new "Web application" OAuth client in the same Google Cloud project** (it needs a client secret, which the browser app's client doesn't have).
+- Scope: the same full `drive` scope as the app, so notes made by other tools show up. The worker only touches the `Notes/` folder; every file id it is given is checked to be a note or image under it before anything is read or changed.
+- Only the owner's account may sign in: the worker refuses any other Google account (an allowlist of one email, a Worker secret).
+- The Google refresh token is stored encrypted in Workers KV, per signed-in account. Access tokens stay in memory. Nothing is logged except tool names and errors (never note text or tokens).
+- **Limit to know:** while the Google Cloud app is in "Testing" (needed for the restricted `drive` scope without Google's review), Google ends refresh tokens after 7 days, so the connector asks to sign in again about once a week. Publishing the app would need a security review for the `drive` scope; not planned.
+
+**Tools** (names as Claude sees them; descriptions tell Claude the board rules)
+
+| Tool | Does |
+| --- | --- |
+| `list_notes` | Categories and notes (id, title, category, board or note, modified, preview line), optional category filter |
+| `search_notes` | Drive full-text search in the categories, like the app's search |
+| `read_note` | The text of a note or board and its `version`. For a board also its columns and cards (title, due date, tags, task progress) |
+| `create_note` | A note or board in a category (General by default), named like the app does (` (2)` on clashes) |
+| `append_to_note` | Add text at the end of a note, or under a heading |
+| `replace_in_note` | Replace an exact piece of text that occurs once, like Claude Code's Edit |
+| `check_task` | Tick or untick a task item, by its text |
+| `add_card` / `move_card` / `update_card` | Board cards: add to a column, move to a column and place, change title, body, tags or due date |
+
+**Rules every write follows** (the same as the app's)
+- The note keeps its Drive file id: content is replaced with `files.update`, never by a new file.
+- Every write is checked against the `version` from `read_note`. If the note changed since, it is merged with the three-way merge (`editor/merge.ts`) against the text Claude read; overlapping edits fail with a message telling Claude to read the note again. Never a silent overwrite.
+- Only the lines a tool is about change (board edits go through `editor/board.ts`, so a move changes only that card's lines).
+- In card bodies `#` / `##` lines become `###` / `####`, as in the app's card editor.
+- The preview line and board mark are updated in the same request, as the app does on save.
+- No delete tool. Nothing is trashed or deleted by the connector.
+
+**Code shared with the app:** `drive/notes.ts`, `drive/names.ts`, `drive/client.ts` (with a token source for the worker), `editor/board.ts`, `editor/markdown.ts`, `editor/merge.ts` and `editor/tags.ts` are free of DOM code and are imported as they are. The tools are unit-tested against `drive/fakeDrive.ts`; automated tests never call Google or Cloudflare.
+
+**Built in steps** (each one deployed and checked before the next)
+1. The worker with Google sign-in and the one-account allowlist, and `list_notes` and `read_note` only. *Done when* the connector is added in claude.ai and Claude lists and reads notes on desktop and the iPhone app.
+2. Note writes: `create_note`, `append_to_note`, `replace_in_note`, `check_task`, `search_notes`. *Done when* an edit made by Claude shows up in a note open in the app (merged, cursor kept), and an edit to a note changed since Claude read it is merged or refused, never lost.
+3. Board tools. *Done when* Claude adds, moves and updates cards and each change is only the expected lines in the text view.
+4. Setup and deploy docs in `README.md` (Google client, Cloudflare account, secrets, adding the connector).
 
 ## Later phase: sharing and collaboration
 
@@ -338,7 +381,7 @@ What v1 should already do so this stays easy:
 
 ## Milestones
 
-Built in this order. Each milestone ends with a working deployed app and its acceptance criteria checked. After M9, work continues from the To do list below; M10 and M11 come later.
+Built in this order. Each milestone ends with a working deployed app and its acceptance criteria checked. After M9, work continued from the To do list below; M10 is next (decided 2026-11-10), then the To do list again; M11 comes later.
 
 - [x] **M0 Project setup:** Vite + Svelte + TypeScript, ESLint and Prettier, GitHub Actions deploy to GitHub Pages under /notes-dot-md/. *Done when* an empty app shell is live at the Pages URL.
 - [x] **M1 Sign-in:** redirect sign-in, sign in and sign out, token renewal. *Done when* sign-in works on desktop and mobile, and a save made more than an hour after sign-in still succeeds.
@@ -350,7 +393,7 @@ Built in this order. Each milestone ends with a working deployed app and its acc
 - [x] **M7 Export and GFM rendering:** export button; rendered tables and images, reference links, escapes and entities (copy stays native, no button). *Done when* the exported file opens unchanged in another editor, and tables and images render in the editor while their text stays plain markdown.
 - [x] **M8 Polish:** responsive layout and dark mode pass, favicon. No PWA. *Done when* the app looks and works right in Safari on iPhone and in Chromium and Firefox on Linux, at every width.
 - [x] **M9 Task board:** board view for files starting with `<!-- notes.md:board -->`. *Done when* cards can be edited, renamed, added, deleted (to Archive) and dragged between columns on desktop and phone, and every change shows up as the expected lines in the text view.
-- [ ] **Later — M10 Claude access:** route B, then route C.
+- [ ] **M10 Claude access (next):** route B set up with its format note, then route C, the notes.md connector, in the four steps under "Route C". *Done when* Claude can read and edit notes and boards from the Claude app on the iPhone, with every write keeping the file id, checking the version and changing only its own lines.
 - [ ] **Later — M11 Sharing:** steps 1–3 of the sharing section.
 
 ## Out of scope and open questions
