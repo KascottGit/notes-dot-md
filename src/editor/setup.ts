@@ -51,7 +51,15 @@ import {
 } from './lists';
 import { livePreview } from './livePreview';
 import { textEdits } from './merge';
-import { dropSpot, imageFiles, imageSpots, insertAtSpot, markSpot, pasteImages } from './paste';
+import {
+  dropSpot,
+  imageFiles,
+  imageSpots,
+  insertAtSpot,
+  markSpot,
+  pasteImages,
+  pasteLinks,
+} from './paste';
 import { tagCompletion, type TagSuggestion } from './tagComplete';
 
 /** Marks changes made by the app (e.g. loading a newer version), not by typing. */
@@ -277,6 +285,7 @@ export function createEditor(options: EditorOptions): Editor {
         livePreview(),
         tapBelowEnd,
         pasteImages,
+        pasteLinks,
         codeFolding({ placeholderText: '…' }),
         EditorView.inputHandler.of((view, from, to, text) => {
           const spec = shorthandInput(view.state, from, to, text);

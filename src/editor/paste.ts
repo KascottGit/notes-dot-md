@@ -5,10 +5,19 @@
  * - Pasting or dropping image data (screenshots, photos) hands the files to
  *   the app, which uploads them and puts each image line at a "spot": a
  *   position that moves along with edits made while the upload runs.
+ * - Pasting a web address over selected text makes that text a link to it.
  * Any other paste keeps CodeMirror's plain-text behavior.
  */
-import { StateEffect, StateField, type EditorState } from '@codemirror/state';
+import { syntaxTree } from '@codemirror/language';
+import {
+  EditorSelection,
+  StateEffect,
+  StateField,
+  type EditorState,
+  type TransactionSpec,
+} from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import type { SyntaxNode } from '@lezer/common';
 import { imageMarkdown, isLoadable } from './markdown';
 
 /** The images in pasted HTML, when it holds nothing but images. */
@@ -32,6 +41,69 @@ export const pasteImages = EditorView.domEventHandlers({
       userEvent: 'input.paste',
       scrollIntoView: true,
     });
+    return true;
+  },
+});
+
+// ---------------------------------------------------------------- Links
+
+const WEB_ADDRESS = /^https?:\/\/\S+$/i;
+/** Where a pasted address stays an address: code, and text that is a link or address already. */
+const NO_LINKS = new Set([
+  'InlineCode',
+  'FencedCode',
+  'CodeBlock',
+  'Frontmatter',
+  'HTMLBlock',
+  'Link',
+  'Image',
+  'URL',
+  'Autolink',
+  'LinkReference',
+]);
+
+/**
+ * Pasting a web address over selected text: the text becomes a link to it
+ * (`[text](url)`), with the cursor after it. Null when the paste should go
+ * in as usual: no single address on the clipboard, nothing selected, a
+ * selection over several lines, with brackets, in code, or already a link
+ * or an address itself.
+ */
+export function linkPaste(state: EditorState, clipboard: string): TransactionSpec | null {
+  const url = clipboard.trim();
+  if (!WEB_ADDRESS.test(url) || state.readOnly) return null;
+  const tree = syntaxTree(state);
+  for (const range of state.selection.ranges) {
+    const text = state.sliceDoc(range.from, range.to);
+    if (!text.trim() || /[\n[\]]/.test(text) || WEB_ADDRESS.test(text.trim())) return null;
+    for (const pos of [range.from, range.to]) {
+      const side = pos === range.from ? 1 : -1;
+      for (let n: SyntaxNode | null = tree.resolveInner(pos, side); n; n = n.parent) {
+        if (NO_LINKS.has(n.name)) return null;
+      }
+    }
+  }
+  // Brackets in an address would end the link early, unless it is in `<>`.
+  const target = /[()]/.test(url) ? `<${url}>` : url;
+  return {
+    ...state.changeByRange((range) => {
+      const insert = `[${state.sliceDoc(range.from, range.to)}](${target})`;
+      return {
+        changes: { from: range.from, to: range.to, insert },
+        range: EditorSelection.cursor(range.from + insert.length),
+      };
+    }),
+    userEvent: 'input.paste',
+    scrollIntoView: true,
+  };
+}
+
+export const pasteLinks = EditorView.domEventHandlers({
+  paste(event, view) {
+    const spec = linkPaste(view.state, event.clipboardData?.getData('text/plain') ?? '');
+    if (!spec) return false;
+    event.preventDefault();
+    view.dispatch(spec);
     return true;
   },
 });
