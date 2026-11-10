@@ -108,6 +108,14 @@ describe('autosave', () => {
     expect(session.state.status).toBe('saved');
   });
 
+  it('tells the app about a status change once, not on every keystroke', async () => {
+    const { edit, states } = await setup();
+    edit('a');
+    edit('ab');
+    edit('abc');
+    expect(states.map((s) => s.status)).toEqual(['unsaved']);
+  });
+
   it('flush saves everything right away', async () => {
     const { session, edit, drive, note } = await setup();
     edit('now');

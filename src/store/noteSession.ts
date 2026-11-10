@@ -121,7 +121,9 @@ export class NoteSession {
   edited(): void {
     if (this.readOnly || this.disposed) return;
     if (this.status === 'saved' || this.status === 'unsaved') {
-      this.setStatus(this.isDirty() ? 'unsaved' : 'saved');
+      // Only when it changes: this runs on every keystroke.
+      const next = this.isDirty() ? 'unsaved' : 'saved';
+      if (next !== this.status) this.setStatus(next);
     }
     if (this.conflict || this.retryTimer) return; // Don't save over a conflict or race a retry.
     this.clearAutosave();

@@ -291,8 +291,13 @@
     }
   }
 
-  /** Keep the saved list (for the next start) in step with what shows. Metadata only. */
-  $effect(() => {
+  /**
+   * Keep the saved list (for the next start) in step with what shows.
+   * Metadata only. Written once changes have settled for a moment, since it
+   * holds every note.
+   */
+  const CACHE_DELAY_MS = 1000;
+  function writeListCache() {
     const account = auth.state.loginHint;
     if (loading || listError || !folders || !account) return;
     saveListCache({
@@ -301,6 +306,12 @@
       categories: $state.snapshot(categories),
       notes: $state.snapshot(notes),
     });
+  }
+  $effect(() => {
+    // Read here, so the effect runs again when one of them changes.
+    void [notes, categories, folders, loading, listError];
+    const timer = setTimeout(writeListCache, CACHE_DELAY_MS);
+    return () => clearTimeout(timer);
   });
 
   /** Notes created in this session, kept when a list fetched before they existed arrives. */
@@ -831,9 +842,15 @@
       remember(state.note, session.baseText);
     }
     if (state.status === 'saved' && !redirecting) clearStash();
-    // Keep the list in step with saves (modified time, name).
-    notes = notes.map((n) => (n.id === state.note.id ? state.note : n));
+    // Keep the list in step with saves (modified time, name). Only when the
+    // note's metadata changed: a status change alone leaves the list alone.
+    if (state.note !== listedNote) {
+      listedNote = state.note;
+      notes = notes.map((n) => (n.id === state.note.id ? state.note : n));
+    }
   }
+  /** The open note's metadata as last put in the list (the session makes a new object per change). */
+  let listedNote: Note | null = null;
 
   /**
    * A new note or board: its screen opens at once, with the title selected,
@@ -1118,6 +1135,7 @@
 
   function onVisibilityChange() {
     if (document.visibilityState !== 'hidden') return;
+    writeListCache(); // Not waiting for the timer: the tab may not come back.
     if (session?.isDirty()) stashOpenNote(); // In case iOS discards the tab.
     void session?.save();
   }
