@@ -32,8 +32,37 @@
   /** The body as last sent to the file, so our own edits coming back are not reloaded. */
   let sent = '';
 
-  onMount(() => {
-    if (!el) return;
+  /**
+   * The editor is made when the card comes near the screen: a board can hold
+   * hundreds of cards, and an editor each is slow to build. Until then the
+   * text shows as it is.
+   */
+  let ready = $state(false);
+  const NEAR_PX = 800;
+  let watcher: IntersectionObserver | null = null;
+
+  function near(box: DOMRect): boolean {
+    return (
+      box.bottom > -NEAR_PX &&
+      box.top < window.innerHeight + NEAR_PX &&
+      box.right > -NEAR_PX &&
+      box.left < window.innerWidth + NEAR_PX
+    );
+  }
+
+  /** The nearest box around `node` that scrolls up and down, or null for the page. */
+  function scroller(node: HTMLElement): HTMLElement | null {
+    for (let up = node.parentElement; up && up !== document.body; up = up.parentElement) {
+      if (/auto|scroll/.test(getComputedStyle(up).overflowY)) return up;
+    }
+    return null;
+  }
+
+  function create() {
+    watcher?.disconnect();
+    watcher = null;
+    if (!el || editor) return;
+    ready = true;
     sent = text;
     const ed = createEditor({
       parent: el,
@@ -57,6 +86,23 @@
       onFocus: () => onFocus(ed),
     });
     editor = ed;
+  }
+
+  onMount(() => {
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined' || near(el.getBoundingClientRect())) {
+      create();
+      return;
+    }
+    watcher = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) create();
+      },
+      // Measured from the box the card scrolls in: a margin around the
+      // screen doesn't reach into a column that scrolls by itself.
+      { root: scroller(el), rootMargin: `${NEAR_PX}px` },
+    );
+    watcher.observe(el);
   });
 
   $effect(() => {
@@ -67,16 +113,36 @@
   });
 
   onDestroy(() => {
+    watcher?.disconnect();
     if (!editor) return;
     onDestroyed(editor);
     editor.destroy();
   });
 </script>
 
-<div class="card-body" bind:this={el}></div>
+<div class="card-body" bind:this={el}>
+  {#if !ready}
+    <!-- Sized like the editor's text, so little moves when the editor takes over. -->
+    <div class="plain" class:hint={!text}>{text || (readOnly ? '' : hint)}</div>
+  {/if}
+</div>
 
 <style>
   .card-body {
     min-width: 0;
+  }
+
+  .plain {
+    min-height: 1.55em;
+    padding: 0 12px 2px 3px;
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .plain.hint {
+    color: var(--text-muted);
   }
 </style>

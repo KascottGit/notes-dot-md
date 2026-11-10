@@ -249,7 +249,7 @@ More details.
 A board file opens in its own view, not the note editor, with the rules below. The file is still one markdown string: every edit, drag or rename changes only the lines it touches and saves the whole file with the usual conflict check. The "open as text" toggle shows the same file in the normal editor, where any edit is allowed.
 
 **Cards**
-- Each card is a box with the title on top and the body below. The body is rendered as markdown with the same live preview as notes (its own small CodeMirror view on the card's lines), so checkboxes toggle and the reveal rule applies.
+- Each card is a box with the title on top and the body below. The body is rendered as markdown with the same live preview as notes (its own small CodeMirror view on the card's lines), so checkboxes toggle and the reveal rule applies. A card's editor is made when the card comes within about a screen of what shows (until then its text shows as it is), and a card keeps its editor when other cards are added, moved or archived, so large boards open and change quickly (added 2026-11-10).
 - **Editing in place:** tapping or clicking the body puts the cursor there. Edits go straight back into the card's lines in the file. The format bar sits under the header as for notes and acts on the card that has (or last had) the cursor. On boards it offers headings 3–6 and adds a due date button.
 - **Copy and paste** work as in the normal editor: copying gives the markdown text, and pasting inserts plain text.
 - **Title:** edited with `InlineName` (one line). Enter or leaving saves, Escape cancels. It writes only the text after `## `.

@@ -526,6 +526,62 @@ function removeSpan(text: string, span: Span): { text: string; block: string } {
   };
 }
 
+/** A card's key in the board view, with the title it was given for. */
+export interface KeyedCard {
+  key: string;
+  title: string;
+}
+
+/**
+ * A key for every card (per column, in order) that stays with the card when
+ * the board changes, so the view moves a card instead of building it again.
+ * Cards have no id in the file, so each is matched to a card of the board
+ * before (`prev`): one with the same title (at the same place first), else
+ * the one that was at its place (a rename); a card matching none is new.
+ */
+export function cardKeys(
+  board: Board,
+  prev: readonly (readonly KeyedCard[])[],
+  fresh: () => string,
+): KeyedCard[][] {
+  const old = prev.flatMap((cards, column) =>
+    cards.map((card, index) => ({ ...card, column, index, used: false })),
+  );
+  const byTitle = new Map<string, typeof old>();
+  for (const o of old) {
+    const list = byTitle.get(o.title);
+    if (list) list.push(o);
+    else byTitle.set(o.title, [o]);
+  }
+  const keys: (string | null)[][] = board.columns.map((c) => c.cards.map(() => null));
+  const each = (fn: (title: string, column: number, index: number) => void) =>
+    board.columns.forEach((c, column) =>
+      c.cards.forEach((card, index) => {
+        if (keys[column]![index] === null) fn(card.title, column, index);
+      }),
+    );
+  const take = (o: (typeof old)[number] | undefined, column: number, index: number) => {
+    if (!o) return;
+    o.used = true;
+    keys[column]![index] = o.key;
+  };
+  const at = (column: number, index: number) => (o: (typeof old)[number]) =>
+    !o.used && o.column === column && o.index === index;
+  // Same title at the same place, then the same title anywhere, then the same place.
+  each((title, column, index) => take(byTitle.get(title)?.find(at(column, index)), column, index));
+  each((title, column, index) =>
+    take(
+      byTitle.get(title)?.find((o) => !o.used),
+      column,
+      index,
+    ),
+  );
+  each((_title, column, index) => take(old.find(at(column, index)), column, index));
+  return board.columns.map((c, column) =>
+    c.cards.map((card, index) => ({ key: keys[column]![index] ?? fresh(), title: card.title })),
+  );
+}
+
 export interface CardRef {
   /** Index in `board.columns` (Archive included). */
   column: number;

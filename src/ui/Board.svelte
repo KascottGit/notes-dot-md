@@ -12,6 +12,7 @@
     addColumn,
     archiveCard,
     boardTags,
+    cardKeys,
     deleteColumn,
     doneColumnIndex,
     hasTag,
@@ -32,6 +33,7 @@
     type Attachment,
     type Board,
     type CardRef,
+    type KeyedCard,
     type Span,
   } from '../editor/board';
   import type { Editor } from '../editor/setup';
@@ -80,15 +82,42 @@
   const shown = (card: Board['columns'][number]['cards'][number]) =>
     !tagFilter || hasTag(card, tagFilter);
 
-  /** Which text an editor edits: the board intro, a column intro or a card body. */
+  /**
+   * A key per card that stays with it when cards above it come or go, so a
+   * card (and its editor) is moved, not built again (see `cardKeys`).
+   */
+  let lastKeys: KeyedCard[][] = [];
+  let keyCount = 0;
+  const cardKey = $derived.by(() => {
+    lastKeys = cardKeys(board, lastKeys, () => `card${keyCount++}`);
+    return lastKeys;
+  });
+
+  /** Where the card with this key is now. */
+  function refOf(cardKeyValue: string): CardRef | null {
+    for (const [column, cards] of cardKey.entries()) {
+      const card = cards.findIndex((c) => c.key === cardKeyValue);
+      if (card >= 0) return { column, card };
+    }
+    return null;
+  }
+
+  /**
+   * Which text an editor edits: the board intro, a column intro or a card
+   * body. A card is named by its key, since it can move while its editor stays.
+   */
   type Part =
-    { kind: 'intro' } | { kind: 'columnIntro'; column: number } | ({ kind: 'card' } & CardRef);
+    { kind: 'intro' } | { kind: 'columnIntro'; column: number } | { kind: 'card'; key: string };
+
+  function cardOf(b: Board, part: Part) {
+    const ref = part.kind === 'card' ? refOf(part.key) : null;
+    return ref ? (b.columns[ref.column]?.cards[ref.card] ?? null) : null;
+  }
 
   function spanOf(b: Board, part: Part): Span | null {
     if (part.kind === 'intro') return b.intro;
-    const column = b.columns[part.column];
-    if (part.kind === 'columnIntro') return column?.intro ?? null;
-    return column?.cards[part.card]?.body ?? null;
+    if (part.kind === 'columnIntro') return b.columns[part.column]?.intro ?? null;
+    return cardOf(b, part)?.body ?? null;
   }
 
   const slice = (span: Span) => text.slice(span.from, span.to);
@@ -211,7 +240,7 @@
       onToast('Put the cursor in a card first.');
       return;
     }
-    dateInput.value = board.columns[part.column]?.cards[part.card]?.meta.due ?? '';
+    dateInput.value = cardOf(board, part)?.meta.due ?? '';
     try {
       dateInput.showPicker();
     } catch {
@@ -779,8 +808,9 @@
               />
             </div>
           {/if}
-          {#each column.cards as card, i (`${i}:${card.title}`)}
+          {#each column.cards as card, i (cardKey[ci]?.[i]?.key ?? `${ci}:${i}`)}
             {@const ref = { column: ci, card: i }}
+            {@const part = { kind: 'card' as const, key: cardKey[ci]?.[i]?.key ?? '' }}
             {#if shown(card)}
               <BoardCard
                 {card}
@@ -792,8 +822,7 @@
                   dragging.ref.column === ci &&
                   dragging.ref.card === i}
                 focusTitle={newCardKey === key(ref)}
-                onBody={(t) =>
-                  editPart({ kind: 'card', ...ref }, joinAttachments(t, card.attachments))}
+                onBody={(t) => editPart(part, joinAttachments(t, card.attachments))}
                 onRename={(title) => rename(ref, title)}
                 onTitleDone={() => {
                   if (newCardKey === key(ref)) newCardKey = null;
@@ -807,7 +836,7 @@
                       run: () => moveToDone(ref),
                     }}
                 onPress={(e, el, onTap) => startPress(e, { kind: 'card', ref }, el, onTap)}
-                onFocus={(e) => focused(e, { kind: 'card', ...ref })}
+                onFocus={(e) => focused(e, part)}
                 onDestroyed={destroyed}
                 {onSave}
               />

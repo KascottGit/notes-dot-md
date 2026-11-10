@@ -4,6 +4,8 @@ import {
   addColumn,
   archiveCard,
   boardTags,
+  cardKeys,
+  type KeyedCard,
   deleteArchivedCard,
   deleteColumn,
   joinAttachments,
@@ -482,5 +484,41 @@ describe('deleteArchivedCard', () => {
       '<!-- notes.md:board -->\n\n# Todo\n\n## A\n\n# Archive\n\n## Older\n',
     );
     expect(deleteArchivedCard(board, 5)).toBe(board);
+  });
+});
+
+describe('cardKeys', () => {
+  const keysOf = (text: string, prev: KeyedCard[][], seq: { n: number }) =>
+    cardKeys(parseBoard(text), prev, () => `k${seq.n++}`);
+  const flat = (keys: KeyedCard[][]) => keys.map((c) => c.map((k) => k.key));
+  const start = '# Todo\n\n## A\n\n## B\n\n## C\n\n# Done\n\n## D\n';
+
+  it('gives every card its own key', () => {
+    expect(flat(keysOf(start, [], { n: 0 }))).toEqual([['k0', 'k1', 'k2'], ['k3']]);
+  });
+
+  it('keeps each card’s key when one is taken out above the others', () => {
+    const seq = { n: 0 };
+    const before = keysOf(start, [], seq);
+    const after = keysOf(archiveCard(start, { column: 0, card: 0 }), before, seq);
+    // A went to the Archive column; B and C kept their keys.
+    expect(flat(after)).toEqual([['k1', 'k2'], ['k3'], ['k0']]);
+  });
+
+  it('keeps the key when a card moves or is renamed', () => {
+    const seq = { n: 0 };
+    const before = keysOf(start, [], seq);
+    const moved = moveCard(start, { column: 0, card: 2 }, { column: 0, card: 0 });
+    expect(flat(keysOf(moved, before, seq))).toEqual([['k2', 'k0', 'k1'], ['k3']]);
+    const renamed = renameCard(start, { column: 0, card: 1 }, 'B2');
+    expect(flat(keysOf(renamed, before, seq))).toEqual([['k0', 'k1', 'k2'], ['k3']]);
+  });
+
+  it('tells cards with the same title apart, and gives a new card a new key', () => {
+    const seq = { n: 0 };
+    const text = '# Todo\n\n## Untitled\n\n## Untitled\n';
+    const before = keysOf(text, [], seq);
+    const added = addCard(text, 0).text;
+    expect(flat(keysOf(added, before, seq))).toEqual([['k0', 'k1', 'k2']]);
   });
 });
