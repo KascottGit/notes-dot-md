@@ -584,15 +584,25 @@ export async function attachmentsFolder(drive: DriveClient, rootId: string): Pro
   return found?.id ?? (await createFolder(drive, rootId, ATTACHMENTS_FOLDER)).id;
 }
 
-/** Upload an image file. Returns its Drive file id. */
+/** The app property on an image file that names the note or board it belongs to (its file id). */
+export const IMAGE_OWNER = 'note';
+
+const imageProperties = (owner: string | undefined) =>
+  owner ? { ...APP_PROPERTIES, [IMAGE_OWNER]: owner } : APP_PROPERTIES;
+
+/**
+ * Upload an image file. Returns its Drive file id. `owner` is the note or
+ * board it is added to, so it can follow that note to the trash.
+ */
 export async function uploadImage(
   drive: DriveClient,
   folderId: string,
   name: string,
   image: Blob,
+  owner?: string,
 ): Promise<string> {
   const boundary = `mdnotes-${crypto.randomUUID()}`;
-  const metadata = { name, parents: [folderId], appProperties: APP_PROPERTIES };
+  const metadata = { name, parents: [folderId], appProperties: imageProperties(owner) };
   const head = [
     `--${boundary}`,
     'Content-Type: application/json; charset=UTF-8',
@@ -609,6 +619,103 @@ export async function uploadImage(
     body: new Blob([head, image, `\r\n--${boundary}--\r\n`]),
   });
   return file.id;
+}
+
+/** How many requests about single images run at the same time. */
+const IMAGE_BATCH = 8;
+
+async function inBatches<T, R>(items: T[], run: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += IMAGE_BATCH) {
+    out.push(...(await Promise.all(items.slice(i, i + IMAGE_BATCH).map(run))));
+  }
+  return out;
+}
+
+/**
+ * Which of the linked files are the app's own images: files in
+ * `Notes/.attachments/`. A link to any other Drive file is left out (the
+ * app only touches the Notes folder), as is a file that can't be read.
+ */
+async function attachedImages(
+  drive: DriveClient,
+  folderId: string,
+  ids: readonly string[],
+): Promise<DriveFile[]> {
+  const files = await inBatches([...new Set(ids)], (id) =>
+    drive
+      .json<DriveFile>(`${FILES}/${id}?fields=id,name,parents,trashed,appProperties`)
+      .catch(() => null),
+  );
+  return files.filter((f): f is DriveFile => !!f?.parents?.includes(folderId));
+}
+
+/**
+ * The images that go to the trash with a note (`trashed: false`), or come
+ * back out with it (`trashed: true`).
+ * - Going: the images uploaded for this note (marked with its id), plus
+ *   images linked in its text that carry no mark (uploaded by an earlier
+ *   version). An image marked for another note stays.
+ * - Coming back: only those still linked in the text, so an image removed
+ *   from the note earlier stays in the trash.
+ * `linkedIds` are the Drive image ids in the note's text.
+ */
+export async function noteImages(
+  drive: DriveClient,
+  rootId: string,
+  noteId: string,
+  linkedIds: readonly string[],
+  trashed: boolean,
+): Promise<string[]> {
+  const folder = await findFolder(drive, rootId, ATTACHMENTS_FOLDER);
+  if (!folder) return [];
+  const linked = (await attachedImages(drive, folder.id, linkedIds))
+    .filter((f) => !!f.trashed === trashed)
+    .filter((f) => (f.appProperties?.[IMAGE_OWNER] ?? noteId) === noteId)
+    .map((f) => f.id);
+  if (trashed) return linked;
+  const q = [
+    `${quoteQuery(folder.id)} in parents`,
+    'trashed = false',
+    `appProperties has { key=${quoteQuery(IMAGE_OWNER)} and value=${quoteQuery(noteId)} }`,
+  ].join(' and ');
+  const owned = (await listAll(drive, q, 'id')).map((f) => f.id);
+  return [...new Set([...owned, ...linked])];
+}
+
+/**
+ * Copy the app's own images linked in a text, for a duplicate of the note:
+ * each note has its own image files, so deleting one doesn't take the
+ * other's images along. Returns old id → new id for the copies made; an
+ * image that can't be copied is left out (the duplicate keeps its link).
+ */
+export async function copyNoteImages(
+  drive: DriveClient,
+  rootId: string,
+  linkedIds: readonly string[],
+  owner: string,
+): Promise<Map<string, string>> {
+  const copies = new Map<string, string>();
+  const folder = linkedIds.length ? await findFolder(drive, rootId, ATTACHMENTS_FOLDER) : null;
+  if (!folder) return copies;
+  const images = (await attachedImages(drive, folder.id, linkedIds)).filter((f) => !f.trashed);
+  await inBatches(images, async (image) => {
+    try {
+      const copy = await drive.json<DriveFile>(`${FILES}/${image.id}/copy?fields=id`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: image.name,
+          parents: [folder.id],
+          appProperties: imageProperties(owner),
+        }),
+      });
+      copies.set(image.id, copy.id);
+    } catch {
+      // Keeps the link to the original image.
+    }
+  });
+  return copies;
 }
 
 /** Download a file's content, e.g. an attached image. */

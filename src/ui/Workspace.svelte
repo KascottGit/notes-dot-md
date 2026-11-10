@@ -16,6 +16,7 @@
     DEFAULT_FOLDER_NAME,
     moveNote,
     attachmentsFolder,
+    noteImages,
     listTrashedNotes,
     readNote,
     searchNoteText,
@@ -35,7 +36,7 @@
     type Note,
   } from '../drive/notes';
   import { documentTags, isBoard, NEW_BOARD_TEXT } from '../editor/board';
-  import { countWords } from '../editor/markdown';
+  import { countWords, driveImageIds } from '../editor/markdown';
   import type { TagSuggestion } from '../editor/tagComplete';
   import {
     checkTagName,
@@ -357,9 +358,12 @@
     const adding = toast;
     try {
       const folder = await imagesFolder();
+      // A new note's file has to exist first: its images are marked as its own.
+      if (creatingTask) await creatingTask;
+      const owner = session?.state.note.id;
       let lost = 0;
       for (const file of files) {
-        const id = await uploadImageFile(folder, file, title);
+        const id = await uploadImageFile(folder, file, title, owner);
         if (!ed.insertAtSpot(spot, driveImageLine(id))) lost++;
       }
       if (lost) {
@@ -407,6 +411,7 @@
     deleted = deleted.filter((d) => d.note.id !== id);
     try {
       await setTrashed(drive, id, false);
+      void untrashImages(item.note);
       notes = [...notes.filter((n) => n.id !== id), item.note];
       deletedToast = `"${item.note.title}" is back`;
     } catch (err) {
@@ -1079,6 +1084,8 @@
 
   /** Move a note to the Drive trash, with Undo. */
   async function deleteNote(note: Note) {
+    // The note's text, to find its images: from memory or the editor, else read later.
+    let text = recent.get(note.id)?.text ?? null;
     recent.delete(note.id);
     if (opening?.id === note.id) {
       cancelOpening();
@@ -1090,6 +1097,7 @@
       // Save first, so Undo brings back the latest text. Don't wait forever
       // (an expired session would hold the save until the next sign-in).
       await Promise.race([session.flush(), new Promise((r) => setTimeout(r, 5000))]);
+      text = editor?.getText() ?? text;
       session.dispose();
       session = null;
       sessionState = null;
@@ -1099,9 +1107,11 @@
     notes = notes.filter((n) => n.id !== note.id);
     try {
       await trashNote(drive, note.id);
+      // Its images follow in the background; Undo waits for them.
+      const images = trashImages(note, text);
       toast = {
         message: `"${note.title}" moved to trash`,
-        action: { label: 'Undo', run: () => void restoreNote(note) },
+        action: { label: 'Undo', run: () => void restoreNote(note, images) },
       };
     } catch (err) {
       notes = [...notes, note];
@@ -1109,9 +1119,41 @@
     }
   }
 
-  async function restoreNote(note: Note) {
+  /**
+   * A deleted note's or board's images go to the Drive trash with it (SPEC
+   * "Delete a note"), so they aren't left behind in `Notes/.attachments/`.
+   * Resolves to the ones moved; if this fails they just stay where they are.
+   */
+  async function trashImages(note: Note, text: string | null): Promise<string[]> {
+    if (!folders) return [];
+    try {
+      const linked = driveImageIds(text ?? (await readNote(drive, note.id)));
+      const ids = await noteImages(drive, folders.rootId, note.id, linked, false);
+      const moved = await Promise.allSettled(ids.map((id) => setTrashed(drive, id, true)));
+      return ids.filter((_, i) => moved[i]?.status === 'fulfilled');
+    } catch (err) {
+      console.warn("Couldn't move the note's images to the trash:", err);
+      return [];
+    }
+  }
+
+  /** A note restored from Recently deleted: its images (still linked in it) come back too. */
+  async function untrashImages(note: Note) {
+    if (!folders) return;
+    try {
+      const linked = driveImageIds(await readNote(drive, note.id));
+      if (linked.length === 0) return;
+      const ids = await noteImages(drive, folders.rootId, note.id, linked, true);
+      await Promise.allSettled(ids.map((id) => setTrashed(drive, id, false)));
+    } catch (err) {
+      console.warn("Couldn't restore the note's images:", err);
+    }
+  }
+
+  async function restoreNote(note: Note, images: Promise<string[]> = Promise.resolve([])) {
     try {
       const back = await untrashNote(drive, note);
+      await Promise.allSettled((await images).map((id) => setTrashed(drive, id, false)));
       notes = [...notes.filter((n) => n.id !== back.id), back];
     } catch (err) {
       toast = { message: `Couldn't restore "${note.title}". It is in the Google Drive trash.` };
@@ -1372,6 +1414,7 @@
         bind:this={board}
         text={boardText}
         readOnly={headerState.readOnly}
+        noteId={headerState.note.id}
         onEdit={(text) => editor?.edit(text)}
         onSave={() => void session?.save()}
         onToast={(message, undo) => {

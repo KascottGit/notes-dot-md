@@ -7,6 +7,7 @@ import {
   autolinkHref,
   countWords,
   driveFileId,
+  driveImageIds,
   imageMarkdown,
   linkParts,
   linkReferences,
@@ -260,5 +261,18 @@ describe('countWords', () => {
       ),
     ).toBe(0);
     expect(countWords('<!-- notes.md:board -->\n\n# Todo')).toBe(1);
+  });
+});
+
+describe('driveImageIds', () => {
+  it('finds the Drive images in a text, each once', () => {
+    const image = (id: string, alt = '') => `![${alt}](https://drive.google.com/file/d/${id}/view)`;
+    const text = `Text ${image('a-1')}\n\n${image('b_2', 'A photo')}\n${image('a-1')}`;
+    expect(driveImageIds(text)).toEqual(['a-1', 'b_2']);
+  });
+
+  it('leaves out other images and plain links to Drive files', () => {
+    expect(driveImageIds('![](https://example.com/a.png)')).toEqual([]);
+    expect(driveImageIds('[file](https://drive.google.com/file/d/abc/view)')).toEqual([]);
   });
 });

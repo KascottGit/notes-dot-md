@@ -3,6 +3,8 @@ import { fakeDrive } from './fakeDrive';
 import {
   APP_PROPERTIES,
   attachmentsFolder,
+  copyNoteImages,
+  noteImages,
   createFolder,
   createNote,
   ensureFolders,
@@ -481,5 +483,59 @@ describe('listCategoriesAndNotes', () => {
     await createNote(drive, defaultId, 'One');
     const { notes } = await listCategoriesAndNotes(drive, rootId);
     expect(notes.map((n) => n.title)).toEqual(['One']);
+  });
+});
+
+describe('a note’s images', () => {
+  const png = () => new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' });
+
+  async function withImages() {
+    const fake = await withFolders();
+    const { drive, rootId, defaultId } = fake;
+    const folder = await attachmentsFolder(drive, rootId);
+    const note = await createNote(drive, defaultId, 'Trip');
+    const other = await createNote(drive, defaultId, 'Other');
+    const mine = await uploadImage(drive, folder, 'mine.png', png(), note.id);
+    const unlinked = await uploadImage(drive, folder, 'unlinked.png', png(), note.id);
+    const theirs = await uploadImage(drive, folder, 'theirs.png', png(), other.id);
+    const old = await uploadImage(drive, folder, 'old.png', png());
+    // A Drive file outside the app's folders, linked as an image.
+    const elsewhere = fake.add({ name: 'photo.jpg', mimeType: 'image/jpeg', parents: ['root'] }).id;
+    return { ...fake, folder, note, other, mine, unlinked, theirs, old, elsewhere };
+  }
+
+  it('marks an uploaded image with the note it belongs to', async () => {
+    const { files, mine, old, note } = await withImages();
+    expect(files.get(mine)!.appProperties).toEqual({ ...APP_PROPERTIES, note: note.id });
+    expect(files.get(old)!.appProperties).toEqual(APP_PROPERTIES);
+  });
+
+  it('going to the trash: its own images and unmarked ones it links, nothing else', async () => {
+    const { drive, rootId, note, mine, unlinked, theirs, old, elsewhere } = await withImages();
+    const linked = [mine, theirs, old, elsewhere, 'missing'];
+    const ids = await noteImages(drive, rootId, note.id, linked, false);
+    expect(ids.sort()).toEqual([mine, unlinked, old].sort());
+  });
+
+  it('coming back: only trashed images the text still links', async () => {
+    const { drive, rootId, note, mine, unlinked, old } = await withImages();
+    for (const id of [mine, unlinked]) await setTrashed(drive, id, true);
+    // `old` was never trashed; `unlinked` was removed from the note before.
+    expect(await noteImages(drive, rootId, note.id, [mine, old], true)).toEqual([mine]);
+  });
+
+  it('finds nothing when there is no attachments folder', async () => {
+    const { drive, rootId } = await withFolders();
+    expect(await noteImages(drive, rootId, 'n', ['x'], false)).toEqual([]);
+  });
+
+  it('copies the app’s images for a duplicate, marked as the duplicate’s', async () => {
+    const { drive, files, rootId, folder, mine, theirs, elsewhere } = await withImages();
+    const copies = await copyNoteImages(drive, rootId, [mine, theirs, elsewhere], 'copy-id');
+    expect([...copies.keys()].sort()).toEqual([mine, theirs].sort());
+    const copy = files.get(copies.get(mine)!)!;
+    expect(copy).toMatchObject({ name: 'mine.png', parents: [folder], mimeType: 'image/png' });
+    expect(copy.appProperties).toEqual({ ...APP_PROPERTIES, note: 'copy-id' });
+    expect(copy.id).not.toBe(mine);
   });
 });

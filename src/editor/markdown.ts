@@ -20,6 +20,14 @@ export function driveFileId(url: string): string | null {
   return /^https:\/\/drive\.google\.com\/file\/d\/([\w-]+)\/view$/.exec(url)?.[1] ?? null;
 }
 
+/** The file ids of the Drive images in a text (`![alt](https://drive.google.com/file/d/<id>/view)`). */
+export function driveImageIds(markdown: string): string[] {
+  const found = markdown.matchAll(
+    /!\[[^\]]*\]\(<?https:\/\/drive\.google\.com\/file\/d\/([\w-]+)\/view>?(?:\s[^)]*)?\)/g,
+  );
+  return [...new Set([...found].map((m) => m[1]!))];
+}
+
 /** A bare URL as typed (GFM autolinks): `www.` links get https, emails get mailto. */
 export function autolinkHref(text: string): string {
   if (/^www\./i.test(text)) return `https://${text}`;

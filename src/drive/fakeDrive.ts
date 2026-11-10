@@ -62,11 +62,23 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
 
   /**
    * Supports `a and b and ...` with: name =, mimeType =, 'x' in parents,
-   * trashed = false, and one level of `(a or b)`.
+   * trashed = false, `appProperties has { key= and value= }`, and one level
+   * of `(a or b)`.
    */
   function matches(f: FakeFile, q: string): boolean {
-    return q.split(' and ').every((clause) => {
+    // `appProperties has { key='k' and value='v' }` holds an ` and ` of its own.
+    const props: [string, string][] = [];
+    const rest = q.replace(
+      /appProperties has \{ key='(.*?)' and value='(.*?)' \}/g,
+      (_all, key: string, value: string) => {
+        props.push([unquote(key), unquote(value)]);
+        return 'trashed = any';
+      },
+    );
+    if (!props.every(([key, value]) => f.appProperties?.[key] === value)) return false;
+    return rest.split(' and ').every((clause) => {
       const c = clause.trim();
+      if (c === 'trashed = any') return true;
       if (c.startsWith('(') && c.endsWith(')')) {
         return c
           .slice(1, -1)
@@ -158,6 +170,17 @@ export function fakeDrive(initial: Partial<FakeFile>[] = []) {
         if (patch.modifiedTime) f.modifiedTime = patch.modifiedTime;
         return json(200, meta(f));
       }
+    }
+
+    m = path.match(/^\/drive\/v3\/files\/([^/]+)\/copy$/);
+    if (m && method === 'POST') {
+      const f = files.get(m[1]!);
+      if (!f) return json(404, { error: { message: 'File not found' } });
+      const { id: _id, ...original } = f; // eslint-disable-line @typescript-eslint/no-unused-vars
+      return json(
+        200,
+        meta(add({ ...original, ...(JSON.parse(body || '{}') as Partial<FakeFile>) })),
+      );
     }
 
     if (method === 'POST' && path === '/drive/v3/files') {

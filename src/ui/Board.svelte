@@ -58,11 +58,13 @@
     onEdit: (text: string) => void;
     onSave: () => void;
     onToast: (message: string, undo?: () => void) => void;
+    /** The board's Drive file id: its card images are marked as belonging to it. */
+    noteId: string;
     /** The Drive folder card images go to (created when first needed). */
     imagesFolder: () => Promise<string>;
   }
 
-  let { text, readOnly, onEdit, onSave, onToast, imagesFolder }: Props = $props();
+  let { text, readOnly, noteId, onEdit, onSave, onToast, imagesFolder }: Props = $props();
 
   const board = $derived(parseBoard(text));
   const columns = $derived(visibleColumns(board));
@@ -160,7 +162,12 @@
     }
     for (const file of files) {
       try {
-        const id = await uploadImageFile(folder, file, cardAt(ref)?.title ?? 'Image');
+        const id = await uploadImageFile(
+          folder,
+          file,
+          cardAt(ref)?.title ?? 'Image',
+          noteId || undefined,
+        );
         const card = cardAt(ref);
         if (card) onEdit(setAttachments(text, ref, [...card.attachments, { id, alt: '' }]));
       } catch (err) {

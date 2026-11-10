@@ -68,13 +68,15 @@ export function imageUrl(id: string): Promise<string> {
 
 /**
  * Upload an image file (scaled down first when large) to the attachments
- * folder, named after `title` and the time. Returns its Drive file id; the
- * image shows from memory right away.
+ * folder, named after `title` and the time, and marked as belonging to the
+ * note or board `owner` (its file id). Returns its Drive file id; the image
+ * shows from memory right away.
  */
 export async function uploadImageFile(
   folderId: string,
   file: Blob,
   title: string,
+  owner?: string,
 ): Promise<string> {
   const image = await prepareImage(file);
   const name = title.replace(/[/\\:*?"<>|]+/g, ' ').trim() || 'Image';
@@ -84,6 +86,7 @@ export async function uploadImageFile(
     folderId,
     `${name} ${stamp}.${imageExtension(image.type)}`,
     image,
+    owner,
   );
   rememberImage(id, image);
   return id;
@@ -96,4 +99,10 @@ export const driveImageLine = (id: string, alt = ''): string =>
 /** Show an image right away that was just uploaded from this device. */
 export function rememberImage(id: string, image: Blob): void {
   urls.set(id, Promise.resolve(URL.createObjectURL(image)));
+}
+
+/** A copy of an image in Drive shows the same picture: no need to download it again. */
+export function aliasImage(copyId: string, originalId: string): void {
+  const url = urls.get(originalId);
+  if (url) urls.set(copyId, url);
 }
