@@ -119,23 +119,25 @@
   const hasOutline = $derived(!!readOutline && !!onJump && headings >= 2 && !loading);
 
   interface MoreItem {
-    id: 'outline' | 'find' | 'duplicate' | 'export' | 'delete';
+    id: 'find' | 'duplicate' | 'pin' | 'export' | 'delete';
     label: string;
     icon: IconName;
     run: () => void;
   }
   /**
-   * The "more" menu: what has no button of its own (Find in note, Duplicate). On phones Outline,
-   * Export and Delete sit here too, so the title keeps its room.
+   * The "more" menu: what has no button of its own (Find in note, Duplicate), and pinning, which
+   * is mostly done from the note list. On phones Export and Delete sit here too, so the title
+   * keeps its room.
    */
   const moreItems = $derived.by(() => {
     const items: MoreItem[] = [];
-    if (narrow && hasOutline) {
-      items.push({ id: 'outline', label: 'Outline', icon: 'outline', run: openOutline });
-    }
     if (onFind) items.push({ id: 'find', label: 'Find in note', icon: 'search', run: onFind });
     if (onDuplicate) {
       items.push({ id: 'duplicate', label: 'Duplicate', icon: 'copy', run: onDuplicate });
+    }
+    if (!sessionState.readOnly) {
+      const label = pinned ? 'Unpin note' : 'Pin note';
+      items.push({ id: 'pin', label, icon: 'pin', run: onTogglePin });
     }
     if (narrow && !sessionState.readOnly) {
       items.push({ id: 'export', label: 'Export as .md', icon: 'download', run: onExport });
@@ -247,7 +249,13 @@
           onclick={onToggleBoard}
         />
       {/if}
-      {#if hasOutline && !narrow}
+      {#if !sessionState.readOnly && onTags}
+        <IconButton icon="tag" label="Tags" title="Saved tags and their colors" onclick={onTags} />
+      {/if}
+      <span class="wide">
+        <IconButton icon="download" label="Export as .md" onclick={onExport} />
+      </span>
+      {#if hasOutline}
         <span class="outline" bind:this={outlineButton}>
           <IconButton
             icon="outline"
@@ -257,19 +265,7 @@
           />
         </span>
       {/if}
-      {#if !sessionState.readOnly && onTags}
-        <IconButton icon="tag" label="Tags" title="Saved tags and their colors" onclick={onTags} />
-      {/if}
-      <span class="wide">
-        <IconButton icon="download" label="Export as .md" onclick={onExport} />
-      </span>
       {#if !sessionState.readOnly}
-        <IconButton
-          icon="pin"
-          label={pinned ? 'Unpin note' : 'Pin note'}
-          pressed={pinned}
-          onclick={onTogglePin}
-        />
         <span class="wide">
           <IconButton icon="trash" label="Delete note" title="Move to trash" onclick={onDelete} />
         </span>
@@ -318,7 +314,7 @@
     <Menu
       items={outlineItems}
       label="Outline"
-      anchor={narrow ? moreButton : outlineButton}
+      anchor={outlineButton}
       current={outlineCurrent}
       focusOnOpen
       onSelect={(heading) => {
