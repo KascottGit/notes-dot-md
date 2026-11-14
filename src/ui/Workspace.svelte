@@ -1084,6 +1084,33 @@
   }
 
   /**
+   * Move a note to another category (dragged onto its chip in the list). The
+   * list shows it there at once; Undo moves it back.
+   */
+  async function moveToCategory(note: Note, folderId: string, undo = true) {
+    const current = notes.find((n) => n.id === note.id) ?? note;
+    if (current.folderId === folderId) return;
+    const name = categories.find((c) => c.id === folderId)?.name ?? '';
+    replaceNote({ ...current, folderId });
+    try {
+      const moved = await moveNote(drive, current, folderId);
+      replaceNote(moved);
+      toast = undo
+        ? {
+            message: `Moved "${moved.title}" to ${name}`,
+            action: {
+              label: 'Undo',
+              run: () => void moveToCategory(moved, current.folderId, false),
+            },
+          }
+        : null;
+    } catch (err) {
+      replaceNote(current);
+      toast = { message: `Couldn't move "${current.title}": ${message(err)}` };
+    }
+  }
+
+  /**
    * Duplicate the open note or board: a new file next to it, "<title> copy",
    * with the text as it is in the editor and the same saved tags (not the
    * pin). Its images are copied too, so each note has its own. Opens the copy.
@@ -1397,6 +1424,7 @@
       onDeleteCategory={deleteCategory}
       onTogglePin={togglePin}
       onDeleteNote={deleteNote}
+      onMoveNote={(note, folderId) => void moveToCategory(note, folderId)}
     />
   </aside>
 

@@ -16,6 +16,13 @@
     disabled?: boolean;
     /** A tag chip: the tag (without `#`), so its picked color applies. */
     tag?: string | undefined;
+    /** Something can be dropped on it (a note dragged onto a category): what it stands for. */
+    dropId?: string | undefined;
+    /**
+     * While something is dragged: 'ready' takes the drop, 'over' has it under
+     * the pointer, 'off' doesn't take it (faded).
+     */
+    drop?: 'ready' | 'over' | 'off' | undefined;
     onclick: () => void;
   }
 
@@ -28,6 +35,8 @@
     ariaLabel,
     disabled = false,
     tag,
+    dropId,
+    drop,
     onclick,
   }: Props = $props();
 </script>
@@ -38,6 +47,10 @@
   class:add={variant === 'add'}
   class:tag={tag !== undefined}
   data-tag={tag?.toLowerCase()}
+  data-drop={dropId}
+  class:ready={drop === 'ready'}
+  class:over={drop === 'over'}
+  class:off={drop === 'off'}
   aria-pressed={variant === 'add' ? undefined : active}
   aria-label={ariaLabel}
   title={title ?? label}
@@ -130,5 +143,35 @@
 
   .chip:disabled {
     opacity: 0.6;
+  }
+
+  /* While a note is dragged: where it can go, where it will go, and where not. */
+  .chip.ready {
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+
+  .chip.over {
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+    transform: scale(1.06);
+  }
+
+  .chip.over .count {
+    color: inherit;
+  }
+
+  .chip.off {
+    opacity: 0.4;
+  }
+
+  .chip.ready,
+  .chip.over,
+  .chip.off {
+    transition:
+      background-color 120ms ease,
+      color 120ms ease,
+      opacity 120ms ease,
+      transform 120ms ease;
   }
 </style>

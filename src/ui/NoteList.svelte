@@ -48,6 +48,8 @@
     onDeleteCategory: (category: Category) => void;
     onTogglePin: (note: Note) => void;
     onDeleteNote: (note: Note) => void;
+    /** A note dragged onto a category chip. */
+    onMoveNote: (note: Note, folderId: string) => void;
   }
 
   let {
@@ -74,6 +76,7 @@
     onDeleteCategory,
     onTogglePin,
     onDeleteNote,
+    onMoveNote,
   }: Props = $props();
 
   const counts = $derived(countByCategory(notes));
@@ -95,6 +98,167 @@
   let newOpen = $state(false);
   let newButton = $state<HTMLButtonElement>();
 
+  // ---------------------------------------------------------- Drag onto a category
+
+  /** Touch: hold this long (without moving) before a note starts to drag, so scrolling still works. */
+  const HOLD_MS = 300;
+  const SLOP = 8;
+
+  let nav = $state<HTMLElement>();
+  let press: {
+    note: Note;
+    pointerId: number;
+    x: number;
+    y: number;
+    touch: boolean;
+    timer: ReturnType<typeof setTimeout> | null;
+  } | null = null;
+  /** The note being dragged, its ghost's place, and the category under the pointer. */
+  let dragNote = $state<Note | null>(null);
+  let ghost = $state({ x: 0, y: 0, touch: false });
+  let overId = $state<string | null>(null);
+  let frame = 0;
+  const overName = $derived(overId ? categoryName(overId) : '');
+  let ghostEl = $state<HTMLElement>();
+  /**
+   * Where the ghost goes, kept on the screen: with a mouse below and right of
+   * the pointer, like a cursor label; on touch above the finger, which would
+   * hide it.
+   */
+  const ghostAt = $derived.by(() => {
+    const w = ghostEl?.offsetWidth ?? 0;
+    const h = ghostEl?.offsetHeight ?? 0;
+    const x = ghost.touch ? ghost.x - w / 2 : ghost.x + 14;
+    const y = ghost.touch ? ghost.y - h - 36 : ghost.y + 14;
+    return {
+      x: Math.max(8, Math.min(x, window.innerWidth - w - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - h - 8)),
+    };
+  });
+
+  /** How a chip looks while a note is dragged (nothing when none is). */
+  function dropState(id: string | null): 'ready' | 'over' | 'off' | undefined {
+    if (!dragNote) return undefined;
+    if (id === null || id === dragNote.folderId) return 'off';
+    return id === overId ? 'over' : 'ready';
+  }
+
+  function startPress(event: PointerEvent, note: Note) {
+    if (!note.canEdit || event.button !== 0 || press || dragNote) return;
+    const touch = event.pointerType !== 'mouse';
+    if (!touch) event.preventDefault(); // No text selection while dragging.
+    press = {
+      note,
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      touch,
+      timer: null,
+    };
+    if (touch) press.timer = setTimeout(() => press && beginDrag(press.x, press.y), HOLD_MS);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', stopDrag);
+    window.addEventListener('touchmove', blockScroll, { passive: false });
+    window.addEventListener('keydown', onKeydown);
+  }
+
+  function beginDrag(x: number, y: number) {
+    if (!press) return;
+    if (press.timer) clearTimeout(press.timer);
+    dragNote = press.note;
+    ghost = { x, y, touch: press.touch };
+    press = null;
+    document.getSelection()?.removeAllRanges();
+    navigator.vibrate?.(10);
+    frame = requestAnimationFrame(autoScroll);
+  }
+
+  function onPointerMove(event: PointerEvent) {
+    if (dragNote) {
+      ghost = { ...ghost, x: event.clientX, y: event.clientY };
+      overId = categoryAt(event.clientX, event.clientY);
+      return;
+    }
+    if (!press || event.pointerId !== press.pointerId) return;
+    const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
+    if (press.touch) {
+      if (moved > SLOP) stopDrag(); // A scroll or a swipe, not a hold.
+    } else if (moved > 5) {
+      beginDrag(press.x, press.y);
+      onPointerMove(event);
+    }
+  }
+
+  function onPointerUp() {
+    const note = dragNote;
+    const to = overId;
+    stopDrag();
+    if (!note) return; // A plain tap or click: it opens the note as usual.
+    // The release must not also open the note it started on.
+    const swallow = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener('click', swallow, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', swallow, true), 0);
+    if (to) onMoveNote(note, to);
+  }
+
+  function onKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') stopDrag();
+  }
+
+  /** Once a drag runs, the list must not scroll under the finger. */
+  function blockScroll(event: TouchEvent) {
+    if (dragNote && event.cancelable) event.preventDefault();
+  }
+
+  function stopDrag() {
+    if (press?.timer) clearTimeout(press.timer);
+    press = null;
+    dragNote = null;
+    overId = null;
+    cancelAnimationFrame(frame);
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', stopDrag);
+    window.removeEventListener('touchmove', blockScroll);
+    window.removeEventListener('keydown', onKeydown);
+  }
+
+  /** The category chip under a point, unless it is the note's own category. */
+  function categoryAt(x: number, y: number): string | null {
+    const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-drop]');
+    const id = el?.dataset['drop'] ?? null;
+    return id && id !== dragNote?.folderId ? id : null;
+  }
+
+  /** On phones the chips scroll sideways: near the row's ends, it scrolls on. */
+  function autoScroll() {
+    if (!dragNote) return;
+    const row = nav?.querySelector<HTMLElement>('[data-drop]')?.parentElement;
+    if (row && row.scrollWidth > row.clientWidth) {
+      const r = row.getBoundingClientRect();
+      const { x, y } = ghost;
+      if (y > r.top - 24 && y < r.bottom + 24) {
+        const before = row.scrollLeft;
+        if (x < r.left + 48) row.scrollLeft -= 8;
+        else if (x > r.right - 48) row.scrollLeft += 8;
+        if (row.scrollLeft !== before) overId = categoryAt(x, y);
+      }
+    }
+    frame = requestAnimationFrame(autoScroll);
+  }
+
+  /** Puts the ghost on the page itself, so a sliding (transformed) list can't move it. */
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return { destroy: () => node.remove() };
+  }
+
+  $effect(() => stopDrag);
+
   function when(note: Note): string {
     const iso = sort === 'created' ? note.createdTime : note.modifiedTime;
     const date = new Date(iso);
@@ -106,16 +270,22 @@
 {#snippet row(note: Note)}
   <SwipeItem
     pinned={isPinned(note)}
-    disabled={!note.canEdit}
+    disabled={!note.canEdit || dragNote?.id === note.id}
     onPin={() => onTogglePin(note)}
     onDelete={() => onDeleteNote(note)}
   >
-    <div class="row reveal-host" class:selected={note.id === selectedNoteId}>
+    <div
+      class="row reveal-host"
+      class:selected={note.id === selectedNoteId}
+      class:dragged={dragNote?.id === note.id}
+    >
+      <!-- Drag it (press and hold on touch screens) onto a category chip to move it there. -->
       <button
         class="item"
         aria-current={note.id === selectedNoteId ? 'true' : undefined}
         title={note.title}
         onclick={() => onOpen(note)}
+        onpointerdown={(e) => startPress(e, note)}
       >
         <span class="title">
           {#if isPinned(note)}
@@ -167,7 +337,7 @@
   </SwipeItem>
 {/snippet}
 
-<nav class="list" aria-label="Notes">
+<nav class="list" aria-label="Notes" bind:this={nav}>
   <div class="top">
     <input
       class="search"
@@ -209,6 +379,7 @@
       label="All notes"
       count={loading ? undefined : notes.length}
       active={selectedCategory === null}
+      drop={dropState(null)}
       onclick={() => onSelectCategory(null)}
     />
     {#each categories as c (c.id)}
@@ -216,6 +387,8 @@
         label={c.name}
         count={counts.get(c.id) ?? 0}
         active={selectedCategory === c.id}
+        dropId={c.id}
+        drop={dropState(c.id)}
         onclick={() => onSelectCategory(c.id)}
       />
     {/each}
@@ -224,6 +397,7 @@
       variant="add"
       ariaLabel="New category"
       disabled={loading}
+      drop={dropState(null)}
       onclick={onNewCategory}
     />
   </ChipRow>
@@ -323,6 +497,24 @@
     </div>
   {/if}
 </nav>
+
+{#if dragNote}
+  <div
+    class="ghost"
+    bind:this={ghostEl}
+    use:portal
+    style:transform={`translate(${ghostAt.x}px, ${ghostAt.y}px)`}
+    aria-hidden="true"
+  >
+    <span class="ghost-title">
+      <Icon name={isBoardNote(dragNote) ? 'board' : 'text'} size={14} />
+      <span>{dragNote.title}</span>
+    </span>
+    <span class="ghost-to" class:none={!overName}>
+      {overName ? `Move to ${overName}` : 'Drop on a category'}
+    </span>
+  </div>
+{/if}
 
 <style>
   .list {
@@ -489,7 +681,57 @@
     }
   }
 
+  /* The note being dragged stays in place, faded. */
+  .row.dragged {
+    opacity: 0.4;
+  }
+
+  /* A label that follows the pointer while a note is dragged onto a category. */
+  .ghost {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: min(260px, calc(100vw - 32px));
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
+    font-size: 0.875rem;
+    pointer-events: none;
+  }
+
+  .ghost-title {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+    font-weight: 500;
+  }
+
+  .ghost-title > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ghost-to {
+    color: var(--accent);
+    font-size: 0.8125rem;
+  }
+
+  .ghost-to.none {
+    color: var(--text-muted);
+  }
+
   .item {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
     display: flex;
     flex-direction: column;
     gap: 2px;
