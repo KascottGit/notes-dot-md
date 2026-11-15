@@ -8,6 +8,7 @@ import {
   createFolder,
   createNote,
   ensureFolders,
+  findRootFolder,
   FOLDER_MIME,
   folderContents,
   getNote,
@@ -143,6 +144,27 @@ describe('ensureFolders', () => {
 
     storage.setItem('mdnotes.rootId', 'missing');
     expect((await ensureFolders(drive, storage)).rootId).toBe('real');
+  });
+});
+
+describe('findRootFolder', () => {
+  it('finds Notes/ and creates nothing', async () => {
+    const { drive, files } = fakeDrive([
+      { id: 'newer', name: 'Notes', mimeType: FOLDER_MIME, createdTime: '2026-02-01T00:00:00Z' },
+      { id: 'older', name: 'Notes', mimeType: FOLDER_MIME, createdTime: '2025-01-01T00:00:00Z' },
+      { id: 'inbox', name: 'Inbox', mimeType: FOLDER_MIME, parents: ['older'] },
+    ]);
+    expect(await findRootFolder(drive)).toBe('older');
+    expect(files.size).toBe(3);
+    expect(files.get('inbox')!.name).toBe('Inbox');
+  });
+
+  it('is null when there is no Notes/ yet', async () => {
+    const { drive, files } = fakeDrive([
+      { id: 'old', name: 'Notes', mimeType: FOLDER_MIME, parents: ['root'], trashed: true },
+    ]);
+    expect(await findRootFolder(drive)).toBeNull();
+    expect(files.size).toBe(1);
   });
 });
 

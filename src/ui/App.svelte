@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '../auth/google';
-  import { drive } from '../drive/client';
+  import { drive } from '../drive/appDrive';
   import { getAccount, type Account } from '../drive/account';
   import { clearFolderCache } from '../drive/notes';
   import { safeLocalStorage } from '../store/storage';

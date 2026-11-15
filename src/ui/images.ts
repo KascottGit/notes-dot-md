@@ -2,7 +2,7 @@
  * Card images (SPEC "Image attachments on cards"): getting them ready for
  * upload, and showing Drive images, which are not public, from memory.
  */
-import { drive } from '../drive/client';
+import { drive } from '../drive/appDrive';
 import { readFileBlob, uploadImage } from '../drive/notes';
 
 /** Longest side and size above which a photo is scaled down before upload. */

@@ -5,7 +5,7 @@ How to work in this repo. **What to build is in `SPEC.md`: read the relevant sec
 ## Golden rules
 
 1. **The document is always plain markdown.** The live-preview editor only *decorates* text (CodeMirror decorations). Never transform, normalize or re-serialize the document text to render it. Copy, export and Drive all see the exact same string.
-2. **No backend.** Everything runs in the browser. Do not add a server, database or serverless function without asking. The one approved exception is the Claude connector planned in SPEC.md ("Route C", M10): a separate worker the app never depends on.
+2. **No backend.** Everything runs in the browser. Do not add a server, database or serverless function without asking. The one approved exception is the notes.md connector planned in SPEC.md (M10): a separate worker the app never depends on.
 3. **Never lose user text.** On any save or auth failure, keep the text in the editor and show an error state. Never overwrite a newer Drive version silently (see "Saving and conflict handling" in SPEC.md).
 4. **Never hard-delete.** Deleting a note, category, card image or other file moves it to the Drive trash (`trashed: true`). The app never deletes a file for good, not even from the trash (owner decision, 2026-11-03): that is done in Drive.
 5. **Access tokens stay in memory.** Never write tokens to `localStorage`, `sessionStorage`, cookies or logs.
@@ -25,7 +25,8 @@ How to work in this repo. **What to build is in `SPEC.md`: read the relevant sec
 ```
 src/
   auth/google.ts         redirect sign-in, getToken(), renewal
-  drive/client.ts        fetch wrapper: auth header, retries, 401 handling
+  drive/client.ts        fetch wrapper: auth header, retries, 401 handling (no browser code)
+  drive/appDrive.ts      the app's Drive client, signed in with auth/google.ts
   drive/notes.ts         notes, categories and images in Drive; folder bootstrap
   drive/names.ts         file names and query quoting
   drive/fakeDrive.ts     an in-memory Drive for tests (and visual checks)

@@ -2,10 +2,11 @@
  * The only place that talks to the Drive API. Adds the auth header and, on a
  * 401, renews the token and retries the request once.
  *
+ * Free of browser code, so the connector worker can use it with its own token
+ * source. The app's client, signed in with `auth/google.ts`, is in `appDrive.ts`.
+ *
  * Network retries with backoff for saves come with the save logic (M3).
  */
-import { auth } from '../auth/google';
-
 export const GOOGLE_API = 'https://www.googleapis.com';
 
 export interface TokenSource {
@@ -68,5 +69,3 @@ async function readError(res: Response): Promise<string> {
   }
   return `Drive request failed (${res.status}${res.statusText ? ` ${res.statusText}` : ''})`;
 }
-
-export const drive = createDriveClient(auth);

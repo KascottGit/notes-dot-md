@@ -4,7 +4,7 @@
   import { redo, undo } from '@codemirror/commands';
   import type { StateCommand } from '@codemirror/state';
   import { auth } from '../auth/google';
-  import { drive } from '../drive/client';
+  import { drive } from '../drive/appDrive';
   import { sanitizeCategoryName } from '../drive/names';
   import {
     createFolder,
@@ -25,6 +25,7 @@
     renameFolder,
     renameNote,
     setNoteProperties,
+    propertyChanges,
     setTrashed,
     type TrashedNote,
     setPinned,
@@ -72,12 +73,7 @@
     sortCategories,
     type SortOrder,
   } from '../store/noteList';
-  import {
-    NoteSession,
-    propertyChanges,
-    type ConflictChoice,
-    type SessionState,
-  } from '../store/noteSession';
+  import { NoteSession, type ConflictChoice, type SessionState } from '../store/noteSession';
   import { clearStash, readStash, saveStash, type Stash } from '../store/stash';
   import { safeLocalStorage } from '../store/storage';
   import { loadListCache, saveListCache } from '../store/listCache';

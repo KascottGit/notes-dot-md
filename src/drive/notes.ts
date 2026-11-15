@@ -8,6 +8,8 @@
  * Notes are identified by Drive file id, never by path or title.
  * Nothing is ever hard-deleted: delete means `trashed: true`.
  */
+import { isBoard } from '../editor/board';
+import { previewText } from '../editor/markdown';
 import type { StorageLike } from '../store/storage';
 import type { DriveClient } from './client';
 import {
@@ -193,6 +195,15 @@ export async function ensureFolders(
       : await createFolder(drive, rootId, DEFAULT_FOLDER_NAME);
   }
   return { rootId, defaultId: general.id };
+}
+
+/**
+ * Find `Notes/` without creating or changing anything, for tools other than
+ * the app (the connector). Null if there is none yet. Picks the same folder
+ * as `ensureFolders` when there are several.
+ */
+export async function findRootFolder(drive: DriveClient): Promise<string | null> {
+  return (await findFolder(drive, 'root', ROOT_FOLDER_NAME))?.id ?? null;
 }
 
 /** Forget the cached root id, e.g. on sign out. */
@@ -555,6 +566,27 @@ export const PREVIEW_MAX_BYTES = 124 - 'preview'.length;
 /** The first words of the note, stored on the file when the app saves it. '' if none. */
 export function notePreview(note: Note): string {
   return note.appProperties['preview'] ?? '';
+}
+
+/**
+ * App properties that follow from a note's text and differ from what the file
+ * has: the board type and the preview line for the list (none for boards).
+ * A `tags` list from an earlier version is removed. Sent along with every
+ * save, by the app and by the connector.
+ */
+export function propertyChanges(note: Note, text: string): PropertyChanges {
+  const board = isBoard(text);
+  const preview = board ? '' : previewText(text, note.title, PREVIEW_MAX_BYTES);
+  const wanted: PropertyChanges = {
+    type: board ? 'board' : null,
+    preview: preview || null,
+    tags: null,
+  };
+  const changes: PropertyChanges = {};
+  for (const [key, value] of Object.entries(wanted)) {
+    if ((note.appProperties[key] ?? null) !== value) changes[key] = value;
+  }
+  return changes;
 }
 
 /**

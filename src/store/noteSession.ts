@@ -11,35 +11,12 @@ import {
   createNote,
   getNote,
   getNoteVersion,
-  PREVIEW_MAX_BYTES,
   readNote,
   saveNote,
+  propertyChanges,
   type Note,
-  type PropertyChanges,
 } from '../drive/notes';
-import { isBoard } from '../editor/board';
-import { previewText } from '../editor/markdown';
 import { mergeText } from '../editor/merge';
-
-/**
- * App properties that follow from a note's text and differ from what the file
- * has: the board type and the preview line for the list (none for boards).
- * A `tags` list from an earlier version is removed.
- */
-export function propertyChanges(note: Note, text: string): PropertyChanges {
-  const board = isBoard(text);
-  const preview = board ? '' : previewText(text, note.title, PREVIEW_MAX_BYTES);
-  const wanted: PropertyChanges = {
-    type: board ? 'board' : null,
-    preview: preview || null,
-    tags: null,
-  };
-  const changes: PropertyChanges = {};
-  for (const [key, value] of Object.entries(wanted)) {
-    if ((note.appProperties[key] ?? null) !== value) changes[key] = value;
-  }
-  return changes;
-}
 
 export const AUTOSAVE_DELAY_MS = 2000;
 export const RETRY_DELAYS_MS = [2000, 5000, 15000];

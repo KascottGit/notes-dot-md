@@ -38,7 +38,7 @@
   } from '../editor/board';
   import type { Heading, Outline } from '../editor/outline';
   import type { Editor } from '../editor/setup';
-  import { drive } from '../drive/client';
+  import { drive } from '../drive/appDrive';
   import { setTrashed } from '../drive/notes';
   import ArchiveDialog from './ArchiveDialog.svelte';
   import AttachmentsDialog from './AttachmentsDialog.svelte';
